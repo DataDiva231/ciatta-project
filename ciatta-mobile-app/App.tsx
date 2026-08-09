@@ -230,6 +230,7 @@ export default function App() {
               activeCuriosity={activeCuriosity}
               onAnswerCuriosity={handleAnswerCuriosity}
               hasPendingDiscovery={hasPendingDiscovery}
+              understandings={understandings}
               preferredName={profile.preferred_name || profile.name || ''}
             />
           )}

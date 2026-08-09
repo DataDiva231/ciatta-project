@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { colors, fonts } from '../theme/tokens';
 import type { ActiveCuriosity } from '../lib/curiosity';
+import type { UnderstandingRow } from '../lib/queries';
+import { domainLabel } from '../lib/mockData';
 import ScreenContainer from '../components/ScreenContainer';
 import EditorialHeader from '../components/EditorialHeader';
 import BodySilhouette from '../components/BodySilhouette';
@@ -19,16 +21,27 @@ export default function TodayScreen({
   activeCuriosity,
   onAnswerCuriosity,
   hasPendingDiscovery,
+  understandings,
   preferredName,
 }: {
   onOpenDiscoveryNudge: () => void;
   activeCuriosity: ActiveCuriosity | null;
   onAnswerCuriosity: (answer: string) => Promise<void>;
   hasPendingDiscovery: boolean;
+  understandings: UnderstandingRow[];
   preferredName: string;
 }) {
   const [answered, setAnswered] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // The most recently updated Understanding is "today's" — whatever the
+  // engine last touched is the freshest thing to feature.
+  const featured =
+    understandings.length > 0
+      ? [...understandings].sort(
+          (a, b) => new Date(b.last_updated).getTime() - new Date(a.last_updated).getTime()
+        )[0]
+      : null;
 
   async function handleAnswer(answer: string) {
     setSubmitError(null);
@@ -50,16 +63,28 @@ export default function TodayScreen({
       />
 
       <View style={styles.hero}>
-        <BodySilhouette variant="today" crop={0.75} />
+        <BodySilhouette variant="today" crop={0.75} activeDomain={featured?.domain} />
       </View>
 
       <Card style={styles.heroCard}>
         <Text style={styles.label}>TODAY'S UNDERSTANDING</Text>
-        <Text style={styles.headline}>I'm just getting to know you.</Text>
-        <Text style={styles.body}>
-          I haven't observed enough yet to notice a pattern. As you share more
-          and connect your data, I'll start sharing what I understand here.
-        </Text>
+        {featured ? (
+          <>
+            <Text style={styles.headline}>
+              What I'm noticing about your {domainLabel[featured.domain].toLowerCase()}.
+            </Text>
+            <Text style={styles.body}>{featured.narrative}</Text>
+          </>
+        ) : (
+          <>
+            <Text style={styles.headline}>I'm just getting to know you.</Text>
+            <Text style={styles.body}>
+              I haven't observed enough yet to notice a pattern. As you share
+              more and connect your data, I'll start sharing what I understand
+              here.
+            </Text>
+          </>
+        )}
       </Card>
 
       <View style={styles.section}>
