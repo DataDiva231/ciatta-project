@@ -19,12 +19,13 @@ import {
   buildRelationship,
   buildDiscovery,
   type EnergyObservation,
+  type RatingObservation,
 } from './energyRelationship.ts';
 import {
   analyzeSleep,
   buildSleepUnderstanding,
-  analyzeSleepEnergyRelationship,
-  buildSleepEnergyDiscovery,
+  analyzeSleepRatingRelationship,
+  buildSleepRatingDiscovery,
   type SleepObservation,
 } from './sleepAnalysis.ts';
 
@@ -43,6 +44,7 @@ interface LoadedObservations {
   flow: FlowObservation[];
   rhr: RhrObservation[];
   energy: EnergyObservation[];
+  mood: RatingObservation[];
   sleep: SleepObservation[];
 }
 
@@ -58,6 +60,7 @@ async function loadObservations(
       'resting_heart_rate',
       'menstrual_flow',
       'energy_rating',
+      'mood_rating',
       'sleep_session',
       'sleep_segment',
     ])
@@ -69,6 +72,7 @@ async function loadObservations(
   const flow: FlowObservation[] = [];
   const rhr: RhrObservation[] = [];
   const energy: EnergyObservation[] = [];
+  const mood: RatingObservation[] = [];
   const sleep: SleepObservation[] = [];
 
   for (const row of rows) {
@@ -88,6 +92,11 @@ async function loadObservations(
       if (typeof rating === 'number') {
         energy.push({ id: row.id, recordedAt: row.recorded_at, rating });
       }
+    } else if (row.type === 'mood_rating') {
+      const rating = row.value?.rating;
+      if (typeof rating === 'number') {
+        mood.push({ id: row.id, recordedAt: row.recorded_at, rating });
+      }
     } else if (row.type === 'sleep_session' || row.type === 'sleep_segment') {
       const durationMinutes = row.value?.durationMinutes;
       const startTime = row.context?.startTime;
@@ -104,7 +113,7 @@ async function loadObservations(
     }
   }
 
-  return { flow, rhr, energy, sleep };
+  return { flow, rhr, energy, mood, sleep };
 }
 
 interface UnderstandingDraftLike {
@@ -187,8 +196,12 @@ interface DiscoveryDraftLike {
 }
 
 /** Upserts the Relationship and, once strongly corroborated, mints a
- * Discovery exactly once (checked against existing ones by understanding
- * id, so repeated nightly runs never duplicate it). */
+ * Discovery exactly once. Dedup checks both understanding_ids AND the exact
+ * narrative — one Understanding can feed multiple distinct Relationships
+ * (e.g. sleep -> energy and sleep -> mood both stem from the 'sleep'
+ * Understanding), so understanding_ids alone would let the first
+ * Discovery's presence silently block every other real one from the same
+ * source. */
 async function upsertRelationshipAndDiscovery(
   supabase: ReturnType<typeof createClient>,
   userId: string,
@@ -220,6 +233,7 @@ async function upsertRelationshipAndDiscovery(
     .from('discoveries')
     .select('id')
     .eq('user_id', userId)
+    .eq('narrative', discoveryDraft.narrative)
     .contains('understanding_ids', [understandingId])
     .maybeSingle();
   if (discoveryFetchError) throw discoveryFetchError;
@@ -318,25 +332,41 @@ async function processSleepDomain(
     }
   );
 
-  const relResult = analyzeSleepEnergyRelationship(obs.sleep, obs.energy);
-  const discoveryDraft = buildSleepEnergyDiscovery(relResult);
-  const { relationshipWritten, discoveryWritten } = await upsertRelationshipAndDiscovery(
-    supabase,
-    userId,
-    'sleep',
-    'energy',
-    understandingId,
-    relResult.eligible ? strengthForConfidence(relResult.confidence) : null,
-    relResult.confidence,
-    discoveryDraft
-  );
+  // Energy and mood are collected identically (same 1-4 curiosity scale),
+  // so the same relationship test runs against each independently — a
+  // short night can predict one, both, or neither, and each gets its own
+  // Relationship row rather than being conflated.
+  const ratingSources: { toDomain: 'energy' | 'mood'; observations: RatingObservation[] }[] = [
+    { toDomain: 'energy', observations: obs.energy },
+    { toDomain: 'mood', observations: obs.mood },
+  ];
+
+  const relationshipResults: Record<
+    'energy' | 'mood',
+    { relationshipWritten: boolean; discoveryWritten: boolean }
+  > = { energy: { relationshipWritten: false, discoveryWritten: false }, mood: { relationshipWritten: false, discoveryWritten: false } };
+
+  for (const source of ratingSources) {
+    const relResult = analyzeSleepRatingRelationship(obs.sleep, source.observations);
+    const discoveryDraft = buildSleepRatingDiscovery(relResult, source.toDomain);
+    relationshipResults[source.toDomain] = await upsertRelationshipAndDiscovery(
+      supabase,
+      userId,
+      'sleep',
+      source.toDomain,
+      understandingId,
+      relResult.eligible ? strengthForConfidence(relResult.confidence) : null,
+      relResult.confidence,
+      discoveryDraft
+    );
+  }
 
   return {
     wrote: true,
     strength: draft.strength,
     confidence: result.confidence,
-    relationshipWritten,
-    discoveryWritten,
+    energy: relationshipResults.energy,
+    mood: relationshipResults.mood,
   };
 }
 

@@ -20,6 +20,12 @@ export interface EnergyObservation {
   rating: number; // 1 (Low) .. 4 (Great)
 }
 
+// The 1-4 rating scale is shared by every curiosity-sourced subjective
+// signal (energy, mood, ...), so this shape is reused verbatim rather than
+// duplicated — kept as an alias here (not renaming EnergyObservation) so
+// this file's own cycle -> energy usage stays unambiguous.
+export type RatingObservation = EnergyObservation;
+
 interface EnergyPhaseDelta {
   cycleIndex: number;
   sufficientData: boolean;
