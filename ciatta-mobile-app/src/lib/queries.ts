@@ -83,6 +83,21 @@ export async function fetchDiscoveries(userId: string): Promise<DiscoveryRow[]> 
   return (data ?? []) as DiscoveryRow[];
 }
 
+// "Connected" here means real synced data exists, not just that the user
+// once tapped through the permission flow — a revoked OS-level permission
+// stops producing new observations, but doesn't retroactively make this
+// false, which matches how every other "connected" status in this app
+// already means "there's real data," not "a flag was set once."
+export async function hasHealthSourceObservations(userId: string): Promise<boolean> {
+  const { count, error } = await supabase
+    .from('observations')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .in('source', ['health-connect', 'apple-health']);
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+
 export async function nameDiscovery(
   userId: string,
   discoveryId: string,

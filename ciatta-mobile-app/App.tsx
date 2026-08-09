@@ -20,6 +20,7 @@ import {
   fetchRelationships,
   fetchUnderstandingHistory,
   fetchUnderstandings,
+  hasHealthSourceObservations,
   nameDiscovery,
   type DiscoveryRow,
   type RelationshipRow,
@@ -65,6 +66,7 @@ export default function App() {
   const [understandingHistory, setUnderstandingHistory] = useState<UnderstandingHistoryRow[]>([]);
   const [discoveries, setDiscoveries] = useState<DiscoveryRow[]>([]);
   const [activeCuriosity, setActiveCuriosity] = useState<ActiveCuriosity | null>(null);
+  const [healthSourceConnected, setHealthSourceConnected] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [completeError, setCompleteError] = useState<string | null>(null);
@@ -92,13 +94,14 @@ export default function App() {
   const loadUserData = useCallback(async (userId: string) => {
     setDataLoading(true);
     try {
-      const [p, u, r, h, d, c] = await Promise.all([
+      const [p, u, r, h, d, c, hc] = await Promise.all([
         fetchProfile(userId),
         fetchUnderstandings(userId),
         fetchRelationships(userId),
         fetchUnderstandingHistory(userId),
         fetchDiscoveries(userId),
         fetchActiveCuriosity(userId),
+        hasHealthSourceObservations(userId),
       ]);
       setProfile(p);
       setUnderstandings(u);
@@ -106,6 +109,7 @@ export default function App() {
       setUnderstandingHistory(h);
       setDiscoveries(d);
       setActiveCuriosity(c);
+      setHealthSourceConnected(hc);
     } finally {
       setDataLoading(false);
     }
@@ -121,6 +125,7 @@ export default function App() {
       setUnderstandingHistory([]);
       setDiscoveries([]);
       setActiveCuriosity(null);
+      setHealthSourceConnected(false);
     }
   }, [session?.user?.id, loadUserData]);
 
@@ -248,6 +253,7 @@ export default function App() {
           {tab === 'you' && (
             <YouScreen
               profile={profile}
+              healthSourceConnected={healthSourceConnected}
               onOpenRow={(section, row) => setRowSheet({ section, row })}
               onSignOut={handleSignOut}
             />

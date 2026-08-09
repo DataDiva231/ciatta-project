@@ -25,14 +25,21 @@ function ageFromDob(dob: string | null): number | null {
 
 export default function YouScreen({
   profile,
+  healthSourceConnected,
   onOpenRow,
   onSignOut,
 }: {
   profile: Profile;
+  healthSourceConnected: boolean;
   onOpenRow: (section: string, row: string) => void;
   onSignOut: () => void;
 }) {
   const displayName = profile.preferred_name || profile.name || 'You';
+  const connectionsWithRealStatus = connections.map((c) =>
+    c.id === 'health-source'
+      ? { ...c, status: healthSourceConnected ? ('connected' as const) : c.status }
+      : c
+  );
   const age = ageFromDob(profile.dob);
   const identityLine = profile.name
     ? age
@@ -101,12 +108,12 @@ export default function YouScreen({
       <Text style={styles.section}>YOUR CONNECTIONS</Text>
       <Text style={styles.sectionHint}>Connected data makes understanding stronger.</Text>
       <Card style={styles.groupCard}>
-        {connections.map((c, i) => (
+        {connectionsWithRealStatus.map((c, i) => (
           <DisclosureRow
             key={c.id}
             label={c.label}
             value={connectionStatusLabel[c.status]}
-            last={i === connections.length - 1}
+            last={i === connectionsWithRealStatus.length - 1}
             onPress={() => onOpenRow('connections', c.id)}
           />
         ))}
