@@ -34,6 +34,14 @@
       "expo-status-bar",
       "react-native-health-connect",
       [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "Ciatta reads your steps, heart rate, and sleep from Health so it can understand your body without asking the same questions twice.",
+          "NSHealthUpdateUsageDescription": "Ciatta reads your steps, heart rate, and sleep from Health so it can understand your body without asking the same questions twice.",
+          "background": false
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "android": {

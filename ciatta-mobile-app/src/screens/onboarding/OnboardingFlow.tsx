@@ -16,6 +16,7 @@ import GhostButton from '../../components/GhostButton';
 import Card from '../../components/Card';
 import { signIn, signUp } from '../../lib/auth';
 import { connectHealthConnect } from '../../lib/healthConnect';
+import { connectHealthKit } from '../../lib/healthKit';
 
 const TOTAL_STEPS = 12;
 
@@ -79,9 +80,7 @@ export default function OnboardingFlow({
   const [arcConnected, setArcConnected] = useState(false);
 
   async function handleConnectHealthSource() {
-    if (Platform.OS !== 'android' || !userId) {
-      // iOS HealthKit isn't wired up yet — keep the existing placeholder
-      // behavior rather than claim a connection that doesn't exist.
+    if (!userId || (Platform.OS !== 'android' && Platform.OS !== 'ios')) {
       setAppleHealthConnected(true);
       next();
       return;
@@ -89,13 +88,18 @@ export default function OnboardingFlow({
     setHealthConnecting(true);
     setHealthConnectNote(null);
     try {
-      const result = await connectHealthConnect(userId);
+      const result =
+        Platform.OS === 'android'
+          ? await connectHealthConnect(userId)
+          : await connectHealthKit(userId);
       if (result.granted) {
         setAppleHealthConnected(true);
         next();
       } else if (result.reason === 'unavailable') {
         setHealthConnectNote(
-          "Health Connect isn't installed on this device yet. Install it from the Play Store, then come back and connect."
+          Platform.OS === 'android'
+            ? "Health Connect isn't installed on this device yet. Install it from the Play Store, then come back and connect."
+            : "Apple Health isn't available on this device."
         );
       } else {
         setHealthConnectNote(
@@ -104,7 +108,7 @@ export default function OnboardingFlow({
       }
     } catch (e) {
       setHealthConnectNote(
-        e instanceof Error ? e.message : 'Something went wrong connecting Health Connect.'
+        e instanceof Error ? e.message : `Something went wrong connecting ${HEALTH_SOURCE_NAME}.`
       );
     } finally {
       setHealthConnecting(false);
