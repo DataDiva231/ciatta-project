@@ -20,7 +20,8 @@ type HealthConnectRecordType =
   | 'HeartRate'
   | 'SleepSession'
   | 'RestingHeartRate'
-  | 'MenstruationFlow';
+  | 'MenstruationFlow'
+  | 'HeartRateVariabilityRmssd';
 
 const READ_PERMISSIONS: { accessType: 'read'; recordType: HealthConnectRecordType }[] = [
   { accessType: 'read', recordType: 'Steps' },
@@ -28,6 +29,7 @@ const READ_PERMISSIONS: { accessType: 'read'; recordType: HealthConnectRecordTyp
   { accessType: 'read', recordType: 'SleepSession' },
   { accessType: 'read', recordType: 'RestingHeartRate' },
   { accessType: 'read', recordType: 'MenstruationFlow' },
+  { accessType: 'read', recordType: 'HeartRateVariabilityRmssd' },
 ];
 
 export async function isHealthConnectAvailable(): Promise<boolean> {
@@ -174,6 +176,29 @@ export async function syncHealthConnectData(userId: string): Promise<number> {
         type: 'menstrual_flow',
         value: { flow: menstruationFlowLabel(record.flow) },
         recordedAt: record.time,
+      });
+      count++;
+    }
+  } catch {
+    // Ignored — see above.
+  }
+
+  try {
+    const { records } = await readRecords('HeartRateVariabilityRmssd', {
+      timeRangeFilter: cycleHistoryFilter,
+    });
+    for (const record of records) {
+      await insertObservation(userId, {
+        source: 'health-connect',
+        type: 'hrv',
+        value: { ms: record.heartRateVariabilityMillis },
+        unit: 'ms',
+        recordedAt: record.time,
+        // RMSSD (Health Connect) and SDNN (HealthKit) are both real HRV
+        // metrics but computed differently — noted here rather than
+        // silently treated as identical, even though the engine currently
+        // reads them as one undifferentiated 'hrv' signal.
+        context: { metric: 'rmssd' },
       });
       count++;
     }

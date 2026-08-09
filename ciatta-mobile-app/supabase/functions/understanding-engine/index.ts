@@ -35,6 +35,14 @@ import {
   buildStepsRatingDiscovery,
   type StepsObservation,
 } from './stepsAnalysis.ts';
+import {
+  analyzeHrv,
+  buildHrvUnderstanding,
+  analyzeHrvRatingRelationship,
+  buildHrvRatingDiscovery,
+  type HrvObservation,
+} from './hrvAnalysis.ts';
+import { analyzeMood, buildMoodUnderstanding } from './moodAnalysis.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -54,6 +62,7 @@ interface LoadedObservations {
   mood: RatingObservation[];
   sleep: SleepObservation[];
   steps: StepsObservation[];
+  hrv: HrvObservation[];
 }
 
 async function loadObservations(
@@ -72,6 +81,7 @@ async function loadObservations(
       'sleep_session',
       'sleep_segment',
       'steps',
+      'hrv',
     ])
     .order('recorded_at', { ascending: true });
 
@@ -84,6 +94,7 @@ async function loadObservations(
   const mood: RatingObservation[] = [];
   const sleep: SleepObservation[] = [];
   const steps: StepsObservation[] = [];
+  const hrv: HrvObservation[] = [];
 
   for (const row of rows) {
     if (row.type === 'menstrual_flow') {
@@ -125,10 +136,15 @@ async function loadObservations(
       if (typeof count === 'number') {
         steps.push({ id: row.id, recordedAt: row.recorded_at, count });
       }
+    } else if (row.type === 'hrv') {
+      const ms = row.value?.ms;
+      if (typeof ms === 'number') {
+        hrv.push({ id: row.id, recordedAt: row.recorded_at, ms });
+      }
     }
   }
 
-  return { flow, rhr, energy, mood, sleep, steps };
+  return { flow, rhr, energy, mood, sleep, steps, hrv };
 }
 
 interface UnderstandingDraftLike {
@@ -403,23 +419,44 @@ async function processSleepDomain(
   };
 }
 
-/** Standalone 'recovery' Understanding from steps — until now 'recovery'
- * had no signal at all. Filed as recovery rather than energy specifically
- * so it can cleanly relate *to* energy/mood the same way cycle and sleep
- * do — filing it under 'energy' itself would make a steps -> energy
- * Relationship a nonsensical energy -> energy self-reference. */
+/** Standalone 'recovery' Understanding — until recently 'recovery' had no
+ * signal at all. Filed as recovery rather than energy specifically so it
+ * can cleanly relate *to* energy/mood the same way cycle and sleep do
+ * (filing it under 'energy' itself would make a recovery -> energy
+ * Relationship a nonsensical energy -> energy self-reference).
+ *
+ * HRV is the more direct physiological recovery signal, so it's
+ * authoritative whenever it's available; steps remains the fallback for
+ * users who haven't synced HRV yet (or whose device doesn't report it) —
+ * exactly the behavior this domain had before HRV ingestion existed. */
 async function processRecoveryDomain(
   supabase: ReturnType<typeof createClient>,
   userId: string,
   obs: LoadedObservations
 ) {
-  const result = analyzeSteps(obs.steps);
-  const draft = buildStepsUnderstanding(result);
-  if (!draft) return { wrote: false, reason: !result.eligible ? 'not-eligible' : 'no-data' };
+  const hrvResult = analyzeHrv(obs.hrv);
+  const hrvDraft = buildHrvUnderstanding(hrvResult);
+  const stepsResult = analyzeSteps(obs.steps);
+  const stepsDraft = buildStepsUnderstanding(stepsResult);
 
+  const usingHrv = hrvDraft !== null;
+  const draft = hrvDraft ?? stepsDraft;
+  if (!draft) {
+    return {
+      wrote: false,
+      reason: !hrvResult.eligible && !stepsResult.eligible ? 'not-eligible' : 'no-data',
+    };
+  }
+
+  const observationIds = usingHrv ? hrvResult.observationIds : stepsResult.observationIds;
+  const weight = usingHrv ? hrvResult.totalDays : stepsResult.totalDays;
+  const confidence = usingHrv ? hrvResult.confidence : stepsResult.confidence;
+  const sourceDates = usingHrv
+    ? obs.hrv.map((o) => o.recordedAt)
+    : obs.steps.map((o) => o.recordedAt);
   const firstDay =
-    obs.steps.length > 0
-      ? obs.steps.reduce((min, o) => (o.recordedAt < min ? o.recordedAt : min), obs.steps[0].recordedAt)
+    sourceDates.length > 0
+      ? sourceDates.reduce((min, d) => (d < min ? d : min), sourceDates[0])
       : null;
 
   const understandingId = await upsertUnderstanding(
@@ -427,13 +464,15 @@ async function processRecoveryDomain(
     userId,
     'recovery',
     draft,
-    result.observationIds,
-    result.totalDays,
-    result.confidence,
+    observationIds,
+    weight,
+    confidence,
     firstDay ? firstDay.slice(0, 10) : null,
     {
-      first: 'Noticed a pattern in how much you move day to day.',
-      changed: `This pattern has held across ${result.totalDays} days now.`,
+      first: usingHrv
+        ? 'Noticed a pattern in your heart rate variability.'
+        : 'Noticed a pattern in how much you move day to day.',
+      changed: `This pattern has held across ${weight} days now.`,
     }
   );
 
@@ -453,8 +492,12 @@ async function processRecoveryDomain(
   };
 
   for (const source of ratingSources) {
-    const relResult = analyzeStepsRatingRelationship(obs.steps, source.observations);
-    const discoveryDraft = buildStepsRatingDiscovery(relResult, source.toDomain);
+    const relResult = usingHrv
+      ? analyzeHrvRatingRelationship(obs.hrv, source.observations)
+      : analyzeStepsRatingRelationship(obs.steps, source.observations);
+    const discoveryDraft = usingHrv
+      ? buildHrvRatingDiscovery(relResult, source.toDomain)
+      : buildStepsRatingDiscovery(relResult, source.toDomain);
     relationshipResults[source.toDomain] = await upsertRelationshipAndDiscovery(
       supabase,
       userId,
@@ -469,21 +512,60 @@ async function processRecoveryDomain(
 
   return {
     wrote: true,
+    primarySignal: usingHrv ? 'hrv' : 'steps',
     strength: draft.strength,
-    confidence: result.confidence,
+    confidence,
     energy: relationshipResults.energy,
     mood: relationshipResults.mood,
   };
 }
 
+/** Standalone 'mood' Understanding — the last domain that was purely a
+ * Relationship target with nothing describing it on its own. No
+ * relationship/discovery step: mood_rating is already the *target* signal
+ * everywhere else, so a mood -> mood relationship would be as nonsensical
+ * as the energy -> energy one 'recovery' was designed to avoid. */
+async function processMoodDomain(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  obs: LoadedObservations
+) {
+  const result = analyzeMood(obs.mood);
+  const draft = buildMoodUnderstanding(result);
+  if (!draft) return { wrote: false, reason: !result.eligible ? 'not-eligible' : 'no-data' };
+
+  const firstAnswer =
+    obs.mood.length > 0
+      ? obs.mood.reduce((min, o) => (o.recordedAt < min ? o.recordedAt : min), obs.mood[0].recordedAt)
+      : null;
+
+  await upsertUnderstanding(
+    supabase,
+    userId,
+    'mood',
+    draft,
+    result.observationIds,
+    result.totalAnswers,
+    result.confidence,
+    firstAnswer ? firstAnswer.slice(0, 10) : null,
+    {
+      first: 'Noticed a pattern in how you report your mood.',
+      changed: `This pattern has held across ${result.totalAnswers} check-ins now.`,
+    }
+  );
+
+  return { wrote: true, strength: draft.strength, confidence: result.confidence };
+}
+
 async function processUser(supabase: ReturnType<typeof createClient>, userId: string) {
   const obs = await loadObservations(supabase, userId);
-  const [cycle, sleep, recovery] = await Promise.all([
+  const [cycle, sleep, recovery, mood] = await Promise.all([
     processCycleDomain(supabase, userId, obs),
     processSleepDomain(supabase, userId, obs),
     processRecoveryDomain(supabase, userId, obs),
+    processMoodDomain(supabase, userId, obs),
   ]);
-  return { userId, cycle, sleep, recovery };
+  return { userId, cycle, sleep, recovery, mood };
 }
 
 Deno.serve(async (req) => {
@@ -505,6 +587,8 @@ Deno.serve(async (req) => {
           'sleep_session',
           'sleep_segment',
           'steps',
+          'hrv',
+          'mood_rating',
         ]);
       if (error) throw error;
       userIds = [...new Set((data ?? []).map((r) => r.user_id as string))];

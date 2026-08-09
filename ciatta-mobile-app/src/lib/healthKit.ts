@@ -20,6 +20,7 @@ const READ_TYPES = [
   'HKQuantityTypeIdentifierStepCount',
   'HKQuantityTypeIdentifierHeartRate',
   'HKQuantityTypeIdentifierRestingHeartRate',
+  'HKQuantityTypeIdentifierHeartRateVariabilitySDNN',
   'HKCategoryTypeIdentifierSleepAnalysis',
   'HKCategoryTypeIdentifierMenstrualFlow',
 ] as const;
@@ -204,6 +205,30 @@ export async function syncHealthKitData(userId: string): Promise<number> {
         value: { flow: menstrualFlowLabel(sample.value) },
         recordedAt: sample.startDate.toISOString(),
         context: { cycleStart: sample.metadata.HKMenstrualCycleStart ?? null },
+      });
+      count++;
+    }
+  } catch {
+    // Ignored — see above.
+  }
+
+  try {
+    const samples = await queryQuantitySamples('HKQuantityTypeIdentifierHeartRateVariabilitySDNN', {
+      ...cycleHistoryFilter,
+      unit: 'ms',
+    });
+    for (const sample of samples) {
+      await insertObservation(userId, {
+        source: 'apple-health',
+        type: 'hrv',
+        value: { ms: sample.quantity },
+        unit: 'ms',
+        recordedAt: sample.endDate.toISOString(),
+        // SDNN (HealthKit) and RMSSD (Health Connect) are both real HRV
+        // metrics but computed differently — noted here rather than
+        // silently treated as identical, even though the engine currently
+        // reads them as one undifferentiated 'hrv' signal.
+        context: { metric: 'sdnn' },
       });
       count++;
     }
