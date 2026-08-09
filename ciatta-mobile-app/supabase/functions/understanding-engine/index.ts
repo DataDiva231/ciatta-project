@@ -12,6 +12,12 @@ import {
   type FlowObservation,
   type RhrObservation,
 } from './cycleAnalysis.ts';
+import {
+  analyzeEnergyRelationship,
+  buildRelationship,
+  buildDiscovery,
+  type EnergyObservation,
+} from './energyRelationship.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -27,12 +33,12 @@ interface ObservationRow {
 async function loadObservations(
   supabase: ReturnType<typeof createClient>,
   userId: string
-): Promise<{ flow: FlowObservation[]; rhr: RhrObservation[] }> {
+): Promise<{ flow: FlowObservation[]; rhr: RhrObservation[]; energy: EnergyObservation[] }> {
   const { data, error } = await supabase
     .from('observations')
     .select('id, type, recorded_at, value, context')
     .eq('user_id', userId)
-    .in('type', ['resting_heart_rate', 'menstrual_flow'])
+    .in('type', ['resting_heart_rate', 'menstrual_flow', 'energy_rating'])
     .order('recorded_at', { ascending: true });
 
   if (error) throw error;
@@ -40,6 +46,7 @@ async function loadObservations(
   const rows = (data ?? []) as ObservationRow[];
   const flow: FlowObservation[] = [];
   const rhr: RhrObservation[] = [];
+  const energy: EnergyObservation[] = [];
 
   for (const row of rows) {
     if (row.type === 'menstrual_flow') {
@@ -53,14 +60,19 @@ async function loadObservations(
       if (typeof bpm === 'number') {
         rhr.push({ id: row.id, recordedAt: row.recorded_at, bpm });
       }
+    } else if (row.type === 'energy_rating') {
+      const rating = row.value?.rating;
+      if (typeof rating === 'number') {
+        energy.push({ id: row.id, recordedAt: row.recorded_at, rating });
+      }
     }
   }
 
-  return { flow, rhr };
+  return { flow, rhr, energy };
 }
 
 async function processUser(supabase: ReturnType<typeof createClient>, userId: string) {
-  const { flow, rhr } = await loadObservations(supabase, userId);
+  const { flow, rhr, energy } = await loadObservations(supabase, userId);
   const cycles = detectCycles(flow);
   const result = analyzeCycles(cycles, rhr);
   const draft = buildUnderstanding(result);
@@ -127,7 +139,63 @@ async function processUser(supabase: ReturnType<typeof createClient>, userId: st
     if (historyError) throw historyError;
   }
 
-  return { userId, wrote: true, strength: draft.strength, confidence: result.confidence };
+  // The cycle -> energy Relationship only makes sense once there's a real
+  // RHR pattern to relate energy to, so it's gated on the Understanding
+  // above having actually been written this run.
+  const relResult = analyzeEnergyRelationship(cycles, result.deltas, energy);
+  const relationshipDraft = buildRelationship(relResult);
+  let relationshipWritten = false;
+  let discoveryWritten = false;
+
+  if (relationshipDraft) {
+    const { error: relError } = await supabase.from('relationships').upsert(
+      {
+        user_id: userId,
+        from_domain: 'cycle',
+        to_domain: 'energy',
+        strength: relationshipDraft.strength,
+        confidence: relResult.confidence,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,from_domain,to_domain' }
+    );
+    if (relError) throw relError;
+    relationshipWritten = true;
+
+    const discoveryDraft = buildDiscovery(relResult);
+    if (discoveryDraft) {
+      const { data: existingDiscovery, error: discoveryFetchError } = await supabase
+        .from('discoveries')
+        .select('id')
+        .eq('user_id', userId)
+        .contains('understanding_ids', [upserted.id])
+        .maybeSingle();
+      if (discoveryFetchError) throw discoveryFetchError;
+
+      if (!existingDiscovery) {
+        const { error: discoveryError } = await supabase.from('discoveries').insert({
+          user_id: userId,
+          narrative: discoveryDraft.narrative,
+          detail: discoveryDraft.detail,
+          confidence: discoveryDraft.confidence,
+          confidence_label: discoveryDraft.confidenceLabel,
+          understanding_ids: [upserted.id],
+          status: 'pending',
+        });
+        if (discoveryError) throw discoveryError;
+        discoveryWritten = true;
+      }
+    }
+  }
+
+  return {
+    userId,
+    wrote: true,
+    strength: draft.strength,
+    confidence: result.confidence,
+    relationshipWritten,
+    discoveryWritten,
+  };
 }
 
 Deno.serve(async (req) => {
