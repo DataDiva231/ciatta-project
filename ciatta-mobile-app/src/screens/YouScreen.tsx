@@ -15,6 +15,16 @@ const connectionStatusLabel: Record<string, string> = {
   'not-connected': 'Not connected',
 };
 
+// Onboarding's sharing checkboxes use their own short ids; only these three
+// health categories are actually asked about there today, so only these
+// three can ever honestly say "Shared" — the rest stay "Not shared yet"
+// until something collects them.
+const ONBOARDING_ROW_TO_HEALTH_ITEM: Record<string, string> = {
+  cycle: 'cycle',
+  medical: 'medical-history',
+  meds: 'medications',
+};
+
 function ageFromDob(dob: string | null): number | null {
   if (!dob) return null;
   const parsed = new Date(dob);
@@ -39,6 +49,12 @@ export default function YouScreen({
     c.id === 'health-source'
       ? { ...c, status: healthSourceConnected ? ('connected' as const) : c.status }
       : c
+  );
+  const sharedHealthItemIds = new Set(
+    profile.shared_health_rows.map((id) => ONBOARDING_ROW_TO_HEALTH_ITEM[id]).filter(Boolean)
+  );
+  const healthItemsWithRealStatus = healthItems.map((item) =>
+    sharedHealthItemIds.has(item.id) ? { ...item, value: 'Shared' } : item
   );
   const age = ageFromDob(profile.dob);
   const identityLine = profile.name
@@ -94,12 +110,12 @@ export default function YouScreen({
         This helps me understand you more accurately.
       </Text>
       <Card style={styles.groupCard}>
-        {healthItems.map((item, i) => (
+        {healthItemsWithRealStatus.map((item, i) => (
           <DisclosureRow
             key={item.id}
             label={item.label}
             value={item.value}
-            last={i === healthItems.length - 1}
+            last={i === healthItemsWithRealStatus.length - 1}
             onPress={() => onOpenRow('your-health', item.id)}
           />
         ))}

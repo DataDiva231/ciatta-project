@@ -69,6 +69,7 @@ export interface Profile {
   about: string | null;
   goals: string[];
   notification_preference: string;
+  shared_health_rows: string[];
   onboarded_at: string | null;
   created_at: string;
   updated_at: string;
@@ -84,6 +85,7 @@ export type ProfileDraft = Partial<
     | 'about'
     | 'goals'
     | 'notification_preference'
+    | 'shared_health_rows'
     | 'onboarded_at'
   >
 >;

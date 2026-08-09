@@ -142,6 +142,7 @@ export default function App() {
         life_stage: draft.lifeStage,
         goals: draft.story ? [draft.story] : [],
         notification_preference: draft.notifPref,
+        shared_health_rows: draft.sharedHealthRows,
         onboarded_at: new Date().toISOString(),
       });
       setProfile(updated);
