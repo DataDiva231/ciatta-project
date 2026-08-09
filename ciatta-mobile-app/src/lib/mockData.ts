@@ -295,13 +295,6 @@ export const whySheet = {
   stillLearningHint: 'One or two additional observations could help us understand this.',
 };
 
-export const curiosity = {
-  question: 'Did you wake up during the night?',
-  purpose: 'This helps me better understand your sleep today.',
-  domain: 'sleep' as Domain,
-  answerOptions: ['No', 'Yes', 'It went away'],
-};
-
 export const newThisWeek = "I've become more confident that recovery predicts your energy.";
 
 export const evolutionStages = [

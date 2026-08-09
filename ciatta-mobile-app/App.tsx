@@ -21,8 +21,7 @@ import {
   type DiscoveryRow,
   type UnderstandingRow,
 } from './src/lib/queries';
-import { insertObservation } from './src/lib/observations';
-import { curiosity } from './src/lib/mockData';
+import { answerCuriosity, fetchActiveCuriosity, type ActiveCuriosity } from './src/lib/curiosity';
 import type { Domain, Profile, Strength } from './src/lib/types';
 
 import OnboardingFlow, {
@@ -57,6 +56,7 @@ export default function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [understandings, setUnderstandings] = useState<UnderstandingRow[]>([]);
   const [discoveries, setDiscoveries] = useState<DiscoveryRow[]>([]);
+  const [activeCuriosity, setActiveCuriosity] = useState<ActiveCuriosity | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [completeError, setCompleteError] = useState<string | null>(null);
@@ -80,14 +80,16 @@ export default function App() {
   const loadUserData = useCallback(async (userId: string) => {
     setDataLoading(true);
     try {
-      const [p, u, d] = await Promise.all([
+      const [p, u, d, c] = await Promise.all([
         fetchProfile(userId),
         fetchUnderstandings(userId),
         fetchDiscoveries(userId),
+        fetchActiveCuriosity(userId),
       ]);
       setProfile(p);
       setUnderstandings(u);
       setDiscoveries(d);
+      setActiveCuriosity(c);
     } finally {
       setDataLoading(false);
     }
@@ -100,6 +102,7 @@ export default function App() {
       setProfile(null);
       setUnderstandings([]);
       setDiscoveries([]);
+      setActiveCuriosity(null);
     }
   }, [session?.user?.id, loadUserData]);
 
@@ -133,13 +136,9 @@ export default function App() {
   }
 
   async function handleAnswerCuriosity(answer: string) {
-    if (!session?.user?.id) return;
-    await insertObservation(session.user.id, {
-      source: 'curiosity',
-      type: 'sleep_interruption',
-      value: { answer },
-      context: { question: curiosity.question },
-    });
+    if (!session?.user?.id || !activeCuriosity) return;
+    await answerCuriosity(session.user.id, activeCuriosity, answer);
+    setActiveCuriosity(null);
   }
 
   if (!fontsLoaded || session === undefined) {
@@ -203,6 +202,7 @@ export default function App() {
           {tab === 'today' && (
             <TodayScreen
               onOpenDiscoveryNudge={() => setDiscoveryFlowVisible(true)}
+              activeCuriosity={activeCuriosity}
               onAnswerCuriosity={handleAnswerCuriosity}
               hasPendingDiscovery={hasPendingDiscovery}
               preferredName={profile.preferred_name || profile.name || ''}
@@ -239,6 +239,8 @@ export default function App() {
       <CuriosityOverlay
         visible={curiosityVisible}
         onClose={() => setCuriosityVisible(false)}
+        activeCuriosity={activeCuriosity}
+        onAnswerCuriosity={handleAnswerCuriosity}
       />
 
       <DiscoveryFlow

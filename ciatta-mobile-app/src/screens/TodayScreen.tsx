@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { colors, fonts } from '../theme/tokens';
-import { curiosity } from '../lib/mockData';
+import type { ActiveCuriosity } from '../lib/curiosity';
 import ScreenContainer from '../components/ScreenContainer';
 import EditorialHeader from '../components/EditorialHeader';
 import BodySilhouette from '../components/BodySilhouette';
@@ -16,11 +16,13 @@ const TODAY_LABEL = new Date().toLocaleDateString(undefined, {
 
 export default function TodayScreen({
   onOpenDiscoveryNudge,
+  activeCuriosity,
   onAnswerCuriosity,
   hasPendingDiscovery,
   preferredName,
 }: {
   onOpenDiscoveryNudge: () => void;
+  activeCuriosity: ActiveCuriosity | null;
   onAnswerCuriosity: (answer: string) => Promise<void>;
   hasPendingDiscovery: boolean;
   preferredName: string;
@@ -67,16 +69,22 @@ export default function TodayScreen({
               Thank you. Every observation helps me understand you better.
             </Text>
           </Card>
-        ) : (
+        ) : activeCuriosity ? (
           <>
             <CuriosityCard
-              question={curiosity.question}
-              purpose={curiosity.purpose}
-              options={curiosity.answerOptions}
+              question={activeCuriosity.question}
+              purpose={activeCuriosity.purpose}
+              options={activeCuriosity.answerOptions}
               onAnswer={handleAnswer}
             />
             {submitError ? <Text style={styles.submitError}>{submitError}</Text> : null}
           </>
+        ) : (
+          <Card>
+            <Text style={styles.thanks}>
+              Nothing to ask you right now — I'll check in again soon.
+            </Text>
+          </Card>
         )}
       </View>
 

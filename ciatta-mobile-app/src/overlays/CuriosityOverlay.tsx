@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../theme/tokens';
-import { curiosity } from '../lib/mockData';
+import type { ActiveCuriosity } from '../lib/curiosity';
 import CuriosityCard from '../components/CuriosityCard';
 import TextField from '../components/TextField';
 import { CloseIcon } from '../components/icons';
@@ -18,18 +18,34 @@ import { CloseIcon } from '../components/icons';
 export default function CuriosityOverlay({
   visible,
   onClose,
+  activeCuriosity,
+  onAnswerCuriosity,
 }: {
   visible: boolean;
   onClose: () => void;
+  activeCuriosity: ActiveCuriosity | null;
+  onAnswerCuriosity: (answer: string) => Promise<void>;
 }) {
   const insets = useSafeAreaInsets();
   const [text, setText] = useState('');
   const [answered, setAnswered] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   function handleClose() {
     setText('');
     setAnswered(false);
+    setSubmitError(null);
     onClose();
+  }
+
+  async function handleAnswer(answer: string) {
+    setSubmitError(null);
+    try {
+      await onAnswerCuriosity(answer);
+      setAnswered(true);
+    } catch (e) {
+      setSubmitError(e instanceof Error ? e.message : "That didn't save — try again.");
+    }
   }
 
   return (
@@ -57,18 +73,26 @@ export default function CuriosityOverlay({
           {answered ? (
             <View style={styles.thanksCard}>
               <Text style={styles.thanksText}>
-                Thank you. I'm folding this into what I understand about your
-                sleep.
+                Thank you. I'm folding this into what I understand about you.
               </Text>
             </View>
+          ) : activeCuriosity ? (
+            <>
+              <CuriosityCard
+                question={activeCuriosity.question}
+                purpose={activeCuriosity.purpose}
+                options={activeCuriosity.answerOptions}
+                variant="light"
+                onAnswer={handleAnswer}
+              />
+              {submitError ? <Text style={styles.submitError}>{submitError}</Text> : null}
+            </>
           ) : (
-            <CuriosityCard
-              question={curiosity.question}
-              purpose={curiosity.purpose}
-              options={curiosity.answerOptions}
-              variant="light"
-              onAnswer={() => setAnswered(true)}
-            />
+            <View style={styles.thanksCard}>
+              <Text style={styles.thanksText}>
+                Nothing to ask you right now — I'll check in again soon.
+              </Text>
+            </View>
           )}
         </View>
 
@@ -136,6 +160,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 25,
     color: colors.ink,
+  },
+  submitError: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    color: colors.accent,
+    marginTop: 10,
   },
   privacyRow: {
     flexDirection: 'row',
