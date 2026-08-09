@@ -112,6 +112,16 @@ export default function App() {
       setDiscoveries(d);
       setActiveCuriosity(c);
       setHealthSourceConnected(hc);
+    } catch (e) {
+      // A locally cached session can outlive the account it belongs to
+      // (e.g. deleted from another device, or deleted then the app
+      // resumed from background without ever re-checking auth state).
+      // The JWT still looks valid client-side, but every fetch here fails
+      // because the underlying rows are gone. Without this, profile stays
+      // null forever and the app is stuck on the loading spinner below —
+      // signing out clears the stale session and returns to onboarding.
+      console.error('Failed to load user data, signing out:', e);
+      await signOut();
     } finally {
       setDataLoading(false);
     }
