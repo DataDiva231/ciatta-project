@@ -42,6 +42,7 @@ import UnderstandingSheet from './src/overlays/UnderstandingSheet';
 import CuriosityOverlay from './src/overlays/CuriosityOverlay';
 import DiscoveryFlow from './src/overlays/DiscoveryFlow';
 import DiscoveryDetailSheet from './src/overlays/DiscoveryDetailSheet';
+import DataPrivacySheet from './src/overlays/DataPrivacySheet';
 import BottomSheet from './src/components/BottomSheet';
 
 function parseDob(input: string): string | null {
@@ -76,6 +77,7 @@ export default function App() {
   const [curiosityVisible, setCuriosityVisible] = useState(false);
   const [discoveryFlowVisible, setDiscoveryFlowVisible] = useState(false);
   const [selectedDiscoveryId, setSelectedDiscoveryId] = useState<string | null>(null);
+  const [dataPrivacyVisible, setDataPrivacyVisible] = useState(false);
   const [rowSheet, setRowSheet] = useState<{ section: string; row: string } | null>(
     null
   );
@@ -255,7 +257,13 @@ export default function App() {
             <YouScreen
               profile={profile}
               healthSourceConnected={healthSourceConnected}
-              onOpenRow={(section, row) => setRowSheet({ section, row })}
+              onOpenRow={(section, row) => {
+                if (section === 'privacy' && row === 'export') {
+                  setDataPrivacyVisible(true);
+                } else {
+                  setRowSheet({ section, row });
+                }
+              }}
               onSignOut={handleSignOut}
             />
           )}
@@ -292,6 +300,12 @@ export default function App() {
       <DiscoveryDetailSheet
         discovery={selectedDiscovery}
         onClose={() => setSelectedDiscoveryId(null)}
+      />
+
+      <DataPrivacySheet
+        visible={dataPrivacyVisible}
+        userId={session?.user?.id ?? null}
+        onClose={() => setDataPrivacyVisible(false)}
       />
 
       <BottomSheet visible={!!rowSheet} onClose={() => setRowSheet(null)}>
