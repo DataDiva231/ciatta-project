@@ -9,11 +9,25 @@ import {
 import { insertObservation } from './observations';
 
 const SYNC_WINDOW_HOURS = 48;
+// The Understanding Engine needs enough cycle history to compare multiple
+// full menstrual cycles against each other, so resting heart rate and
+// menstruation get a much longer one-time backfill than the day-to-day
+// activity types above.
+const CYCLE_HISTORY_DAYS = 365;
 
-const READ_PERMISSIONS: { accessType: 'read'; recordType: 'Steps' | 'HeartRate' | 'SleepSession' }[] = [
+type HealthConnectRecordType =
+  | 'Steps'
+  | 'HeartRate'
+  | 'SleepSession'
+  | 'RestingHeartRate'
+  | 'MenstruationFlow';
+
+const READ_PERMISSIONS: { accessType: 'read'; recordType: HealthConnectRecordType }[] = [
   { accessType: 'read', recordType: 'Steps' },
   { accessType: 'read', recordType: 'HeartRate' },
   { accessType: 'read', recordType: 'SleepSession' },
+  { accessType: 'read', recordType: 'RestingHeartRate' },
+  { accessType: 'read', recordType: 'MenstruationFlow' },
 ];
 
 export async function isHealthConnectAvailable(): Promise<boolean> {
@@ -34,8 +48,10 @@ export interface HealthConnectConnectResult {
 
 /**
  * Requests read permissions and, if granted, pulls the last two days of
- * data into `observations`. Safe to call repeatedly (e.g. as a manual
- * "sync now" action) — it just re-reads the same recent window.
+ * activity data plus up to a year of resting heart rate and menstruation
+ * history into `observations`. Safe to call repeatedly (e.g. as a manual
+ * "sync now" action) — inserts are deduped server-side, so re-reading the
+ * same window is a no-op for anything already stored.
  */
 export async function connectHealthConnect(
   userId: string
@@ -121,5 +137,62 @@ export async function syncHealthConnectData(userId: string): Promise<number> {
     // Ignored — see above.
   }
 
+  const cycleHistoryStart = new Date(
+    endTime.getTime() - CYCLE_HISTORY_DAYS * 24 * 60 * 60 * 1000
+  );
+  const cycleHistoryFilter = {
+    operator: 'between' as const,
+    startTime: cycleHistoryStart.toISOString(),
+    endTime: endTime.toISOString(),
+  };
+
+  try {
+    const { records } = await readRecords('RestingHeartRate', {
+      timeRangeFilter: cycleHistoryFilter,
+    });
+    for (const record of records) {
+      await insertObservation(userId, {
+        source: 'health-connect',
+        type: 'resting_heart_rate',
+        value: { bpm: record.beatsPerMinute },
+        unit: 'bpm',
+        recordedAt: record.time,
+      });
+      count++;
+    }
+  } catch {
+    // Ignored — see above.
+  }
+
+  try {
+    const { records } = await readRecords('MenstruationFlow', {
+      timeRangeFilter: cycleHistoryFilter,
+    });
+    for (const record of records) {
+      await insertObservation(userId, {
+        source: 'health-connect',
+        type: 'menstrual_flow',
+        value: { flow: menstruationFlowLabel(record.flow) },
+        recordedAt: record.time,
+      });
+      count++;
+    }
+  } catch {
+    // Ignored — see above.
+  }
+
   return count;
+}
+
+function menstruationFlowLabel(flow: number | undefined): string {
+  switch (flow) {
+    case 1:
+      return 'light';
+    case 2:
+      return 'medium';
+    case 3:
+      return 'heavy';
+    default:
+      return 'unspecified';
+  }
 }

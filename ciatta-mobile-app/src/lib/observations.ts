@@ -12,14 +12,17 @@ export interface NewObservation {
 }
 
 export async function insertObservation(userId: string, observation: NewObservation) {
-  const { error } = await supabase.from('observations').insert({
-    user_id: userId,
-    source: observation.source,
-    type: observation.type,
-    value: observation.value,
-    unit: observation.unit ?? null,
-    recorded_at: observation.recordedAt ?? new Date().toISOString(),
-    context: observation.context ?? {},
-  });
+  const { error } = await supabase.from('observations').upsert(
+    {
+      user_id: userId,
+      source: observation.source,
+      type: observation.type,
+      value: observation.value,
+      unit: observation.unit ?? null,
+      recorded_at: observation.recordedAt ?? new Date().toISOString(),
+      context: observation.context ?? {},
+    },
+    { onConflict: 'user_id,source,type,recorded_at', ignoreDuplicates: true }
+  );
   if (error) throw error;
 }

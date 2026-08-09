@@ -5,15 +5,23 @@ import {
   queryQuantitySamples,
   queryCategorySamples,
   CategoryValueSleepAnalysis,
+  CategoryValueMenstrualFlow,
 } from '@kingstinct/react-native-healthkit';
 import { insertObservation } from './observations';
 
 const SYNC_WINDOW_HOURS = 48;
+// The Understanding Engine needs enough cycle history to compare multiple
+// full menstrual cycles against each other, so resting heart rate and
+// menstruation get a much longer one-time backfill than the day-to-day
+// activity types above.
+const CYCLE_HISTORY_DAYS = 365;
 
 const READ_TYPES = [
   'HKQuantityTypeIdentifierStepCount',
   'HKQuantityTypeIdentifierHeartRate',
+  'HKQuantityTypeIdentifierRestingHeartRate',
   'HKCategoryTypeIdentifierSleepAnalysis',
+  'HKCategoryTypeIdentifierMenstrualFlow',
 ] as const;
 
 export async function isHealthKitAvailable(): Promise<boolean> {
@@ -33,8 +41,9 @@ export interface HealthKitConnectResult {
 
 /**
  * Requests read permissions and, if the request completes, pulls the last
- * two days of data into `observations`. HealthKit's privacy model never
- * confirms per-type grant/denial to the app — `requestAuthorization`
+ * two days of activity data plus up to a year of resting heart rate and
+ * menstrual flow history into `observations`. HealthKit's privacy model
+ * never confirms per-type grant/denial to the app — `requestAuthorization`
  * resolves `true` as long as the user didn't cancel the sheet, even if they
  * denied every type. A denial just means the later queries come back empty,
  * so `observationsSynced` staying at 0 is the only signal we ever get.
@@ -74,6 +83,21 @@ function sleepStageLabel(value: CategoryValueSleepAnalysis): string {
       return 'asleep_rem';
     default:
       return 'asleep';
+  }
+}
+
+function menstrualFlowLabel(value: CategoryValueMenstrualFlow): string {
+  switch (value) {
+    case CategoryValueMenstrualFlow.light:
+      return 'light';
+    case CategoryValueMenstrualFlow.medium:
+      return 'medium';
+    case CategoryValueMenstrualFlow.heavy:
+      return 'heavy';
+    case CategoryValueMenstrualFlow.none:
+      return 'none';
+    default:
+      return 'unspecified';
   }
 }
 
@@ -134,6 +158,52 @@ export async function syncHealthKitData(userId: string): Promise<number> {
         unit: 'minutes',
         recordedAt: sample.endDate.toISOString(),
         context: { startTime: sample.startDate.toISOString() },
+      });
+      count++;
+    }
+  } catch {
+    // Ignored — see above.
+  }
+
+  const cycleHistoryStartDate = new Date(
+    endDate.getTime() - CYCLE_HISTORY_DAYS * 24 * 60 * 60 * 1000
+  );
+  const cycleHistoryFilter = {
+    filter: { date: { startDate: cycleHistoryStartDate, endDate } },
+    limit: 0,
+  };
+
+  try {
+    const samples = await queryQuantitySamples('HKQuantityTypeIdentifierRestingHeartRate', {
+      ...cycleHistoryFilter,
+      unit: 'count/min',
+    });
+    for (const sample of samples) {
+      await insertObservation(userId, {
+        source: 'apple-health',
+        type: 'resting_heart_rate',
+        value: { bpm: sample.quantity },
+        unit: 'bpm',
+        recordedAt: sample.endDate.toISOString(),
+      });
+      count++;
+    }
+  } catch {
+    // Ignored — see above.
+  }
+
+  try {
+    const samples = await queryCategorySamples(
+      'HKCategoryTypeIdentifierMenstrualFlow',
+      cycleHistoryFilter
+    );
+    for (const sample of samples) {
+      await insertObservation(userId, {
+        source: 'apple-health',
+        type: 'menstrual_flow',
+        value: { flow: menstrualFlowLabel(sample.value) },
+        recordedAt: sample.startDate.toISOString(),
+        context: { cycleStart: sample.metadata.HKMenstrualCycleStart ?? null },
       });
       count++;
     }
