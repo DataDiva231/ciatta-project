@@ -28,7 +28,13 @@ import {
   buildSleepRatingDiscovery,
   type SleepObservation,
 } from './sleepAnalysis.ts';
-import { analyzeSteps, buildStepsUnderstanding, type StepsObservation } from './stepsAnalysis.ts';
+import {
+  analyzeSteps,
+  buildStepsUnderstanding,
+  analyzeStepsRatingRelationship,
+  buildStepsRatingDiscovery,
+  type StepsObservation,
+} from './stepsAnalysis.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -397,10 +403,12 @@ async function processSleepDomain(
   };
 }
 
-/** Standalone 'energy' Understanding from steps — until now 'energy' only
- * ever appeared as a Relationship target, never described on its own. No
- * relationship/discovery step here yet, purely descriptive like sleep. */
-async function processEnergyDomain(
+/** Standalone 'recovery' Understanding from steps — until now 'recovery'
+ * had no signal at all. Filed as recovery rather than energy specifically
+ * so it can cleanly relate *to* energy/mood the same way cycle and sleep
+ * do — filing it under 'energy' itself would make a steps -> energy
+ * Relationship a nonsensical energy -> energy self-reference. */
+async function processRecoveryDomain(
   supabase: ReturnType<typeof createClient>,
   userId: string,
   obs: LoadedObservations
@@ -414,10 +422,10 @@ async function processEnergyDomain(
       ? obs.steps.reduce((min, o) => (o.recordedAt < min ? o.recordedAt : min), obs.steps[0].recordedAt)
       : null;
 
-  await upsertUnderstanding(
+  const understandingId = await upsertUnderstanding(
     supabase,
     userId,
-    'energy',
+    'recovery',
     draft,
     result.observationIds,
     result.totalDays,
@@ -429,17 +437,53 @@ async function processEnergyDomain(
     }
   );
 
-  return { wrote: true, strength: draft.strength, confidence: result.confidence };
+  // Same rationale as cycle and sleep: energy and mood are collected
+  // identically, so both get their own independent Relationship test.
+  const ratingSources: { toDomain: 'energy' | 'mood'; observations: RatingObservation[] }[] = [
+    { toDomain: 'energy', observations: obs.energy },
+    { toDomain: 'mood', observations: obs.mood },
+  ];
+
+  const relationshipResults: Record<
+    'energy' | 'mood',
+    { relationshipWritten: boolean; discoveryWritten: boolean }
+  > = {
+    energy: { relationshipWritten: false, discoveryWritten: false },
+    mood: { relationshipWritten: false, discoveryWritten: false },
+  };
+
+  for (const source of ratingSources) {
+    const relResult = analyzeStepsRatingRelationship(obs.steps, source.observations);
+    const discoveryDraft = buildStepsRatingDiscovery(relResult, source.toDomain);
+    relationshipResults[source.toDomain] = await upsertRelationshipAndDiscovery(
+      supabase,
+      userId,
+      'recovery',
+      source.toDomain,
+      understandingId,
+      relResult.eligible ? strengthForConfidence(relResult.confidence) : null,
+      relResult.confidence,
+      discoveryDraft
+    );
+  }
+
+  return {
+    wrote: true,
+    strength: draft.strength,
+    confidence: result.confidence,
+    energy: relationshipResults.energy,
+    mood: relationshipResults.mood,
+  };
 }
 
 async function processUser(supabase: ReturnType<typeof createClient>, userId: string) {
   const obs = await loadObservations(supabase, userId);
-  const [cycle, sleep, energy] = await Promise.all([
+  const [cycle, sleep, recovery] = await Promise.all([
     processCycleDomain(supabase, userId, obs),
     processSleepDomain(supabase, userId, obs),
-    processEnergyDomain(supabase, userId, obs),
+    processRecoveryDomain(supabase, userId, obs),
   ]);
-  return { userId, cycle, sleep, energy };
+  return { userId, cycle, sleep, recovery };
 }
 
 Deno.serve(async (req) => {
