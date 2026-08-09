@@ -121,7 +121,13 @@ export default function App() {
       // null forever and the app is stuck on the loading spinner below —
       // signing out clears the stale session and returns to onboarding.
       console.error('Failed to load user data, signing out:', e);
-      await signOut();
+      try {
+        await signOut();
+      } catch (signOutError) {
+        // Nothing more we can do locally — surfacing this would just be a
+        // second stuck state. Logged so it's not silently invisible.
+        console.error('Sign-out during recovery also failed:', signOutError);
+      }
     } finally {
       setDataLoading(false);
     }
@@ -168,7 +174,14 @@ export default function App() {
   }
 
   async function handleSignOut() {
-    await signOut();
+    try {
+      await signOut();
+    } catch (e) {
+      // Rare (e.g. offline) and low-stakes — the user just stays signed
+      // in and can tap again. Logged rather than left as an unhandled
+      // rejection with no trace.
+      console.error('Sign out failed:', e);
+    }
   }
 
   async function handleAnswerCuriosity(answer: string) {
