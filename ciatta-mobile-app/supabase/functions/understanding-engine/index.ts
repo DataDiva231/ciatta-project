@@ -28,6 +28,7 @@ import {
   buildSleepRatingDiscovery,
   type SleepObservation,
 } from './sleepAnalysis.ts';
+import { analyzeSteps, buildStepsUnderstanding, type StepsObservation } from './stepsAnalysis.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -46,6 +47,7 @@ interface LoadedObservations {
   energy: EnergyObservation[];
   mood: RatingObservation[];
   sleep: SleepObservation[];
+  steps: StepsObservation[];
 }
 
 async function loadObservations(
@@ -63,6 +65,7 @@ async function loadObservations(
       'mood_rating',
       'sleep_session',
       'sleep_segment',
+      'steps',
     ])
     .order('recorded_at', { ascending: true });
 
@@ -74,6 +77,7 @@ async function loadObservations(
   const energy: EnergyObservation[] = [];
   const mood: RatingObservation[] = [];
   const sleep: SleepObservation[] = [];
+  const steps: StepsObservation[] = [];
 
   for (const row of rows) {
     if (row.type === 'menstrual_flow') {
@@ -110,10 +114,15 @@ async function loadObservations(
           stage: (row.value?.stage as string | undefined) ?? null,
         });
       }
+    } else if (row.type === 'steps') {
+      const count = row.value?.count;
+      if (typeof count === 'number') {
+        steps.push({ id: row.id, recordedAt: row.recorded_at, count });
+      }
     }
   }
 
-  return { flow, rhr, energy, mood, sleep };
+  return { flow, rhr, energy, mood, sleep, steps };
 }
 
 interface UnderstandingDraftLike {
@@ -388,13 +397,49 @@ async function processSleepDomain(
   };
 }
 
+/** Standalone 'energy' Understanding from steps — until now 'energy' only
+ * ever appeared as a Relationship target, never described on its own. No
+ * relationship/discovery step here yet, purely descriptive like sleep. */
+async function processEnergyDomain(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  obs: LoadedObservations
+) {
+  const result = analyzeSteps(obs.steps);
+  const draft = buildStepsUnderstanding(result);
+  if (!draft) return { wrote: false, reason: !result.eligible ? 'not-eligible' : 'no-data' };
+
+  const firstDay =
+    obs.steps.length > 0
+      ? obs.steps.reduce((min, o) => (o.recordedAt < min ? o.recordedAt : min), obs.steps[0].recordedAt)
+      : null;
+
+  await upsertUnderstanding(
+    supabase,
+    userId,
+    'energy',
+    draft,
+    result.observationIds,
+    result.totalDays,
+    result.confidence,
+    firstDay ? firstDay.slice(0, 10) : null,
+    {
+      first: 'Noticed a pattern in how much you move day to day.',
+      changed: `This pattern has held across ${result.totalDays} days now.`,
+    }
+  );
+
+  return { wrote: true, strength: draft.strength, confidence: result.confidence };
+}
+
 async function processUser(supabase: ReturnType<typeof createClient>, userId: string) {
   const obs = await loadObservations(supabase, userId);
-  const [cycle, sleep] = await Promise.all([
+  const [cycle, sleep, energy] = await Promise.all([
     processCycleDomain(supabase, userId, obs),
     processSleepDomain(supabase, userId, obs),
+    processEnergyDomain(supabase, userId, obs),
   ]);
-  return { userId, cycle, sleep };
+  return { userId, cycle, sleep, energy };
 }
 
 Deno.serve(async (req) => {
@@ -410,7 +455,13 @@ Deno.serve(async (req) => {
       const { data, error } = await supabase
         .from('observations')
         .select('user_id')
-        .in('type', ['resting_heart_rate', 'menstrual_flow', 'sleep_session', 'sleep_segment']);
+        .in('type', [
+          'resting_heart_rate',
+          'menstrual_flow',
+          'sleep_session',
+          'sleep_segment',
+          'steps',
+        ]);
       if (error) throw error;
       userIds = [...new Set((data ?? []).map((r) => r.user_id as string))];
     }
