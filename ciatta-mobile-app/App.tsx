@@ -17,9 +17,13 @@ import { signOut } from './src/lib/auth';
 import { fetchProfile, updateProfile } from './src/lib/profile';
 import {
   fetchDiscoveries,
+  fetchRelationships,
+  fetchUnderstandingHistory,
   fetchUnderstandings,
   nameDiscovery,
   type DiscoveryRow,
+  type RelationshipRow,
+  type UnderstandingHistoryRow,
   type UnderstandingRow,
 } from './src/lib/queries';
 import { answerCuriosity, fetchActiveCuriosity, type ActiveCuriosity } from './src/lib/curiosity';
@@ -56,6 +60,8 @@ export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [understandings, setUnderstandings] = useState<UnderstandingRow[]>([]);
+  const [relationships, setRelationships] = useState<RelationshipRow[]>([]);
+  const [understandingHistory, setUnderstandingHistory] = useState<UnderstandingHistoryRow[]>([]);
   const [discoveries, setDiscoveries] = useState<DiscoveryRow[]>([]);
   const [activeCuriosity, setActiveCuriosity] = useState<ActiveCuriosity | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
@@ -83,14 +89,18 @@ export default function App() {
   const loadUserData = useCallback(async (userId: string) => {
     setDataLoading(true);
     try {
-      const [p, u, d, c] = await Promise.all([
+      const [p, u, r, h, d, c] = await Promise.all([
         fetchProfile(userId),
         fetchUnderstandings(userId),
+        fetchRelationships(userId),
+        fetchUnderstandingHistory(userId),
         fetchDiscoveries(userId),
         fetchActiveCuriosity(userId),
       ]);
       setProfile(p);
       setUnderstandings(u);
+      setRelationships(r);
+      setUnderstandingHistory(h);
       setDiscoveries(d);
       setActiveCuriosity(c);
     } finally {
@@ -104,6 +114,8 @@ export default function App() {
     } else {
       setProfile(null);
       setUnderstandings([]);
+      setRelationships([]);
+      setUnderstandingHistory([]);
       setDiscoveries([]);
       setActiveCuriosity(null);
     }
@@ -242,6 +254,9 @@ export default function App() {
 
       <UnderstandingSheet
         domain={understandingDomain}
+        understandings={understandings}
+        relationships={relationships}
+        history={understandingHistory}
         onClose={() => setUnderstandingDomain(null)}
         onHelpLearnMore={() => {
           setUnderstandingDomain(null);

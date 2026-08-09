@@ -1,8 +1,13 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts, strengthColor } from '../theme/tokens';
-import { domainLabel, strengthLabel, understandings } from '../lib/mockData';
-import type { Domain } from '../lib/types';
+import { domainLabel, strengthLabel } from '../lib/mockData';
+import type { Domain, RelationshipRef } from '../lib/types';
+import type {
+  RelationshipRow,
+  UnderstandingHistoryRow,
+  UnderstandingRow,
+} from '../lib/queries';
 import BottomSheet from '../components/BottomSheet';
 import StatRow from '../components/StatRow';
 import RelationshipList from '../components/RelationshipList';
@@ -10,16 +15,50 @@ import Timeline from '../components/Timeline';
 import PrimaryButton from '../components/PrimaryButton';
 import { CloseIcon } from '../components/icons';
 
+function formatDate(value: string | null): string {
+  if (!value) return 'Not yet';
+  return new Date(value).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
 export default function UnderstandingSheet({
   domain,
+  understandings,
+  relationships,
+  history,
   onClose,
   onHelpLearnMore,
 }: {
   domain: Domain | null;
+  understandings: UnderstandingRow[];
+  relationships: RelationshipRow[];
+  history: UnderstandingHistoryRow[];
   onClose: () => void;
   onHelpLearnMore: () => void;
 }) {
-  const understanding = domain ? understandings[domain] : null;
+  const understanding = domain ? understandings.find((u) => u.domain === domain) ?? null : null;
+
+  const relatedDomains: RelationshipRef[] = understanding
+    ? relationships
+        .filter((r) => r.from_domain === understanding.domain || r.to_domain === understanding.domain)
+        .map((r) => ({
+          domain: r.from_domain === understanding.domain ? r.to_domain : r.from_domain,
+          strength: r.strength,
+        }))
+    : [];
+
+  const timelineSteps = understanding
+    ? history
+        .filter((h) => h.understanding_id === understanding.id)
+        .map((h, i, arr) => ({
+          label: formatDate(h.event_date),
+          detail: h.label,
+          active: i === arr.length - 1,
+        }))
+    : [];
 
   return (
     <BottomSheet visible={!!domain} onClose={onClose}>
@@ -47,13 +86,16 @@ export default function UnderstandingSheet({
 
           <SectionLabel n={2} title="Why do you believe it?" />
           <View style={styles.statBlock}>
-            <StatRow label="Evidence" value={`${understanding.observations} observations`} />
-            <StatRow label="Learning since" value={understanding.learningSince} />
-            <StatRow label="First observed" value={understanding.firstObserved} />
-            <StatRow label="Last updated" value={understanding.lastUpdated} />
+            <StatRow
+              label="Evidence"
+              value={`${understanding.observations_count} observations`}
+            />
+            <StatRow label="Learning since" value={formatDate(understanding.learning_since)} />
+            <StatRow label="First observed" value={formatDate(understanding.first_observed)} />
+            <StatRow label="Last updated" value={formatDate(understanding.last_updated)} />
             <StatRow
               label="Confidence"
-              value={understanding.confidence}
+              value={understanding.confidence_label ?? strengthLabel[understanding.strength]}
               valueColor={colors.accent}
               last
             />
@@ -61,27 +103,35 @@ export default function UnderstandingSheet({
 
           <SectionLabel n={3} title="Relationships" />
           <View style={styles.statBlock}>
-            <RelationshipList relationships={understanding.relationships} />
+            {relatedDomains.length > 0 ? (
+              <RelationshipList relationships={relatedDomains} />
+            ) : (
+              <Text style={styles.emptyText}>
+                Nothing connected to another part of your body yet.
+              </Text>
+            )}
           </View>
 
           <SectionLabel n={4} title="Understanding history" />
           <View style={{ marginTop: 6 }}>
-            <Timeline
-              steps={understanding.history.map((h) => ({
-                label: h.date,
-                detail: h.label,
-                active: h.active,
-              }))}
-            />
+            {timelineSteps.length > 0 ? (
+              <Timeline steps={timelineSteps} />
+            ) : (
+              <Text style={styles.emptyText}>No history yet.</Text>
+            )}
           </View>
 
-          <SectionLabel n={5} title="Still learning" />
-          {understanding.stillLearning.map((q) => (
-            <View key={q} style={styles.bulletRow}>
-              <View style={styles.bullet} />
-              <Text style={styles.bulletText}>{q}</Text>
-            </View>
-          ))}
+          {understanding.still_learning.length > 0 ? (
+            <>
+              <SectionLabel n={5} title="Still learning" />
+              {understanding.still_learning.map((q) => (
+                <View key={q} style={styles.bulletRow}>
+                  <View style={styles.bullet} />
+                  <Text style={styles.bulletText}>{q}</Text>
+                </View>
+              ))}
+            </>
+          ) : null}
 
           <View style={{ marginTop: 24 }}>
             <PrimaryButton label="Help me learn more" onPress={onHelpLearnMore} />
@@ -156,5 +206,12 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     lineHeight: 20,
     color: colors.ink2,
+  },
+  emptyText: {
+    fontFamily: fonts.sans,
+    fontSize: 13.5,
+    lineHeight: 20,
+    color: colors.ink3,
+    paddingVertical: 12,
   },
 });

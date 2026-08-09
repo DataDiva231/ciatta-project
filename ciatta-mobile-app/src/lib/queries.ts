@@ -7,15 +7,56 @@ export interface UnderstandingRow {
   strength: Strength;
   narrative: string;
   observations_count: number;
+  confidence_label: string | null;
+  learning_since: string | null;
+  first_observed: string | null;
+  last_updated: string;
+  still_learning: string[];
 }
 
 export async function fetchUnderstandings(userId: string): Promise<UnderstandingRow[]> {
   const { data, error } = await supabase
     .from('understandings')
-    .select('id, domain, strength, narrative, observations_count')
+    .select(
+      'id, domain, strength, narrative, observations_count, confidence_label, learning_since, first_observed, last_updated, still_learning'
+    )
     .eq('user_id', userId);
   if (error) throw error;
   return (data ?? []) as UnderstandingRow[];
+}
+
+export interface UnderstandingHistoryRow {
+  understanding_id: string;
+  event_date: string;
+  label: string;
+}
+
+export async function fetchUnderstandingHistory(
+  userId: string
+): Promise<UnderstandingHistoryRow[]> {
+  const { data, error } = await supabase
+    .from('understanding_history')
+    .select('understanding_id, event_date, label')
+    .eq('user_id', userId)
+    .order('event_date', { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as UnderstandingHistoryRow[];
+}
+
+export interface RelationshipRow {
+  from_domain: Domain;
+  to_domain: Domain;
+  strength: Strength;
+  confidence: number | null;
+}
+
+export async function fetchRelationships(userId: string): Promise<RelationshipRow[]> {
+  const { data, error } = await supabase
+    .from('relationships')
+    .select('from_domain, to_domain, strength, confidence')
+    .eq('user_id', userId);
+  if (error) throw error;
+  return (data ?? []) as RelationshipRow[];
 }
 
 export interface DiscoveryRow {
