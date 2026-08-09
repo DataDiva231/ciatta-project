@@ -40,6 +40,7 @@ import BottomNav, { MainTab } from './src/components/BottomNav';
 import UnderstandingSheet from './src/overlays/UnderstandingSheet';
 import CuriosityOverlay from './src/overlays/CuriosityOverlay';
 import DiscoveryFlow from './src/overlays/DiscoveryFlow';
+import DiscoveryDetailSheet from './src/overlays/DiscoveryDetailSheet';
 import BottomSheet from './src/components/BottomSheet';
 
 function parseDob(input: string): string | null {
@@ -72,11 +73,13 @@ export default function App() {
   const [understandingDomain, setUnderstandingDomain] = useState<Domain | null>(null);
   const [curiosityVisible, setCuriosityVisible] = useState(false);
   const [discoveryFlowVisible, setDiscoveryFlowVisible] = useState(false);
+  const [selectedDiscoveryId, setSelectedDiscoveryId] = useState<string | null>(null);
   const [rowSheet, setRowSheet] = useState<{ section: string; row: string } | null>(
     null
   );
 
   const pendingDiscovery = discoveries.find((d) => d.status === 'pending') ?? null;
+  const selectedDiscovery = discoveries.find((d) => d.id === selectedDiscoveryId) ?? null;
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -237,7 +240,7 @@ export default function App() {
           {tab === 'core' && (
             <CoreScreen
               onOpenUnderstanding={(d) => setUnderstandingDomain(d)}
-              onOpenDiscovery={() => {}}
+              onOpenDiscovery={(id) => setSelectedDiscoveryId(id)}
               strengths={strengths}
               discoveries={discoveries}
             />
@@ -277,6 +280,11 @@ export default function App() {
         discovery={pendingDiscovery}
         onNameDiscovery={handleNameDiscovery}
         onDone={() => setDiscoveryFlowVisible(false)}
+      />
+
+      <DiscoveryDetailSheet
+        discovery={selectedDiscovery}
+        onClose={() => setSelectedDiscoveryId(null)}
       />
 
       <BottomSheet visible={!!rowSheet} onClose={() => setRowSheet(null)}>
