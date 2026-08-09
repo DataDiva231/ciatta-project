@@ -9,8 +9,10 @@ import {
   detectCycles,
   analyzeCycles,
   buildUnderstanding,
+  strengthForConfidence,
   type FlowObservation,
   type RhrObservation,
+  type Strength,
 } from './cycleAnalysis.ts';
 import {
   analyzeEnergyRelationship,
@@ -18,6 +20,13 @@ import {
   buildDiscovery,
   type EnergyObservation,
 } from './energyRelationship.ts';
+import {
+  analyzeSleep,
+  buildSleepUnderstanding,
+  analyzeSleepEnergyRelationship,
+  buildSleepEnergyDiscovery,
+  type SleepObservation,
+} from './sleepAnalysis.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -30,15 +39,28 @@ interface ObservationRow {
   context: Record<string, unknown>;
 }
 
+interface LoadedObservations {
+  flow: FlowObservation[];
+  rhr: RhrObservation[];
+  energy: EnergyObservation[];
+  sleep: SleepObservation[];
+}
+
 async function loadObservations(
   supabase: ReturnType<typeof createClient>,
   userId: string
-): Promise<{ flow: FlowObservation[]; rhr: RhrObservation[]; energy: EnergyObservation[] }> {
+): Promise<LoadedObservations> {
   const { data, error } = await supabase
     .from('observations')
     .select('id, type, recorded_at, value, context')
     .eq('user_id', userId)
-    .in('type', ['resting_heart_rate', 'menstrual_flow', 'energy_rating'])
+    .in('type', [
+      'resting_heart_rate',
+      'menstrual_flow',
+      'energy_rating',
+      'sleep_session',
+      'sleep_segment',
+    ])
     .order('recorded_at', { ascending: true });
 
   if (error) throw error;
@@ -47,6 +69,7 @@ async function loadObservations(
   const flow: FlowObservation[] = [];
   const rhr: RhrObservation[] = [];
   const energy: EnergyObservation[] = [];
+  const sleep: SleepObservation[] = [];
 
   for (const row of rows) {
     if (row.type === 'menstrual_flow') {
@@ -65,30 +88,50 @@ async function loadObservations(
       if (typeof rating === 'number') {
         energy.push({ id: row.id, recordedAt: row.recorded_at, rating });
       }
+    } else if (row.type === 'sleep_session' || row.type === 'sleep_segment') {
+      const durationMinutes = row.value?.durationMinutes;
+      const startTime = row.context?.startTime;
+      if (typeof durationMinutes === 'number' && typeof startTime === 'string') {
+        sleep.push({
+          id: row.id,
+          type: row.type,
+          startTime,
+          endTime: row.recorded_at,
+          durationMinutes,
+          stage: (row.value?.stage as string | undefined) ?? null,
+        });
+      }
     }
   }
 
-  return { flow, rhr, energy };
+  return { flow, rhr, energy, sleep };
 }
 
-async function processUser(supabase: ReturnType<typeof createClient>, userId: string) {
-  const { flow, rhr, energy } = await loadObservations(supabase, userId);
-  const cycles = detectCycles(flow);
-  const result = analyzeCycles(cycles, rhr);
-  const draft = buildUnderstanding(result);
+interface UnderstandingDraftLike {
+  strength: Strength;
+  narrative: string;
+  confidenceLabel: string;
+  stillLearning?: string[];
+}
 
-  if (!draft) {
-    return { userId, wrote: false, reason: !result ? 'no-data' : 'not-eligible' };
-  }
-
-  const observationIds = result.observationIds.slice(-500);
-
+/** Writes Evidence + upserts the Understanding + logs history on change. */
+async function upsertUnderstanding(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  domain: string,
+  draft: UnderstandingDraftLike,
+  observationIds: string[],
+  weight: number,
+  confidence: number,
+  firstObserved: string | null,
+  historyLabel: { first: string; changed: string }
+): Promise<string> {
   const { error: evidenceError } = await supabase.from('evidence').insert({
     user_id: userId,
-    domain: 'cycle',
-    observation_ids: observationIds,
-    weight: result.cyclesWithSufficientData,
-    confidence: result.confidence,
+    domain,
+    observation_ids: observationIds.slice(-500),
+    weight,
+    confidence,
   });
   if (evidenceError) throw evidenceError;
 
@@ -96,7 +139,7 @@ async function processUser(supabase: ReturnType<typeof createClient>, userId: st
     .from('understandings')
     .select('id, strength')
     .eq('user_id', userId)
-    .eq('domain', 'cycle')
+    .eq('domain', domain)
     .maybeSingle();
   if (fetchError) throw fetchError;
 
@@ -105,20 +148,15 @@ async function processUser(supabase: ReturnType<typeof createClient>, userId: st
     .upsert(
       {
         user_id: userId,
-        domain: 'cycle',
+        domain,
         strength: draft.strength,
         narrative: draft.narrative,
         confidence_label: draft.confidenceLabel,
         observations_count: observationIds.length,
-        first_observed: result.firstCycleStart
-          ? result.firstCycleStart.toISOString().slice(0, 10)
-          : null,
-        learning_since:
-          existing?.strength == null
-            ? result.firstCycleStart?.toISOString().slice(0, 10)
-            : undefined,
+        first_observed: firstObserved,
+        learning_since: existing?.strength == null ? firstObserved : undefined,
         last_updated: new Date().toISOString(),
-        still_learning: draft.stillLearning,
+        still_learning: draft.stillLearning ?? [],
       },
       { onConflict: 'user_id,domain' }
     )
@@ -127,9 +165,7 @@ async function processUser(supabase: ReturnType<typeof createClient>, userId: st
   if (upsertError) throw upsertError;
 
   if (!existing || existing.strength !== draft.strength) {
-    const label = existing
-      ? `This pattern has held for ${result.cyclesWithSufficientData} cycles now.`
-      : 'Noticed a possible heart-rate pattern tied to your cycle.';
+    const label = existing ? historyLabel.changed : historyLabel.first;
     const { error: historyError } = await supabase.from('understanding_history').insert({
       understanding_id: upserted.id,
       user_id: userId,
@@ -139,64 +175,178 @@ async function processUser(supabase: ReturnType<typeof createClient>, userId: st
     if (historyError) throw historyError;
   }
 
-  // The cycle -> energy Relationship only makes sense once there's a real
-  // RHR pattern to relate energy to, so it's gated on the Understanding
-  // above having actually been written this run.
-  const relResult = analyzeEnergyRelationship(cycles, result.deltas, energy);
-  const relationshipDraft = buildRelationship(relResult);
-  let relationshipWritten = false;
-  let discoveryWritten = false;
+  return upserted.id;
+}
 
-  if (relationshipDraft) {
-    const { error: relError } = await supabase.from('relationships').upsert(
-      {
-        user_id: userId,
-        from_domain: 'cycle',
-        to_domain: 'energy',
-        strength: relationshipDraft.strength,
-        confidence: relResult.confidence,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id,from_domain,to_domain' }
-    );
-    if (relError) throw relError;
-    relationshipWritten = true;
+interface DiscoveryDraftLike {
+  narrative: string;
+  detail: string;
+  confidence: number;
+  confidenceLabel: string;
+  suggestedNames: string[];
+}
 
-    const discoveryDraft = buildDiscovery(relResult);
-    if (discoveryDraft) {
-      const { data: existingDiscovery, error: discoveryFetchError } = await supabase
-        .from('discoveries')
-        .select('id')
-        .eq('user_id', userId)
-        .contains('understanding_ids', [upserted.id])
-        .maybeSingle();
-      if (discoveryFetchError) throw discoveryFetchError;
+/** Upserts the Relationship and, once strongly corroborated, mints a
+ * Discovery exactly once (checked against existing ones by understanding
+ * id, so repeated nightly runs never duplicate it). */
+async function upsertRelationshipAndDiscovery(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  fromDomain: string,
+  toDomain: string,
+  understandingId: string,
+  strength: Strength | null,
+  confidence: number,
+  discoveryDraft: DiscoveryDraftLike | null
+): Promise<{ relationshipWritten: boolean; discoveryWritten: boolean }> {
+  if (!strength) return { relationshipWritten: false, discoveryWritten: false };
 
-      if (!existingDiscovery) {
-        const { error: discoveryError } = await supabase.from('discoveries').insert({
-          user_id: userId,
-          narrative: discoveryDraft.narrative,
-          detail: discoveryDraft.detail,
-          confidence: discoveryDraft.confidence,
-          confidence_label: discoveryDraft.confidenceLabel,
-          suggested_names: discoveryDraft.suggestedNames,
-          understanding_ids: [upserted.id],
-          status: 'pending',
-        });
-        if (discoveryError) throw discoveryError;
-        discoveryWritten = true;
-      }
+  const { error: relError } = await supabase.from('relationships').upsert(
+    {
+      user_id: userId,
+      from_domain: fromDomain,
+      to_domain: toDomain,
+      strength,
+      confidence,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id,from_domain,to_domain' }
+  );
+  if (relError) throw relError;
+
+  if (!discoveryDraft) return { relationshipWritten: true, discoveryWritten: false };
+
+  const { data: existingDiscovery, error: discoveryFetchError } = await supabase
+    .from('discoveries')
+    .select('id')
+    .eq('user_id', userId)
+    .contains('understanding_ids', [understandingId])
+    .maybeSingle();
+  if (discoveryFetchError) throw discoveryFetchError;
+
+  if (existingDiscovery) return { relationshipWritten: true, discoveryWritten: false };
+
+  const { error: discoveryError } = await supabase.from('discoveries').insert({
+    user_id: userId,
+    narrative: discoveryDraft.narrative,
+    detail: discoveryDraft.detail,
+    confidence: discoveryDraft.confidence,
+    confidence_label: discoveryDraft.confidenceLabel,
+    suggested_names: discoveryDraft.suggestedNames,
+    understanding_ids: [understandingId],
+    status: 'pending',
+  });
+  if (discoveryError) throw discoveryError;
+
+  return { relationshipWritten: true, discoveryWritten: true };
+}
+
+async function processCycleDomain(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  obs: LoadedObservations
+) {
+  const cycles = detectCycles(obs.flow);
+  const result = analyzeCycles(cycles, obs.rhr);
+  const draft = buildUnderstanding(result);
+  if (!draft) return { wrote: false, reason: !result ? 'no-data' : 'not-eligible' };
+
+  const understandingId = await upsertUnderstanding(
+    supabase,
+    userId,
+    'cycle',
+    draft,
+    result.observationIds,
+    result.cyclesWithSufficientData,
+    result.confidence,
+    result.firstCycleStart ? result.firstCycleStart.toISOString().slice(0, 10) : null,
+    {
+      first: 'Noticed a possible heart-rate pattern tied to your cycle.',
+      changed: `This pattern has held for ${result.cyclesWithSufficientData} cycles now.`,
     }
-  }
+  );
+
+  const relResult = analyzeEnergyRelationship(cycles, result.deltas, obs.energy);
+  const relationshipDraft = buildRelationship(relResult);
+  const discoveryDraft = buildDiscovery(relResult);
+  const { relationshipWritten, discoveryWritten } = await upsertRelationshipAndDiscovery(
+    supabase,
+    userId,
+    'cycle',
+    'energy',
+    understandingId,
+    relationshipDraft?.strength ?? null,
+    relResult.confidence,
+    discoveryDraft
+  );
 
   return {
-    userId,
     wrote: true,
     strength: draft.strength,
     confidence: result.confidence,
     relationshipWritten,
     discoveryWritten,
   };
+}
+
+async function processSleepDomain(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  obs: LoadedObservations
+) {
+  const result = analyzeSleep(obs.sleep);
+  const draft = buildSleepUnderstanding(result);
+  if (!draft) return { wrote: false, reason: !result.eligible ? 'not-eligible' : 'no-data' };
+
+  const firstNight =
+    obs.sleep.length > 0
+      ? obs.sleep.reduce((min, o) => (o.startTime < min ? o.startTime : min), obs.sleep[0].startTime)
+      : null;
+
+  const understandingId = await upsertUnderstanding(
+    supabase,
+    userId,
+    'sleep',
+    draft,
+    result.observationIds,
+    result.totalNights,
+    result.confidence,
+    firstNight ? firstNight.slice(0, 10) : null,
+    {
+      first: 'Noticed a pattern in how much you sleep.',
+      changed: `This pattern has held across ${result.totalNights} nights now.`,
+    }
+  );
+
+  const relResult = analyzeSleepEnergyRelationship(obs.sleep, obs.energy);
+  const discoveryDraft = buildSleepEnergyDiscovery(relResult);
+  const { relationshipWritten, discoveryWritten } = await upsertRelationshipAndDiscovery(
+    supabase,
+    userId,
+    'sleep',
+    'energy',
+    understandingId,
+    relResult.eligible ? strengthForConfidence(relResult.confidence) : null,
+    relResult.confidence,
+    discoveryDraft
+  );
+
+  return {
+    wrote: true,
+    strength: draft.strength,
+    confidence: result.confidence,
+    relationshipWritten,
+    discoveryWritten,
+  };
+}
+
+async function processUser(supabase: ReturnType<typeof createClient>, userId: string) {
+  const obs = await loadObservations(supabase, userId);
+  const [cycle, sleep] = await Promise.all([
+    processCycleDomain(supabase, userId, obs),
+    processSleepDomain(supabase, userId, obs),
+  ]);
+  return { userId, cycle, sleep };
 }
 
 Deno.serve(async (req) => {
@@ -212,7 +362,7 @@ Deno.serve(async (req) => {
       const { data, error } = await supabase
         .from('observations')
         .select('user_id')
-        .in('type', ['resting_heart_rate', 'menstrual_flow']);
+        .in('type', ['resting_heart_rate', 'menstrual_flow', 'sleep_session', 'sleep_segment']);
       if (error) throw error;
       userIds = [...new Set((data ?? []).map((r) => r.user_id as string))];
     }
@@ -222,7 +372,7 @@ Deno.serve(async (req) => {
       try {
         results.push(await processUser(supabase, userId));
       } catch (e) {
-        results.push({ userId, wrote: false, error: e instanceof Error ? e.message : String(e) });
+        results.push({ userId, error: e instanceof Error ? e.message : String(e) });
       }
     }
 
