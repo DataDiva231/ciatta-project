@@ -245,17 +245,6 @@ export const discoveries: Discovery[] = [
   },
 ];
 
-// A discovery still waiting to be named — drives the Discovery flow demo.
-export const pendingDiscovery = {
-  id: 'disc_sleep_mood',
-  narrative: "I've found a recurring relationship between your sleep and your mood.",
-  detail:
-    "On nights when your sleep quality drops below your average, your mood the next day tends to be noticeably lower — a pattern I've now seen 9 times.",
-  confidence: 61,
-  confidenceLabel: 'Medium',
-  suggestedNames: ['The Morning Lift', 'Recovery Rhythm', 'My Sunday Reset'],
-  understandingIds: ['und_sleep', 'und_mood'],
-};
 
 export const todayUnderstanding = {
   headline: 'Your body appears to be asking for recovery today.',

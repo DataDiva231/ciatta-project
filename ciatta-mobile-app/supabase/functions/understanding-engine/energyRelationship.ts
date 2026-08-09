@@ -172,7 +172,13 @@ export interface DiscoveryDraft {
   detail: string;
   confidence: number;
   confidenceLabel: string;
+  suggestedNames: string[];
 }
+
+// Candidate names for the naming flow ("What would you call this?"). Kept
+// generic enough to stay honest about what was actually measured — a
+// recurring energy dip tied to cycle timing — rather than overclaiming.
+const SUGGESTED_NAMES = ['The Pre-Period Dip', 'Cycle Energy Shift', 'The Two-Week Signal'];
 
 /**
  * A Relationship becomes a Discovery — a milestone worth surfacing, not
@@ -194,5 +200,6 @@ export function buildDiscovery(result: RelationshipResult): DiscoveryDraft | nul
     detail: `Across ${result.cyclesWithBothSignals} cycles I had both signals for, your energy dropped by about ${energyDrop} points (on a 4-point scale) in the same window your resting heart rate rose by about ${rhrRise} bpm, together in ${result.cyclesCoOccurring} of them.`,
     confidence: result.confidence,
     confidenceLabel: RELATIONSHIP_LABEL[strength],
+    suggestedNames: SUGGESTED_NAMES,
   };
 }

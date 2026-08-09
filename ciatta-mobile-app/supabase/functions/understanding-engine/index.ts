@@ -179,6 +179,7 @@ async function processUser(supabase: ReturnType<typeof createClient>, userId: st
           detail: discoveryDraft.detail,
           confidence: discoveryDraft.confidence,
           confidence_label: discoveryDraft.confidenceLabel,
+          suggested_names: discoveryDraft.suggestedNames,
           understanding_ids: [upserted.id],
           status: 'pending',
         });

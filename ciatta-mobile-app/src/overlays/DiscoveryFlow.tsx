@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, radii } from '../theme/tokens';
-import { pendingDiscovery } from '../lib/mockData';
+import type { DiscoveryRow } from '../lib/queries';
 import PrimaryButton from '../components/PrimaryButton';
 import ConfidenceBar from '../components/ConfidenceBar';
 
@@ -10,20 +10,27 @@ type Step = 1 | 2 | 3;
 
 export default function DiscoveryFlow({
   visible,
+  discovery,
+  onNameDiscovery,
   onDone,
 }: {
   visible: boolean;
+  discovery: DiscoveryRow | null;
+  onNameDiscovery: (name: string) => Promise<void>;
   onDone: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<Step>(1);
   const [selected, setSelected] = useState<string | null>(null);
   const [custom, setCustom] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   function reset() {
     setStep(1);
     setSelected(null);
     setCustom('');
+    setSaveError(null);
   }
 
   function close() {
@@ -32,6 +39,22 @@ export default function DiscoveryFlow({
   }
 
   const finalName = selected === 'custom' ? custom.trim() : selected;
+
+  async function handleFinish() {
+    if (!finalName) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await onNameDiscovery(finalName);
+      close();
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "That didn't save — try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!discovery) return null;
 
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={close}>
@@ -48,7 +71,7 @@ export default function DiscoveryFlow({
             <Text style={styles.brand}>CIATTA</Text>
             <View style={styles.star} />
             <Text style={styles.announceTitle}>A new{'\n'}discovery</Text>
-            <Text style={styles.announceBody}>{pendingDiscovery.narrative}</Text>
+            <Text style={styles.announceBody}>{discovery.narrative}</Text>
             <Text style={styles.announceFooter}>
               I think it's strong enough to become part of your story.
             </Text>
@@ -64,7 +87,7 @@ export default function DiscoveryFlow({
               Choose a name that feels right, or create your own.
             </Text>
             <View style={{ marginTop: 28, gap: 12 }}>
-              {pendingDiscovery.suggestedNames.map((name) => (
+              {discovery.suggested_names.map((name) => (
                 <Pressable
                   key={name}
                   onPress={() => setSelected(name)}
@@ -107,15 +130,18 @@ export default function DiscoveryFlow({
             <Text style={styles.discoveryName}>{finalName}</Text>
             <Text style={styles.discoveryDate}>First discovered today</Text>
             <View style={styles.discoveryBox}>
-              <Text style={styles.discoveryNarrative}>{pendingDiscovery.narrative}</Text>
-              <Text style={styles.discoveryDetail}>{pendingDiscovery.detail}</Text>
+              <Text style={styles.discoveryNarrative}>{discovery.narrative}</Text>
+              {discovery.detail ? (
+                <Text style={styles.discoveryDetail}>{discovery.detail}</Text>
+              ) : null}
             </View>
             <ConfidenceBar
-              value={pendingDiscovery.confidence}
-              label={pendingDiscovery.confidenceLabel}
+              value={Math.round((discovery.confidence ?? 0) * 100)}
+              label={discovery.confidence_label ?? undefined}
             />
+            {saveError ? <Text style={styles.saveError}>{saveError}</Text> : null}
             <View style={{ flex: 1 }} />
-            <PrimaryButton label="See in Core" onPress={close} />
+            <PrimaryButton label="See in Core" onPress={handleFinish} loading={saving} />
           </View>
         )}
       </View>
@@ -241,5 +267,11 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     color: colors.ink2,
     marginTop: 10,
+  },
+  saveError: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    color: colors.accent,
+    marginTop: 14,
   },
 });

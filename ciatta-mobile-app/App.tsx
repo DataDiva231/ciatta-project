@@ -18,6 +18,7 @@ import { fetchProfile, updateProfile } from './src/lib/profile';
 import {
   fetchDiscoveries,
   fetchUnderstandings,
+  nameDiscovery,
   type DiscoveryRow,
   type UnderstandingRow,
 } from './src/lib/queries';
@@ -68,6 +69,8 @@ export default function App() {
   const [rowSheet, setRowSheet] = useState<{ section: string; row: string } | null>(
     null
   );
+
+  const pendingDiscovery = discoveries.find((d) => d.status === 'pending') ?? null;
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -141,6 +144,16 @@ export default function App() {
     setActiveCuriosity(null);
   }
 
+  async function handleNameDiscovery(name: string) {
+    if (!session?.user?.id || !pendingDiscovery) return;
+    await nameDiscovery(session.user.id, pendingDiscovery.id, name);
+    setDiscoveries((rows) =>
+      rows.map((d) =>
+        d.id === pendingDiscovery.id ? { ...d, name, status: 'named' as const } : d
+      )
+    );
+  }
+
   if (!fontsLoaded || session === undefined) {
     return (
       <SafeAreaProvider>
@@ -192,7 +205,7 @@ export default function App() {
   const strengths = Object.fromEntries(
     understandings.map((u) => [u.domain, u.strength])
   ) as Partial<Record<Domain, Strength>>;
-  const hasPendingDiscovery = discoveries.some((d) => d.status === 'pending');
+  const hasPendingDiscovery = pendingDiscovery !== null;
 
   return (
     <SafeAreaProvider>
@@ -245,6 +258,8 @@ export default function App() {
 
       <DiscoveryFlow
         visible={discoveryFlowVisible}
+        discovery={pendingDiscovery}
+        onNameDiscovery={handleNameDiscovery}
         onDone={() => setDiscoveryFlowVisible(false)}
       />
 
