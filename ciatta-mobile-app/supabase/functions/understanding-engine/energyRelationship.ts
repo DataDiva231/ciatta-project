@@ -1,16 +1,18 @@
 /**
- * Pure cycle -> energy relationship analysis. No Deno/Supabase imports —
- * same testing approach as cycleAnalysis.ts. Deliberately separate from
- * (and only imports *types* from) cycleAnalysis.ts rather than refactoring
- * shared windowing logic out of it: that file is already deployed and
- * verified, and a small amount of duplicated windowing math is a better
- * trade than risking a regression in it for the sake of DRY.
+ * Pure cycle -> {energy, mood} relationship analysis. No Deno/Supabase
+ * imports — same testing approach as cycleAnalysis.ts. Deliberately
+ * separate from (and only imports *types* from) cycleAnalysis.ts rather
+ * than refactoring shared windowing logic out of it: that file is already
+ * deployed and verified, and a small amount of duplicated windowing math is
+ * a better trade than risking a regression in it for the sake of DRY.
  *
  * The question this answers: when resting heart rate rises in the luteal
- * phase, does self-reported energy actually drop in that same window, for
- * this same person? RHR-vs-cycle is a Understanding about the body alone;
- * this is a Relationship because it requires two independently-observed
- * signals (physiological + subjective) to agree before it counts.
+ * phase, does a self-reported rating actually drop in that same window,
+ * for this same person? RHR-vs-cycle is an Understanding about the body
+ * alone; this is a Relationship because it requires two independently-
+ * observed signals (physiological + subjective) to agree before it counts.
+ * Generic over which 1-4 rating (energy, mood) since both are collected
+ * identically via the curiosity rotation.
  */
 import type { CycleWindow, CycleDelta, Strength } from './cycleAnalysis.ts';
 
@@ -26,11 +28,11 @@ export interface EnergyObservation {
 // this file's own cycle -> energy usage stays unambiguous.
 export type RatingObservation = EnergyObservation;
 
-interface EnergyPhaseDelta {
+interface RatingPhaseDelta {
   cycleIndex: number;
   sufficientData: boolean;
   delta: number | null; // luteal mean - follicular mean
-  confirms: boolean; // a meaningful energy *drop* in the luteal window
+  confirms: boolean; // a meaningful rating *drop* in the luteal window
   observationIds: string[];
 }
 
@@ -39,21 +41,21 @@ interface EnergyPhaseDelta {
 const PHASE_WINDOW_DAYS = 8;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// Energy answers are sparse by design (one curiosity a day, rotating across
+// Rating answers are sparse by design (one curiosity a day, rotating across
 // 3 domains), so this floor is intentionally much lower than RHR's — an
 // 8-day window realistically yields 2-3 answers for a single domain.
-const MIN_ENERGY_SAMPLES_PER_WINDOW = 2;
-const MIN_ENERGY_DROP = 0.5; // on the 1-4 scale
+const MIN_RATING_SAMPLES_PER_WINDOW = 2;
+const MIN_RATING_DROP = 0.5; // on the 1-4 scale
 const MIN_CYCLES_FOR_CONFIDENCE = 3;
 const CONFIDENCE_SAMPLE_CAP = 6;
 const MIN_COOCCURRENCE_RATE = 0.5;
 const DISCOVERY_CONFIDENCE_THRESHOLD = 0.6; // "strong" tier — see strengthForConfidence
 
-function computeEnergyPhaseDeltas(
+function computeRatingPhaseDeltas(
   cycles: CycleWindow[],
-  energyObs: EnergyObservation[]
-): EnergyPhaseDelta[] {
-  const sorted = energyObs
+  ratingObs: RatingObservation[]
+): RatingPhaseDelta[] {
+  const sorted = ratingObs
     .map((o) => ({ ...o, date: new Date(o.recordedAt) }))
     .sort((a, b) => a.date.getTime() - b.date.getTime());
 
@@ -69,8 +71,8 @@ function computeEnergyPhaseDeltas(
     const luteal = sorted.filter((o) => o.date >= lutealStart && o.date < cycle.end);
 
     const sufficientData =
-      follicular.length >= MIN_ENERGY_SAMPLES_PER_WINDOW &&
-      luteal.length >= MIN_ENERGY_SAMPLES_PER_WINDOW;
+      follicular.length >= MIN_RATING_SAMPLES_PER_WINDOW &&
+      luteal.length >= MIN_RATING_SAMPLES_PER_WINDOW;
 
     if (!sufficientData) {
       return { cycleIndex: cycle.cycleIndex, sufficientData: false, delta: null, confirms: false, observationIds: [] };
@@ -85,7 +87,7 @@ function computeEnergyPhaseDeltas(
       cycleIndex: cycle.cycleIndex,
       sufficientData: true,
       delta,
-      confirms: delta <= -MIN_ENERGY_DROP,
+      confirms: delta <= -MIN_RATING_DROP,
       observationIds: [...follicular, ...luteal].map((o) => o.id),
     };
   });
@@ -95,36 +97,36 @@ export interface RelationshipResult {
   cyclesWithBothSignals: number;
   cyclesCoOccurring: number;
   coOccurrenceRate: number;
-  avgEnergyDelta: number | null;
+  avgRatingDelta: number | null;
   avgRhrDelta: number | null;
   confidence: number;
   eligible: boolean;
   observationIds: string[];
 }
 
-export function analyzeEnergyRelationship(
+export function analyzeCycleRatingRelationship(
   cycles: CycleWindow[],
   rhrDeltas: CycleDelta[],
-  energyObs: EnergyObservation[]
+  ratingObs: RatingObservation[]
 ): RelationshipResult {
-  const energyDeltas = computeEnergyPhaseDeltas(cycles, energyObs);
+  const ratingDeltas = computeRatingPhaseDeltas(cycles, ratingObs);
   const rhrByIndex = new Map(rhrDeltas.map((d) => [d.cycleIndex, d]));
 
   let cyclesWithBothSignals = 0;
   let cyclesCoOccurring = 0;
-  const energyDeltaValues: number[] = [];
+  const ratingDeltaValues: number[] = [];
   const rhrDeltaValues: number[] = [];
   const observationIds: string[] = [];
 
-  for (const ed of energyDeltas) {
-    const rd = rhrByIndex.get(ed.cycleIndex);
-    if (!rd || !rd.sufficientData || !ed.sufficientData) continue;
+  for (const rd2 of ratingDeltas) {
+    const rd = rhrByIndex.get(rd2.cycleIndex);
+    if (!rd || !rd.sufficientData || !rd2.sufficientData) continue;
 
     cyclesWithBothSignals++;
-    if (ed.delta !== null) energyDeltaValues.push(ed.delta);
+    if (rd2.delta !== null) ratingDeltaValues.push(rd2.delta);
     if (rd.deltaBpm !== null) rhrDeltaValues.push(rd.deltaBpm);
-    observationIds.push(...ed.observationIds, ...rd.observationIds);
-    if (ed.confirms && rd.confirms) cyclesCoOccurring++;
+    observationIds.push(...rd2.observationIds, ...rd.observationIds);
+    if (rd2.confirms && rd.confirms) cyclesCoOccurring++;
   }
 
   const coOccurrenceRate = cyclesWithBothSignals > 0 ? cyclesCoOccurring / cyclesWithBothSignals : 0;
@@ -140,7 +142,7 @@ export function analyzeEnergyRelationship(
     cyclesWithBothSignals,
     cyclesCoOccurring,
     coOccurrenceRate,
-    avgEnergyDelta: mean(energyDeltaValues),
+    avgRatingDelta: mean(ratingDeltaValues),
     avgRhrDelta: mean(rhrDeltaValues),
     confidence,
     eligible,
@@ -181,10 +183,26 @@ export interface DiscoveryDraft {
   suggestedNames: string[];
 }
 
-// Candidate names for the naming flow ("What would you call this?"). Kept
-// generic enough to stay honest about what was actually measured — a
-// recurring energy dip tied to cycle timing — rather than overclaiming.
-const SUGGESTED_NAMES = ['The Pre-Period Dip', 'Cycle Energy Shift', 'The Two-Week Signal'];
+// Candidate names for the naming flow ("What would you call this?"), kept
+// generic enough to stay honest about what was actually measured rather
+// than overclaiming.
+const RATING_DOMAIN_COPY: Record<
+  'energy' | 'mood',
+  { narrative: string; label: string; suggestedNames: string[] }
+> = {
+  energy: {
+    narrative:
+      'Your energy tends to dip in the same days your resting heart rate rises — usually in the two weeks before your period.',
+    label: 'energy',
+    suggestedNames: ['The Pre-Period Dip', 'Cycle Energy Shift', 'The Two-Week Signal'],
+  },
+  mood: {
+    narrative:
+      'Your mood tends to dip in the same days your resting heart rate rises — usually in the two weeks before your period.',
+    label: 'mood',
+    suggestedNames: ['The Pre-Period Mood Shift', 'Cycle Mood Signal', 'The Luteal Dip'],
+  },
+};
 
 /**
  * A Relationship becomes a Discovery — a milestone worth surfacing, not
@@ -192,20 +210,23 @@ const SUGGESTED_NAMES = ['The Pre-Period Dip', 'Cycle Energy Shift', 'The Two-We
  * (confidence >= 0.6, the "strong" tier). Below that it's real but not
  * yet a story worth telling.
  */
-export function buildDiscovery(result: RelationshipResult): DiscoveryDraft | null {
+export function buildCycleDiscovery(
+  result: RelationshipResult,
+  toDomain: 'energy' | 'mood'
+): DiscoveryDraft | null {
   if (!result.eligible || result.confidence < DISCOVERY_CONFIDENCE_THRESHOLD) return null;
-  if (result.avgEnergyDelta === null || result.avgRhrDelta === null) return null;
+  if (result.avgRatingDelta === null || result.avgRhrDelta === null) return null;
 
   const strength = strengthForConfidence(result.confidence);
-  const energyDrop = Math.abs(result.avgEnergyDelta).toFixed(1);
+  const ratingDrop = Math.abs(result.avgRatingDelta).toFixed(1);
   const rhrRise = result.avgRhrDelta.toFixed(1);
+  const copy = RATING_DOMAIN_COPY[toDomain];
 
   return {
-    narrative:
-      "Your energy tends to dip in the same days your resting heart rate rises — usually in the two weeks before your period.",
-    detail: `Across ${result.cyclesWithBothSignals} cycles I had both signals for, your energy dropped by about ${energyDrop} points (on a 4-point scale) in the same window your resting heart rate rose by about ${rhrRise} bpm, together in ${result.cyclesCoOccurring} of them.`,
+    narrative: copy.narrative,
+    detail: `Across ${result.cyclesWithBothSignals} cycles I had both signals for, your ${copy.label} dropped by about ${ratingDrop} points (on a 4-point scale) in the same window your resting heart rate rose by about ${rhrRise} bpm, together in ${result.cyclesCoOccurring} of them.`,
     confidence: result.confidence,
     confidenceLabel: RELATIONSHIP_LABEL[strength],
-    suggestedNames: SUGGESTED_NAMES,
+    suggestedNames: copy.suggestedNames,
   };
 }

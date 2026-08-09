@@ -15,9 +15,9 @@ import {
   type Strength,
 } from './cycleAnalysis.ts';
 import {
-  analyzeEnergyRelationship,
+  analyzeCycleRatingRelationship,
   buildRelationship,
-  buildDiscovery,
+  buildCycleDiscovery,
   type EnergyObservation,
   type RatingObservation,
 } from './energyRelationship.ts';
@@ -280,26 +280,44 @@ async function processCycleDomain(
     }
   );
 
-  const relResult = analyzeEnergyRelationship(cycles, result.deltas, obs.energy);
-  const relationshipDraft = buildRelationship(relResult);
-  const discoveryDraft = buildDiscovery(relResult);
-  const { relationshipWritten, discoveryWritten } = await upsertRelationshipAndDiscovery(
-    supabase,
-    userId,
-    'cycle',
-    'energy',
-    understandingId,
-    relationshipDraft?.strength ?? null,
-    relResult.confidence,
-    discoveryDraft
-  );
+  // Same rationale as the sleep domain: energy and mood are collected
+  // identically, so both get their own independent Relationship test
+  // rather than being conflated into one.
+  const ratingSources: { toDomain: 'energy' | 'mood'; observations: RatingObservation[] }[] = [
+    { toDomain: 'energy', observations: obs.energy },
+    { toDomain: 'mood', observations: obs.mood },
+  ];
+
+  const relationshipResults: Record<
+    'energy' | 'mood',
+    { relationshipWritten: boolean; discoveryWritten: boolean }
+  > = {
+    energy: { relationshipWritten: false, discoveryWritten: false },
+    mood: { relationshipWritten: false, discoveryWritten: false },
+  };
+
+  for (const source of ratingSources) {
+    const relResult = analyzeCycleRatingRelationship(cycles, result.deltas, source.observations);
+    const relationshipDraft = buildRelationship(relResult);
+    const discoveryDraft = buildCycleDiscovery(relResult, source.toDomain);
+    relationshipResults[source.toDomain] = await upsertRelationshipAndDiscovery(
+      supabase,
+      userId,
+      'cycle',
+      source.toDomain,
+      understandingId,
+      relationshipDraft?.strength ?? null,
+      relResult.confidence,
+      discoveryDraft
+    );
+  }
 
   return {
     wrote: true,
     strength: draft.strength,
     confidence: result.confidence,
-    relationshipWritten,
-    discoveryWritten,
+    energy: relationshipResults.energy,
+    mood: relationshipResults.mood,
   };
 }
 
