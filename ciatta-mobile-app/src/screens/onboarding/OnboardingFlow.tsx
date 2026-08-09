@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -14,6 +15,7 @@ import PrimaryButton from '../../components/PrimaryButton';
 import GhostButton from '../../components/GhostButton';
 import Card from '../../components/Card';
 import { signIn, signUp } from '../../lib/auth';
+import { connectHealthConnect } from '../../lib/healthConnect';
 
 const TOTAL_STEPS = 12;
 
@@ -55,9 +57,11 @@ const HEALTH_SOURCE_BODY =
 export default function OnboardingFlow({
   onComplete,
   startStep = 0,
+  userId,
 }: {
   onComplete: (draft: OnboardingDraft) => void;
   startStep?: number;
+  userId?: string;
 }) {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(startStep);
@@ -70,7 +74,42 @@ export default function OnboardingFlow({
   const [notifPref, setNotifPref] = useState('discoveries');
   const [sharedHealthRows, setSharedHealthRows] = useState<string[]>([]);
   const [appleHealthConnected, setAppleHealthConnected] = useState(false);
+  const [healthConnecting, setHealthConnecting] = useState(false);
+  const [healthConnectNote, setHealthConnectNote] = useState<string | null>(null);
   const [arcConnected, setArcConnected] = useState(false);
+
+  async function handleConnectHealthSource() {
+    if (Platform.OS !== 'android' || !userId) {
+      // iOS HealthKit isn't wired up yet — keep the existing placeholder
+      // behavior rather than claim a connection that doesn't exist.
+      setAppleHealthConnected(true);
+      next();
+      return;
+    }
+    setHealthConnecting(true);
+    setHealthConnectNote(null);
+    try {
+      const result = await connectHealthConnect(userId);
+      if (result.granted) {
+        setAppleHealthConnected(true);
+        next();
+      } else if (result.reason === 'unavailable') {
+        setHealthConnectNote(
+          "Health Connect isn't installed on this device yet. Install it from the Play Store, then come back and connect."
+        );
+      } else {
+        setHealthConnectNote(
+          "I wasn't given permission to read your health data. You can try again or continue without it for now."
+        );
+      }
+    } catch (e) {
+      setHealthConnectNote(
+        e instanceof Error ? e.message : 'Something went wrong connecting Health Connect.'
+      );
+    } finally {
+      setHealthConnecting(false);
+    }
+  }
 
   function toggleHealthRow(id: string) {
     setSharedHealthRows((rows) =>
@@ -273,13 +312,32 @@ Permissions can always be changed."
           <View style={styles.flex}>
             <Text style={styles.title}>Let me remember{'\n'}what your body{'\n'}already knows.</Text>
             <Text style={styles.subtitle}>{HEALTH_SOURCE_BODY}</Text>
+            {healthConnectNote ? (
+              <View style={{ marginTop: 20 }}>
+                <Text style={styles.authError}>{healthConnectNote}</Text>
+                {healthConnectNote.startsWith("Health Connect isn't installed") && (
+                  <GhostButton
+                    label="Open Play Store"
+                    tone="ink"
+                    onPress={() =>
+                      Linking.openURL(
+                        'market://details?id=com.google.android.apps.healthdata'
+                      ).catch(() =>
+                        Linking.openURL(
+                          'https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata'
+                        )
+                      )
+                    }
+                  />
+                )}
+              </View>
+            ) : null}
             <View style={{ flex: 1 }} />
             <PrimaryButton
               label={appleHealthConnected ? 'Connected' : `Connect ${HEALTH_SOURCE_NAME}`}
-              onPress={() => {
-                setAppleHealthConnected(true);
-                next();
-              }}
+              onPress={handleConnectHealthSource}
+              loading={healthConnecting}
+              disabled={appleHealthConnected}
             />
             <GhostButton label="Maybe later" onPress={next} />
           </View>

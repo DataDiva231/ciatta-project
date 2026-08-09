@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-export type ObservationSource = 'apple-health' | 'arc' | 'manual' | 'curiosity';
+export type ObservationSource = 'apple-health' | 'health-connect' | 'arc' | 'manual' | 'curiosity';
 
 export interface NewObservation {
   source: ObservationSource;

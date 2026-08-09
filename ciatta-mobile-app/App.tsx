@@ -176,7 +176,11 @@ export default function App() {
     return (
       <SafeAreaProvider>
         <StatusBar style="light" />
-        <OnboardingFlow onComplete={handleOnboardingComplete} startStep={4} />
+        <OnboardingFlow
+          onComplete={handleOnboardingComplete}
+          startStep={4}
+          userId={session?.user?.id}
+        />
         {completeError ? (
           <View style={styles.completeErrorBanner}>
             <Text style={styles.completeErrorText}>{completeError}</Text>
