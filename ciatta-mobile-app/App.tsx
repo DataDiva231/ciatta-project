@@ -43,6 +43,7 @@ import CuriosityOverlay from './src/overlays/CuriosityOverlay';
 import DiscoveryFlow from './src/overlays/DiscoveryFlow';
 import DiscoveryDetailSheet from './src/overlays/DiscoveryDetailSheet';
 import DataPrivacySheet from './src/overlays/DataPrivacySheet';
+import HealthSyncSheet from './src/overlays/HealthSyncSheet';
 import BottomSheet from './src/components/BottomSheet';
 
 function parseDob(input: string): string | null {
@@ -78,6 +79,7 @@ export default function App() {
   const [discoveryFlowVisible, setDiscoveryFlowVisible] = useState(false);
   const [selectedDiscoveryId, setSelectedDiscoveryId] = useState<string | null>(null);
   const [dataPrivacyVisible, setDataPrivacyVisible] = useState(false);
+  const [healthSyncVisible, setHealthSyncVisible] = useState(false);
   const [rowSheet, setRowSheet] = useState<{ section: string; row: string } | null>(
     null
   );
@@ -283,6 +285,8 @@ export default function App() {
               onOpenRow={(section, row) => {
                 if (section === 'privacy' && row === 'export') {
                   setDataPrivacyVisible(true);
+                } else if (section === 'connections' && row === 'health-source') {
+                  setHealthSyncVisible(true);
                 } else {
                   setRowSheet({ section, row });
                 }
@@ -323,6 +327,14 @@ export default function App() {
       <DiscoveryDetailSheet
         discovery={selectedDiscovery}
         onClose={() => setSelectedDiscoveryId(null)}
+      />
+
+      <HealthSyncSheet
+        visible={healthSyncVisible}
+        userId={session?.user?.id ?? null}
+        connected={healthSourceConnected}
+        onClose={() => setHealthSyncVisible(false)}
+        onSynced={() => setHealthSourceConnected(true)}
       />
 
       <DataPrivacySheet
