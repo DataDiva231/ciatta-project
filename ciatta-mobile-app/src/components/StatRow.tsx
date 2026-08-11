@@ -37,8 +37,8 @@ const styles = StyleSheet.create({
     color: colors.ink2,
   },
   value: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 14,
+    fontFamily: fonts.mono,
+    fontSize: 13,
     color: colors.ink,
   },
 });

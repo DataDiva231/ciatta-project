@@ -45,9 +45,9 @@ const styles = StyleSheet.create({
     color: colors.ink3,
   },
   pct: {
-    fontFamily: fonts.sansMedium,
+    fontFamily: fonts.mono,
     fontSize: 13,
-    color: colors.accent,
+    color: colors.evidence,
   },
   track: {
     height: 5,
@@ -57,7 +57,7 @@ const styles = StyleSheet.create({
   },
   fill: {
     height: '100%',
-    backgroundColor: colors.accent,
+    backgroundColor: colors.evidence,
     borderRadius: 3,
   },
   endpoints: {

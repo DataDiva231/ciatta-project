@@ -107,7 +107,7 @@ function Glow({
         fill={`url(#glow-${domain})`}
         opacity={opacity as unknown as number}
       />
-      <Circle cx={cx} cy={cy} r={4} fill={colors.white} stroke={colors.accent} strokeWidth={2} />
+      <Circle cx={cx} cy={cy} r={4} fill={colors.white} stroke={colors.evidence} strokeWidth={2} />
     </>
   );
 }
@@ -166,9 +166,9 @@ export default function BodySilhouette({
           <Defs>
             {DOMAIN_ORDER.map((d) => (
               <RadialGradient key={d} id={`glow-${d}`} cx="50%" cy="50%" r="50%">
-                <Stop offset="0%" stopColor={colors.accent} stopOpacity={0.85} />
-                <Stop offset="60%" stopColor={colors.accent} stopOpacity={0.28} />
-                <Stop offset="100%" stopColor={colors.accent} stopOpacity={0} />
+                <Stop offset="0%" stopColor={colors.evidence} stopOpacity={0.85} />
+                <Stop offset="60%" stopColor={colors.evidence} stopOpacity={0.28} />
+                <Stop offset="100%" stopColor={colors.evidence} stopOpacity={0} />
               </RadialGradient>
             ))}
             {isCropped && (

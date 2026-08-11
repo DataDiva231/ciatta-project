@@ -16,7 +16,7 @@
     "android": {
       "package": "com.ciatta.mobileapp",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#8C3A44",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -55,6 +55,15 @@
             "targetSdkVersion": 36,
             "minSdkVersion": 26
           }
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#EDE6D8"
         }
       ]
     ],

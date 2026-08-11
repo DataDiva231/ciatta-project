@@ -1,9 +1,10 @@
 import React from 'react';
 import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
+import { colors } from '../theme/tokens';
 
 type IconProps = { size?: number; color?: string; strokeWidth?: number };
 
-export function SunIcon({ size = 20, color = '#101010' }: IconProps) {
+export function SunIcon({ size = 20, color = colors.ink }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Circle cx="12" cy="12" r="4.5" stroke={color} strokeWidth={1.6} />
@@ -23,7 +24,7 @@ export function SunIcon({ size = 20, color = '#101010' }: IconProps) {
   );
 }
 
-export function CoreIcon({ size = 20, color = '#101010' }: IconProps) {
+export function CoreIcon({ size = 20, color = colors.ink }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Circle cx="12" cy="12" r="8.5" stroke={color} strokeWidth={1.6} />
@@ -32,7 +33,7 @@ export function CoreIcon({ size = 20, color = '#101010' }: IconProps) {
   );
 }
 
-export function PersonIcon({ size = 20, color = '#101010' }: IconProps) {
+export function PersonIcon({ size = 20, color = colors.ink }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Circle cx="12" cy="8.2" r="3.6" stroke={color} strokeWidth={1.6} />
@@ -47,7 +48,7 @@ export function PersonIcon({ size = 20, color = '#101010' }: IconProps) {
   );
 }
 
-export function ChevronIcon({ size = 16, color = '#B5B5B5' }: IconProps) {
+export function ChevronIcon({ size = 16, color = colors.ink3 }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
@@ -61,7 +62,7 @@ export function ChevronIcon({ size = 16, color = '#B5B5B5' }: IconProps) {
   );
 }
 
-export function CloseIcon({ size = 18, color = '#101010' }: IconProps) {
+export function CloseIcon({ size = 18, color = colors.ink }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path d="M6 6l12 12M18 6L6 18" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
@@ -69,7 +70,7 @@ export function CloseIcon({ size = 18, color = '#101010' }: IconProps) {
   );
 }
 
-export function MicIcon({ size = 18, color = '#616161' }: IconProps) {
+export function MicIcon({ size = 18, color = colors.ink2 }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Rect x="9.5" y="3.5" width="5" height="9.5" rx="2.5" stroke={color} strokeWidth={1.5} />
@@ -84,7 +85,7 @@ export function MicIcon({ size = 18, color = '#616161' }: IconProps) {
   );
 }
 
-export function ArrowUpIcon({ size = 12, color = '#F26A53' }: IconProps) {
+export function ArrowUpIcon({ size = 12, color = colors.accent }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path d="M12 19V5M6 11l6-6 6 6" stroke={color} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
@@ -92,7 +93,7 @@ export function ArrowUpIcon({ size = 12, color = '#F26A53' }: IconProps) {
   );
 }
 
-export function ArrowDownIcon({ size = 12, color = '#F26A53' }: IconProps) {
+export function ArrowDownIcon({ size = 12, color = colors.accent }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path d="M12 5v14M6 13l6 6 6-6" stroke={color} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
@@ -100,7 +101,7 @@ export function ArrowDownIcon({ size = 12, color = '#F26A53' }: IconProps) {
   );
 }
 
-export function DotIcon({ size = 8, color = '#F26A53' }: IconProps) {
+export function DotIcon({ size = 8, color = colors.accent }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Circle cx="12" cy="12" r="6" fill={color} />
@@ -108,7 +109,7 @@ export function DotIcon({ size = 8, color = '#F26A53' }: IconProps) {
   );
 }
 
-export function PlusIcon({ size = 18, color = '#101010' }: IconProps) {
+export function PlusIcon({ size = 18, color = colors.ink }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path d="M12 5v14M5 12h14" stroke={color} strokeWidth={1.8} strokeLinecap="round" />

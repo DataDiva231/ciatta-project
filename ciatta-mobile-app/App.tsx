@@ -2,13 +2,14 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useFonts } from '@expo-google-fonts/inter';
+import { useFonts } from '@expo-google-fonts/karla';
+import { Karla_400Regular, Karla_500Medium, Karla_600SemiBold } from '@expo-google-fonts/karla';
 import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-} from '@expo-google-fonts/inter';
-import { InstrumentSerif_400Regular } from '@expo-google-fonts/instrument-serif';
+  Fraunces_500Medium,
+  Fraunces_600SemiBold,
+  Fraunces_500Medium_Italic,
+} from '@expo-google-fonts/fraunces';
+import { SpaceMono_400Regular, SpaceMono_700Bold } from '@expo-google-fonts/space-mono';
 import type { Session } from '@supabase/supabase-js';
 
 import { colors, fonts as fontTokens } from './src/theme/tokens';
@@ -55,10 +56,14 @@ function parseDob(input: string): string | null {
 
 export default function App() {
   const [fontsLoaded] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    InstrumentSerif_400Regular,
+    Karla_400Regular,
+    Karla_500Medium,
+    Karla_600SemiBold,
+    Fraunces_500Medium,
+    Fraunces_600SemiBold,
+    Fraunces_500Medium_Italic,
+    SpaceMono_400Regular,
+    SpaceMono_700Bold,
   });
 
   const [session, setSession] = useState<Session | null | undefined>(undefined);

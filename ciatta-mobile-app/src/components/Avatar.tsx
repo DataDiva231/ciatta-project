@@ -27,7 +27,7 @@ export default function Avatar({
 
 const styles = StyleSheet.create({
   circle: {
-    backgroundColor: '#C79A76',
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },

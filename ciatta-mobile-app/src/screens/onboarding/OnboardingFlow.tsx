@@ -848,7 +848,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: 'rgba(242,106,83,0.12)',
+    backgroundColor: 'rgba(140,58,68,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 48,
@@ -858,7 +858,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(242,106,83,0.22)',
+    backgroundColor: 'rgba(140,58,68,0.22)',
   },
   arcOrbCore: {
     width: 14,

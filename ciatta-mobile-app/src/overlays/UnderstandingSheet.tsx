@@ -96,7 +96,7 @@ export default function UnderstandingSheet({
             <StatRow
               label="Confidence"
               value={understanding.confidence_label ?? strengthLabel[understanding.strength]}
-              valueColor={colors.accent}
+              valueColor={colors.evidence}
               last
             />
           </View>
