@@ -63,6 +63,12 @@
         "projectId": "8580b2a3-074d-4fcf-bfc0-a3ce35a5c8ab"
       }
     },
-    "owner": "spammaster"
+    "owner": "spammaster",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/8580b2a3-074d-4fcf-bfc0-a3ce35a5c8ab"
+    }
   }
 }

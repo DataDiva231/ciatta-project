@@ -9,19 +9,29 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
-      }
+      },
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
       "android": {
         "buildType": "apk"
-      }
+      },
+      "channel": "preview"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "channel": "production"
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascApiKeyPath": "./AuthKey_XF62WV6Q6L.p8",
+        "ascApiKeyId": "XF62WV6Q6L",
+        "ascApiKeyIssuerId": "e030901e-3c31-4467-8e83-3487d52b083c",
+        "ascAppId": "6799754990"
+      }
+    }
   }
 }
