@@ -36,6 +36,7 @@ import {
   fetchRecentSyncSummary,
   type RecentSyncSummary,
 } from './src/lib/observations';
+import { registerForPush } from './src/lib/notifications';
 import { connectHealthConnect } from './src/lib/healthConnect';
 import { connectHealthKit } from './src/lib/healthKit';
 import type { Domain, Profile, Strength } from './src/lib/types';
@@ -181,6 +182,9 @@ export default function App() {
         setActiveCuriosity(c);
         setHealthSourceConnected(hc);
         setRecentSyncSummary(sync);
+        // Fire-and-forget: push is an enhancement and must never block or
+        // fail the load. Honours the preference captured at onboarding.
+        registerForPush(userId, p?.notification_preference);
         if (hc) {
           maybeAutoSync(userId);
         }
