@@ -25,9 +25,15 @@ export default function DisclosureRow({
         pressed && { opacity: 0.6 },
       ]}
     >
-      <Text style={styles.label}>{label}</Text>
+      <Text style={styles.label} numberOfLines={2}>
+        {label}
+      </Text>
       <View style={styles.right}>
-        {value ? <Text style={styles.value}>{value}</Text> : null}
+        {value ? (
+          <Text style={styles.value} numberOfLines={1}>
+            {value}
+          </Text>
+        ) : null}
         {dot ? <DotIcon size={7} /> : null}
         <ChevronIcon />
       </View>
@@ -47,18 +53,26 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   label: {
+    flex: 1,
+    flexShrink: 1,
     fontFamily: fonts.sans,
     fontSize: 15,
+    lineHeight: 20,
     color: colors.ink,
+    marginRight: 12,
   },
   right: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flexShrink: 0,
+    maxWidth: '48%',
   },
   value: {
+    flexShrink: 1,
     fontFamily: fonts.sans,
     fontSize: 14,
     color: colors.ink3,
+    textAlign: 'right',
   },
 });
