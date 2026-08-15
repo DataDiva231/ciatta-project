@@ -557,6 +557,61 @@ async function processMoodDomain(
   return { wrote: true, strength: draft.strength, confidence: result.confidence };
 }
 
+/** Confidence ladder, strongest first. */
+const STRENGTH_LADDER = ['very-strong', 'strong', 'moderate', 'emerging'] as const;
+const STALE_AFTER_DAYS = 21;
+
+/**
+ * Walks back any understanding this run did not refresh.
+ *
+ * Without this the engine only ever accumulates: an understanding formed in
+ * July stays "very confident" forever, even if the behaviour behind it
+ * changed completely in September. For claims about someone's body, silently
+ * over-claiming is the more harmful direction to be wrong in — so a domain
+ * that stops producing evidence steps down one rung at a time and says so in
+ * its history.
+ */
+async function decayStaleUnderstandings(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  refreshedDomains: string[]
+) {
+  const cutoff = new Date(Date.now() - STALE_AFTER_DAYS * 86400000).toISOString();
+
+  const { data: stale, error } = await supabase
+    .from('understandings')
+    .select('id, domain, strength, last_updated')
+    .eq('user_id', userId)
+    .lt('last_updated', cutoff);
+  if (error) throw error;
+
+  const decayed: string[] = [];
+  for (const u of stale ?? []) {
+    if (refreshedDomains.includes(u.domain as string)) continue;
+
+    const idx = STRENGTH_LADDER.indexOf(u.strength as typeof STRENGTH_LADDER[number]);
+    if (idx === -1 || idx === STRENGTH_LADDER.length - 1) continue;
+    const next = STRENGTH_LADDER[idx + 1];
+
+    const { error: updateError } = await supabase
+      .from('understandings')
+      .update({ strength: next, last_updated: new Date().toISOString() })
+      .eq('id', u.id);
+    if (updateError) throw updateError;
+
+    const { error: historyError } = await supabase.from('understanding_history').insert({
+      understanding_id: u.id,
+      user_id: userId,
+      event_date: new Date().toISOString().slice(0, 10),
+      label: "I haven't seen enough recently to stay as confident about this.",
+    });
+    if (historyError) throw historyError;
+
+    decayed.push(u.domain as string);
+  }
+  return decayed;
+}
+
 async function processUser(supabase: ReturnType<typeof createClient>, userId: string) {
   const obs = await loadObservations(supabase, userId);
   const [cycle, sleep, recovery, mood] = await Promise.all([
@@ -565,7 +620,17 @@ async function processUser(supabase: ReturnType<typeof createClient>, userId: st
     processRecoveryDomain(supabase, userId, obs),
     processMoodDomain(supabase, userId, obs),
   ]);
-  return { userId, cycle, sleep, recovery, mood };
+
+  const refreshed = [
+    cycle?.wrote ? 'cycle' : null,
+    sleep?.wrote ? 'sleep' : null,
+    recovery?.wrote ? 'recovery' : null,
+    mood?.wrote ? 'mood' : null,
+  ].filter((d): d is string => d !== null);
+
+  const decayed = await decayStaleUnderstandings(supabase, userId, refreshed);
+
+  return { userId, cycle, sleep, recovery, mood, decayed };
 }
 
 Deno.serve(async (req) => {
