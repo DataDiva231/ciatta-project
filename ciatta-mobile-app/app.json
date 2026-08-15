@@ -31,7 +31,8 @@
         "android.permission.health.READ_SLEEP",
         "android.permission.health.READ_EXERCISE",
         "android.permission.health.READ_MENSTRUATION"
-      ]
+      ],
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png"

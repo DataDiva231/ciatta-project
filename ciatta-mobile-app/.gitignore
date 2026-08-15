@@ -40,3 +40,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Firebase service account keys — can send push to every user. EAS-only.
+*-firebase-adminsdk-*.json
+firebase-service-account*.json
