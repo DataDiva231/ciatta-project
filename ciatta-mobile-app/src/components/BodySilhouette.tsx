@@ -229,6 +229,38 @@ export default function BodySilhouette({
         </Svg>
       </View>
 
+      {/* Touch targets over the dots themselves. The dots live inside the
+          <Svg>, which takes no press events, so without these the only
+          tappable things are the text labels off to the side — and the
+          figure reads as interactive long before you find them. */}
+      {onDomainPress &&
+        domainsToRender.map((d) => {
+          const pos = POSITIONS[d];
+          const cx = gutter + pos.x * w;
+          const cy = pos.y * h;
+          const size = Math.max(44, w * 0.3);
+          if (cy > visibleH) return null;
+          return (
+            <Pressable
+              key={`hotspot-${d}`}
+              accessibilityRole="button"
+              accessibilityLabel={`${domainLabel[d]} — open understanding`}
+              onPress={() => onDomainPress(d)}
+              style={({ pressed }) => [
+                {
+                  position: 'absolute',
+                  left: cx - size / 2,
+                  top: cy - size / 2,
+                  width: size,
+                  height: size,
+                  borderRadius: size / 2,
+                },
+                pressed && { backgroundColor: colors.evidenceSoft },
+              ]}
+            />
+          );
+        })}
+
       {labeled &&
         domainsToRender.map((d) => {
           const pos = POSITIONS[d];

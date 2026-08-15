@@ -41,7 +41,7 @@ export default function CoreScreen({
         />
         <Text style={styles.tapHint}>
           {understoodDomains.length > 0
-            ? 'Tap anywhere to explore'
+            ? 'Tap a point to explore'
             : "I don't have anything to show here yet."}
         </Text>
       </View>
