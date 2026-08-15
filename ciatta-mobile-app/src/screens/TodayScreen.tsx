@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { colors, fonts } from '../theme/tokens';
 import type { ActiveCuriosity } from '../lib/curiosity';
@@ -10,6 +10,8 @@ import EditorialHeader from '../components/EditorialHeader';
 import BodySilhouette from '../components/BodySilhouette';
 import CuriosityCard from '../components/CuriosityCard';
 import Card from '../components/Card';
+
+const THANKS_VISIBLE_MS = 3000;
 
 const TODAY_LABEL = new Date().toLocaleDateString(undefined, {
   weekday: 'long',
@@ -58,6 +60,15 @@ export default function TodayScreen({
 }) {
   const [answered, setAnswered] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // The thank-you is an acknowledgement, not a resting state — let it sit
+  // long enough to read, then clear so the section collapses away rather
+  // than leaving a dead card on the screen for the rest of the day.
+  useEffect(() => {
+    if (!answered) return;
+    const t = setTimeout(() => setAnswered(false), THANKS_VISIBLE_MS);
+    return () => clearTimeout(t);
+  }, [answered]);
 
   // The most recently updated Understanding is "today's" — whatever the
   // engine last touched is the freshest thing to feature.
@@ -118,31 +129,27 @@ export default function TodayScreen({
         )}
       </Card>
 
-      <View style={styles.section}>
-        {answered ? (
-          <Card>
-            <Text style={styles.thanks}>
-              Thank you. Every observation helps me understand you better.
-            </Text>
-          </Card>
-        ) : activeCuriosity ? (
-          <>
-            <CuriosityCard
-              question={activeCuriosity.question}
-              purpose={activeCuriosity.purpose}
-              options={activeCuriosity.answerOptions}
-              onAnswer={handleAnswer}
-            />
-            {submitError ? <Text style={styles.submitError}>{submitError}</Text> : null}
-          </>
-        ) : (
-          <Card>
-            <Text style={styles.thanks}>
-              Nothing to ask you right now — I'll check in again soon.
-            </Text>
-          </Card>
-        )}
-      </View>
+      {answered || activeCuriosity ? (
+        <View style={styles.section}>
+          {answered ? (
+            <Card>
+              <Text style={styles.thanks}>
+                Thank you. Every observation helps me understand you better.
+              </Text>
+            </Card>
+          ) : activeCuriosity ? (
+            <>
+              <CuriosityCard
+                question={activeCuriosity.question}
+                purpose={activeCuriosity.purpose}
+                options={activeCuriosity.answerOptions}
+                onAnswer={handleAnswer}
+              />
+              {submitError ? <Text style={styles.submitError}>{submitError}</Text> : null}
+            </>
+          ) : null}
+        </View>
+      ) : null}
 
       {hasPendingDiscovery ? (
         <Card onPress={onOpenDiscoveryNudge} style={styles.nudgeFooter}>

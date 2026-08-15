@@ -62,7 +62,7 @@ export default function DiscoveryFlow({
         style={[
           StyleSheet.absoluteFill,
           styles.flex,
-          step === 1 ? styles.dark : styles.light,
+          styles.light,
           { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 },
         ]}
       >
@@ -151,14 +151,13 @@ export default function DiscoveryFlow({
 
 const styles = StyleSheet.create({
   flex: { flex: 1, paddingHorizontal: 26 },
-  dark: { backgroundColor: colors.dark },
   light: { backgroundColor: colors.canvas },
 
   brand: {
     fontFamily: fonts.sansMedium,
     fontSize: 12,
     letterSpacing: 2,
-    color: 'rgba(255,255,255,0.5)',
+    color: colors.ink3,
     marginTop: 12,
   },
   star: {
@@ -173,21 +172,21 @@ const styles = StyleSheet.create({
     fontFamily: fonts.serif,
     fontSize: 42,
     lineHeight: 48,
-    color: colors.white,
+    color: colors.ink,
     marginTop: 28,
   },
   announceBody: {
     fontFamily: fonts.sans,
     fontSize: 16,
     lineHeight: 24,
-    color: 'rgba(255,255,255,0.85)',
+    color: colors.ink2,
     marginTop: 22,
   },
   announceFooter: {
     fontFamily: fonts.sans,
     fontSize: 14,
     lineHeight: 21,
-    color: 'rgba(255,255,255,0.55)',
+    color: colors.ink3,
     marginTop: 14,
   },
 

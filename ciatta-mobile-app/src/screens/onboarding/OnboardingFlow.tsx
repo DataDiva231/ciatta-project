@@ -173,7 +173,6 @@ export default function OnboardingFlow({
       <Animated.View style={[styles.body, { opacity: fade, paddingBottom: insets.bottom + 24 }]}>
         {step === 0 && (
           <Message
-            dark
             title="Welcome to Ciatta."
             body="Every body tells a story. I'm here to spend time understanding yours."
             ctaLabel="Begin"
@@ -183,7 +182,6 @@ export default function OnboardingFlow({
 
         {step === 1 && (
           <Message
-            dark
             title="Understanding takes time."
             body="I don't make assumptions. I learn through conversations, evidence, and your everyday life. My understanding grows with you.
 
@@ -368,7 +366,7 @@ Permissions can always be changed."
                 next();
               }}
             />
-            <GhostButton label="I'll do this later" onPress={next} tone="light" />
+            <GhostButton label="I'll do this later" onPress={next} />
           </View>
         )}
 
@@ -442,7 +440,10 @@ Permissions can always be changed."
   );
 }
 
-const DARK_STEPS = new Set([0, 1, 8]);
+// Every screen now uses the light canvas — the dark-step treatment was
+// dropped on request. The `dark` branches below are kept (inert) so the
+// treatment can be reinstated per-step by re-adding indices here.
+const DARK_STEPS = new Set<number>([]);
 
 function BeginningYourStory({ onDone }: { onDone: () => void }) {
   const lines = ["I'm beginning to", 'understand you.'];
@@ -826,20 +827,20 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sansMedium,
     fontSize: 12,
     letterSpacing: 2,
-    color: 'rgba(255,255,255,0.5)',
+    color: colors.ink3,
     marginTop: 8,
   },
   arcTitle: {
     fontFamily: fonts.serif,
     fontSize: 32,
-    color: colors.white,
+    color: colors.ink,
     marginTop: 20,
   },
   arcBody: {
     fontFamily: fonts.sans,
     fontSize: 15,
     lineHeight: 22,
-    color: 'rgba(255,255,255,0.75)',
+    color: colors.ink2,
     marginTop: 12,
     maxWidth: '92%',
   },

@@ -7,7 +7,7 @@ export default function CuriosityCard({
   purpose,
   options,
   onAnswer,
-  variant = 'dark',
+  variant = 'light',
 }: {
   question: string;
   purpose?: string;

@@ -297,7 +297,7 @@ export default function App() {
   if (!session) {
     return (
       <SafeAreaProvider>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
         <OnboardingFlow onComplete={handleOnboardingComplete} />
       </SafeAreaProvider>
     );
@@ -317,7 +317,7 @@ export default function App() {
   if (!profile.onboarded_at) {
     return (
       <SafeAreaProvider>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
         <OnboardingFlow
           onComplete={handleOnboardingComplete}
           startStep={4}
@@ -477,13 +477,15 @@ const styles = StyleSheet.create({
     left: 24,
     right: 24,
     bottom: 24,
-    backgroundColor: colors.dark,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: 12,
     padding: 16,
   },
   completeErrorText: {
     fontFamily: fontTokens.sans,
     fontSize: 13,
-    color: colors.white,
+    color: colors.ink,
   },
 });
