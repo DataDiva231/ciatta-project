@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from '@expo-google-fonts/karla';
 import { Karla_400Regular, Karla_500Medium, Karla_600SemiBold } from '@expo-google-fonts/karla';
 import {
@@ -46,6 +47,9 @@ import DiscoveryDetailSheet from './src/overlays/DiscoveryDetailSheet';
 import DataPrivacySheet from './src/overlays/DataPrivacySheet';
 import HealthSyncSheet from './src/overlays/HealthSyncSheet';
 import BottomSheet from './src/components/BottomSheet';
+import AnimatedSplash from './src/components/AnimatedSplash';
+
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function parseDob(input: string): string | null {
   const match = input.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -75,6 +79,7 @@ export default function App() {
   const [activeCuriosity, setActiveCuriosity] = useState<ActiveCuriosity | null>(null);
   const [healthSourceConnected, setHealthSourceConnected] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
+  const [splashDone, setSplashDone] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [completeError, setCompleteError] = useState<string | null>(null);
 
@@ -207,12 +212,14 @@ export default function App() {
     );
   }
 
-  if (!fontsLoaded || session === undefined) {
+  if (!fontsLoaded || !splashDone) {
     return (
       <SafeAreaProvider>
-        <View style={styles.loading}>
-          <StatusBar style="dark" />
-        </View>
+        <AnimatedSplash
+          ready={fontsLoaded && session !== undefined}
+          onFinish={() => setSplashDone(true)}
+        />
+        <StatusBar style="dark" />
       </SafeAreaProvider>
     );
   }
