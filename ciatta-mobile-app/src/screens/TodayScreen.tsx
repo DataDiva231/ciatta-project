@@ -4,6 +4,7 @@ import { colors, fonts } from '../theme/tokens';
 import type { ActiveCuriosity } from '../lib/curiosity';
 import type { UnderstandingRow } from '../lib/queries';
 import { domainLabel } from '../lib/mockData';
+import { formatSleepMinutes, type RecentSyncSummary } from '../lib/observations';
 import ScreenContainer from '../components/ScreenContainer';
 import EditorialHeader from '../components/EditorialHeader';
 import BodySilhouette from '../components/BodySilhouette';
@@ -16,6 +17,28 @@ const TODAY_LABEL = new Date().toLocaleDateString(undefined, {
   day: 'numeric',
 });
 
+function formatSyncedAgo(iso: string): string {
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  return `${Math.round(minutes / 60)}h ago`;
+}
+
+function syncSummaryLine(summary: RecentSyncSummary): string {
+  const parts: string[] = [];
+  if (summary.reflection.sleepMinutes != null) {
+    parts.push(`${formatSleepMinutes(summary.reflection.sleepMinutes)} sleep`);
+  }
+  if (summary.reflection.steps != null) {
+    parts.push(`${summary.reflection.steps.toLocaleString()} steps`);
+  }
+  if (summary.reflection.restingHeartRateBpm != null) {
+    parts.push(`${Math.round(summary.reflection.restingHeartRateBpm)} bpm resting`);
+  }
+  const prefix = `Synced ${formatSyncedAgo(summary.syncedAt)}`;
+  return parts.length > 0 ? `${prefix} — ${parts.join(' · ')}` : prefix;
+}
+
 export default function TodayScreen({
   onOpenDiscoveryNudge,
   activeCuriosity,
@@ -23,6 +46,7 @@ export default function TodayScreen({
   hasPendingDiscovery,
   understandings,
   preferredName,
+  recentSyncSummary,
 }: {
   onOpenDiscoveryNudge: () => void;
   activeCuriosity: ActiveCuriosity | null;
@@ -30,6 +54,7 @@ export default function TodayScreen({
   hasPendingDiscovery: boolean;
   understandings: UnderstandingRow[];
   preferredName: string;
+  recentSyncSummary: RecentSyncSummary | null;
 }) {
   const [answered, setAnswered] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -61,6 +86,12 @@ export default function TodayScreen({
         title={`Good morning, ${preferredName || 'there'}`}
         subtitle={TODAY_LABEL}
       />
+
+      {recentSyncSummary ? (
+        <Text style={styles.syncLine} numberOfLines={1} ellipsizeMode="tail">
+          {syncSummaryLine(recentSyncSummary)}
+        </Text>
+      ) : null}
 
       <View style={styles.hero}>
         <BodySilhouette variant="today" crop={0.75} activeDomain={featured?.domain} />
@@ -126,6 +157,13 @@ export default function TodayScreen({
 }
 
 const styles = StyleSheet.create({
+  syncLine: {
+    fontFamily: fonts.sans,
+    fontSize: 12.5,
+    color: colors.ink3,
+    marginTop: -10,
+    marginBottom: 18,
+  },
   hero: {
     marginTop: 4,
     marginBottom: 24,

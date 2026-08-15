@@ -30,6 +30,7 @@ import {
   type UnderstandingRow,
 } from './src/lib/queries';
 import { answerCuriosity, fetchActiveCuriosity, type ActiveCuriosity } from './src/lib/curiosity';
+import { fetchRecentSyncSummary, type RecentSyncSummary } from './src/lib/observations';
 import type { Domain, Profile, Strength } from './src/lib/types';
 
 import OnboardingFlow, {
@@ -78,6 +79,7 @@ export default function App() {
   const [discoveries, setDiscoveries] = useState<DiscoveryRow[]>([]);
   const [activeCuriosity, setActiveCuriosity] = useState<ActiveCuriosity | null>(null);
   const [healthSourceConnected, setHealthSourceConnected] = useState(false);
+  const [recentSyncSummary, setRecentSyncSummary] = useState<RecentSyncSummary | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
   const [completing, setCompleting] = useState(false);
@@ -108,7 +110,7 @@ export default function App() {
   const loadUserData = useCallback(async (userId: string) => {
     setDataLoading(true);
     try {
-      const [p, u, r, h, d, c, hc] = await Promise.all([
+      const [p, u, r, h, d, c, hc, sync] = await Promise.all([
         fetchProfile(userId),
         fetchUnderstandings(userId),
         fetchRelationships(userId),
@@ -116,6 +118,7 @@ export default function App() {
         fetchDiscoveries(userId),
         fetchActiveCuriosity(userId),
         hasHealthSourceObservations(userId),
+        fetchRecentSyncSummary(userId),
       ]);
       setProfile(p);
       setUnderstandings(u);
@@ -124,6 +127,7 @@ export default function App() {
       setDiscoveries(d);
       setActiveCuriosity(c);
       setHealthSourceConnected(hc);
+      setRecentSyncSummary(sync);
     } catch (e) {
       // A locally cached session can outlive the account it belongs to
       // (e.g. deleted from another device, or deleted then the app
@@ -156,6 +160,7 @@ export default function App() {
       setDiscoveries([]);
       setActiveCuriosity(null);
       setHealthSourceConnected(false);
+      setRecentSyncSummary(null);
     }
   }, [session?.user?.id, loadUserData]);
 
@@ -280,6 +285,7 @@ export default function App() {
               hasPendingDiscovery={hasPendingDiscovery}
               understandings={understandings}
               preferredName={profile.preferred_name || profile.name || ''}
+              recentSyncSummary={recentSyncSummary}
             />
           )}
           {tab === 'core' && (
@@ -346,7 +352,12 @@ export default function App() {
         userId={session?.user?.id ?? null}
         connected={healthSourceConnected}
         onClose={() => setHealthSyncVisible(false)}
-        onSynced={() => setHealthSourceConnected(true)}
+        onSynced={() => {
+          setHealthSourceConnected(true);
+          if (session?.user?.id) {
+            fetchRecentSyncSummary(session.user.id).then(setRecentSyncSummary).catch(() => {});
+          }
+        }}
       />
 
       <DataPrivacySheet

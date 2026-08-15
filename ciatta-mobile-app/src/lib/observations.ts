@@ -33,6 +33,12 @@ export interface SyncReflection {
   restingHeartRateBpm: number | null;
 }
 
+export function formatSleepMinutes(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
 /**
  * Reads back what a sync just wrote, in plain terms — a same-second "here's
  * what I just learned" reflection, distinct from the Understanding Engine's
@@ -95,4 +101,38 @@ export async function fetchSyncReflection(userId: string): Promise<SyncReflectio
     (restingHr.data?.[0]?.value as { bpm?: number } | undefined)?.bpm ?? null;
 
   return { sleepMinutes, steps, restingHeartRateBpm };
+}
+
+const RECENT_SYNC_WINDOW_HOURS = 24;
+
+export interface RecentSyncSummary {
+  syncedAt: string;
+  reflection: SyncReflection;
+}
+
+/**
+ * For a quiet "synced recently" note on the Today screen — only returns
+ * something if a health-source observation actually landed within the last
+ * day, so this never shows a stale "synced 3 days ago" once the moment has
+ * passed. Reuses the same reflection numbers as the sync sheet so the two
+ * surfaces never disagree.
+ */
+export async function fetchRecentSyncSummary(userId: string): Promise<RecentSyncSummary | null> {
+  const since = new Date(Date.now() - RECENT_SYNC_WINDOW_HOURS * 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await supabase
+    .from('observations')
+    .select('created_at')
+    .eq('user_id', userId)
+    .in('source', ['health-connect', 'apple-health'])
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error) throw error;
+
+  const syncedAt = data?.[0]?.created_at as string | undefined;
+  if (!syncedAt) return null;
+
+  const reflection = await fetchSyncReflection(userId);
+  return { syncedAt, reflection };
 }

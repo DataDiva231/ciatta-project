@@ -6,7 +6,7 @@ import PrimaryButton from '../components/PrimaryButton';
 import StatRow from '../components/StatRow';
 import { connectHealthConnect } from '../lib/healthConnect';
 import { connectHealthKit } from '../lib/healthKit';
-import { fetchSyncReflection, type SyncReflection } from '../lib/observations';
+import { fetchSyncReflection, formatSleepMinutes, type SyncReflection } from '../lib/observations';
 
 const SOURCE_NAME = Platform.OS === 'android' ? 'Health Connect' : 'Apple Health';
 
@@ -16,16 +16,10 @@ type SyncOutcome =
   | { kind: 'permission-denied' }
   | { kind: 'error'; message: string };
 
-function formatSleep(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = Math.round(minutes % 60);
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
-}
-
 function reflectionRows(reflection: SyncReflection): { label: string; value: string }[] {
   const rows: { label: string; value: string }[] = [];
   if (reflection.sleepMinutes != null) {
-    rows.push({ label: 'Sleep, last night', value: formatSleep(reflection.sleepMinutes) });
+    rows.push({ label: 'Sleep, last night', value: formatSleepMinutes(reflection.sleepMinutes) });
   }
   if (reflection.steps != null) {
     rows.push({ label: 'Steps, last 24h', value: reflection.steps.toLocaleString() });
