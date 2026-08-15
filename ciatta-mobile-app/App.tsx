@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from '@expo-google-fonts/karla';
@@ -30,7 +30,13 @@ import {
   type UnderstandingRow,
 } from './src/lib/queries';
 import { answerCuriosity, fetchActiveCuriosity, type ActiveCuriosity } from './src/lib/curiosity';
-import { fetchRecentSyncSummary, type RecentSyncSummary } from './src/lib/observations';
+import {
+  fetchLastHealthSyncAt,
+  fetchRecentSyncSummary,
+  type RecentSyncSummary,
+} from './src/lib/observations';
+import { connectHealthConnect } from './src/lib/healthConnect';
+import { connectHealthKit } from './src/lib/healthKit';
 import type { Domain, Profile, Strength } from './src/lib/types';
 
 import OnboardingFlow, {
@@ -51,6 +57,8 @@ import BottomSheet from './src/components/BottomSheet';
 import AnimatedSplash from './src/components/AnimatedSplash';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+const AUTO_SYNC_COOLDOWN_MS = 60 * 60 * 1000;
 
 function parseDob(input: string): string | null {
   const match = input.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -107,47 +115,89 @@ export default function App() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const loadUserData = useCallback(async (userId: string) => {
-    setDataLoading(true);
+  // Auto-sync replaces having to find the manual "Sync now" button — if
+  // Health Connect/HealthKit is already connected and it's been a while
+  // since the last sync, quietly pull fresh data whenever the app is
+  // opened. requestPermission/requestAuthorization only prompt the OS
+  // dialog the first time (or if access was revoked), so this is silent on
+  // every normal open. Failures are swallowed — this is a background
+  // nicety, not a user-facing action, so it never surfaces an error; the
+  // manual sync sheet remains the fallback with real error messaging.
+  //
+  // Guarded against re-entrancy: Android's AppState can emit several rapid
+  // 'active' transitions around a single cold start (window-focus churn,
+  // not real background/foreground cycles), which would otherwise fire this
+  // multiple times concurrently — wasteful, and if permission were ever not
+  // already granted, capable of popping the OS consent dialog more than
+  // once.
+  const autoSyncInFlightRef = useRef(false);
+  const maybeAutoSync = useCallback(async (userId: string) => {
+    if (autoSyncInFlightRef.current) return;
+    autoSyncInFlightRef.current = true;
     try {
-      const [p, u, r, h, d, c, hc, sync] = await Promise.all([
-        fetchProfile(userId),
-        fetchUnderstandings(userId),
-        fetchRelationships(userId),
-        fetchUnderstandingHistory(userId),
-        fetchDiscoveries(userId),
-        fetchActiveCuriosity(userId),
-        hasHealthSourceObservations(userId),
-        fetchRecentSyncSummary(userId),
-      ]);
-      setProfile(p);
-      setUnderstandings(u);
-      setRelationships(r);
-      setUnderstandingHistory(h);
-      setDiscoveries(d);
-      setActiveCuriosity(c);
-      setHealthSourceConnected(hc);
-      setRecentSyncSummary(sync);
-    } catch (e) {
-      // A locally cached session can outlive the account it belongs to
-      // (e.g. deleted from another device, or deleted then the app
-      // resumed from background without ever re-checking auth state).
-      // The JWT still looks valid client-side, but every fetch here fails
-      // because the underlying rows are gone. Without this, profile stays
-      // null forever and the app is stuck on the loading spinner below —
-      // signing out clears the stale session and returns to onboarding.
-      console.error('Failed to load user data, signing out:', e);
-      try {
-        await signOut();
-      } catch (signOutError) {
-        // Nothing more we can do locally — surfacing this would just be a
-        // second stuck state. Logged so it's not silently invisible.
-        console.error('Sign-out during recovery also failed:', signOutError);
+      const lastSyncedAt = await fetchLastHealthSyncAt(userId);
+      const due =
+        !lastSyncedAt || Date.now() - new Date(lastSyncedAt).getTime() > AUTO_SYNC_COOLDOWN_MS;
+      if (!due) return;
+      const result =
+        Platform.OS === 'android' ? await connectHealthConnect(userId) : await connectHealthKit(userId);
+      if (result.granted) {
+        setRecentSyncSummary(await fetchRecentSyncSummary(userId));
       }
+    } catch {
+      // Silent by design — see comment above.
     } finally {
-      setDataLoading(false);
+      autoSyncInFlightRef.current = false;
     }
   }, []);
+
+  const loadUserData = useCallback(
+    async (userId: string) => {
+      setDataLoading(true);
+      try {
+        const [p, u, r, h, d, c, hc, sync] = await Promise.all([
+          fetchProfile(userId),
+          fetchUnderstandings(userId),
+          fetchRelationships(userId),
+          fetchUnderstandingHistory(userId),
+          fetchDiscoveries(userId),
+          fetchActiveCuriosity(userId),
+          hasHealthSourceObservations(userId),
+          fetchRecentSyncSummary(userId),
+        ]);
+        setProfile(p);
+        setUnderstandings(u);
+        setRelationships(r);
+        setUnderstandingHistory(h);
+        setDiscoveries(d);
+        setActiveCuriosity(c);
+        setHealthSourceConnected(hc);
+        setRecentSyncSummary(sync);
+        if (hc) {
+          maybeAutoSync(userId);
+        }
+      } catch (e) {
+        // A locally cached session can outlive the account it belongs to
+        // (e.g. deleted from another device, or deleted then the app
+        // resumed from background without ever re-checking auth state).
+        // The JWT still looks valid client-side, but every fetch here fails
+        // because the underlying rows are gone. Without this, profile stays
+        // null forever and the app is stuck on the loading spinner below —
+        // signing out clears the stale session and returns to onboarding.
+        console.error('Failed to load user data, signing out:', e);
+        try {
+          await signOut();
+        } catch (signOutError) {
+          // Nothing more we can do locally — surfacing this would just be a
+          // second stuck state. Logged so it's not silently invisible.
+          console.error('Sign-out during recovery also failed:', signOutError);
+        }
+      } finally {
+        setDataLoading(false);
+      }
+    },
+    [maybeAutoSync]
+  );
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -163,6 +213,21 @@ export default function App() {
       setRecentSyncSummary(null);
     }
   }, [session?.user?.id, loadUserData]);
+
+  // Covers "opens the app" beyond just a cold start — coming back to the
+  // foreground from the background counts as opening it too.
+  const appStateRef = useRef(AppState.currentState);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      const cameToForeground =
+        /inactive|background/.test(appStateRef.current) && nextState === 'active';
+      appStateRef.current = nextState;
+      if (cameToForeground && session?.user?.id && healthSourceConnected) {
+        maybeAutoSync(session.user.id);
+      }
+    });
+    return () => sub.remove();
+  }, [session?.user?.id, healthSourceConnected, maybeAutoSync]);
 
   async function handleOnboardingComplete(draft: OnboardingDraft) {
     if (!session?.user?.id) return;

@@ -111,6 +111,24 @@ export interface RecentSyncSummary {
 }
 
 /**
+ * The most recent time any health-source observation was written, with no
+ * time window applied — used to decide whether an auto-sync is due, as
+ * opposed to `fetchRecentSyncSummary` below which is scoped to "recent
+ * enough to show on screen."
+ */
+export async function fetchLastHealthSyncAt(userId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('observations')
+    .select('created_at')
+    .eq('user_id', userId)
+    .in('source', ['health-connect', 'apple-health'])
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  return (data?.[0]?.created_at as string | undefined) ?? null;
+}
+
+/**
  * For a quiet "synced recently" note on the Today screen — only returns
  * something if a health-source observation actually landed within the last
  * day, so this never shows a stale "synced 3 days ago" once the moment has
@@ -118,20 +136,10 @@ export interface RecentSyncSummary {
  * surfaces never disagree.
  */
 export async function fetchRecentSyncSummary(userId: string): Promise<RecentSyncSummary | null> {
-  const since = new Date(Date.now() - RECENT_SYNC_WINDOW_HOURS * 60 * 60 * 1000).toISOString();
-
-  const { data, error } = await supabase
-    .from('observations')
-    .select('created_at')
-    .eq('user_id', userId)
-    .in('source', ['health-connect', 'apple-health'])
-    .gte('created_at', since)
-    .order('created_at', { ascending: false })
-    .limit(1);
-  if (error) throw error;
-
-  const syncedAt = data?.[0]?.created_at as string | undefined;
+  const syncedAt = await fetchLastHealthSyncAt(userId);
   if (!syncedAt) return null;
+  const ageMs = Date.now() - new Date(syncedAt).getTime();
+  if (ageMs > RECENT_SYNC_WINDOW_HOURS * 60 * 60 * 1000) return null;
 
   const reflection = await fetchSyncReflection(userId);
   return { syncedAt, reflection };
