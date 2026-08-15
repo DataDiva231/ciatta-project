@@ -9,6 +9,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ciatta.mobileapp",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -38,6 +39,7 @@
     "plugins": [
       "expo-font",
       "expo-status-bar",
+      "expo-apple-authentication",
       "react-native-health-connect",
       [
         "@kingstinct/react-native-healthkit",
@@ -64,6 +66,12 @@
           "imageWidth": 220,
           "resizeMode": "contain",
           "backgroundColor": "#EDE6D8"
+        }
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.326095655806-po3vgir44qdql8s6a6ibfg1frej4am64"
         }
       ]
     ],

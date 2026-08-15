@@ -15,6 +15,8 @@ import PrimaryButton from '../../components/PrimaryButton';
 import GhostButton from '../../components/GhostButton';
 import Card from '../../components/Card';
 import { signIn, signUp } from '../../lib/auth';
+import { seedProfileName } from '../../lib/socialAuth';
+import SocialAuthButtons from '../../components/SocialAuthButtons';
 import { connectHealthConnect } from '../../lib/healthConnect';
 import { connectHealthKit } from '../../lib/healthKit';
 
@@ -551,6 +553,19 @@ function AccountStep({ onAuthed }: { onAuthed: () => void }) {
           ? 'This is where your understanding will live, and only you can access it.'
           : 'Sign in to pick up where you left off.'}
       </Text>
+
+      <SocialAuthButtons
+        onAuthed={(fullName) => {
+          setError(null);
+          if (fullName) {
+            // Apple hands the name over exactly once, on first authorization —
+            // capture it now or it's gone for good.
+            seedProfileName(fullName).catch(() => {});
+          }
+          onAuthed();
+        }}
+        onError={setError}
+      />
 
       <Text style={styles.fieldLabel}>EMAIL</Text>
       <TextInput
