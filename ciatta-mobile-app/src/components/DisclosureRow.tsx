@@ -18,6 +18,9 @@ export default function DisclosureRow({
 }) {
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={value ? `${label}, ${value}` : label}
+      accessibilityHint="Opens for editing"
       onPress={onPress}
       style={({ pressed }) => [
         styles.row,

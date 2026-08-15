@@ -8,7 +8,7 @@ import {
 } from 'react-native-health-connect';
 import { insertObservation } from './observations';
 
-const SYNC_WINDOW_HOURS = 48;
+const SYNC_WINDOW_HOURS = 24 * 30;
 // The Understanding Engine needs enough cycle history to compare multiple
 // full menstrual cycles against each other, so resting heart rate and
 // menstruation get a much longer one-time backfill than the day-to-day

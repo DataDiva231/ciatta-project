@@ -42,16 +42,21 @@ const styles = StyleSheet.create({
   wrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.canvas,
+    // Surface + a real border, so the field stays visible on canvas-coloured
+    // screens. It used to be canvas-on-canvas with a transparent border,
+    // which rendered as bare placeholder text with no visible input.
+    backgroundColor: colors.surface,
     borderRadius: radii.pill,
     borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderColor: colors.border,
     paddingHorizontal: 18,
     paddingVertical: 12,
   },
   multiline: {
     borderRadius: radii.md,
     alignItems: 'flex-start',
+    minHeight: 120,
+    paddingVertical: 14,
   },
   focused: {
     borderColor: colors.accent,

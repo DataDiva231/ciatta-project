@@ -14,6 +14,7 @@ export default function Card({
   if (onPress) {
     return (
       <Pressable
+        accessibilityRole="button"
         onPress={onPress}
         style={({ pressed }) => [styles.card, pressed && styles.pressed, style]}
       >

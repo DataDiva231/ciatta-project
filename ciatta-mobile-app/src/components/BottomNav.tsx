@@ -26,7 +26,14 @@ export default function BottomNav({
         const isActive = active === id;
         const color = isActive ? colors.accent : colors.ink3;
         return (
-          <Pressable key={id} style={styles.tab} onPress={() => onChange(id)}>
+          <Pressable
+            key={id}
+            accessibilityRole="tab"
+            accessibilityLabel={label}
+            accessibilityState={{ selected: isActive }}
+            style={styles.tab}
+            onPress={() => onChange(id)}
+          >
             <Icon color={color} />
             <Text style={[styles.label, { color }]}>{label}</Text>
           </Pressable>

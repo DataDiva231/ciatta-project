@@ -16,6 +16,7 @@ import type { Session } from '@supabase/supabase-js';
 import { colors, fonts as fontTokens } from './src/theme/tokens';
 import { supabase } from './src/lib/supabase';
 import { signOut } from './src/lib/auth';
+import { isAuthFailure } from './src/lib/errors';
 import { fetchProfile, updateProfile } from './src/lib/profile';
 import {
   fetchDiscoveries,
@@ -53,7 +54,10 @@ import DiscoveryFlow from './src/overlays/DiscoveryFlow';
 import DiscoveryDetailSheet from './src/overlays/DiscoveryDetailSheet';
 import DataPrivacySheet from './src/overlays/DataPrivacySheet';
 import HealthSyncSheet from './src/overlays/HealthSyncSheet';
+import ProfileEditSheet, { PROFILE_FIELDS } from './src/overlays/ProfileEditSheet';
+import HealthNoteSheet, { isHealthNoteRow } from './src/overlays/HealthNoteSheet';
 import BottomSheet from './src/components/BottomSheet';
+import PrimaryButton from './src/components/PrimaryButton';
 import AnimatedSplash from './src/components/AnimatedSplash';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -90,6 +94,7 @@ export default function App() {
   const [recentSyncSummary, setRecentSyncSummary] = useState<RecentSyncSummary | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [completing, setCompleting] = useState(false);
   const [completeError, setCompleteError] = useState<string | null>(null);
 
@@ -103,6 +108,8 @@ export default function App() {
   const [rowSheet, setRowSheet] = useState<{ section: string; row: string } | null>(
     null
   );
+  const [editRowId, setEditRowId] = useState<string | null>(null);
+  const [healthNoteRowId, setHealthNoteRowId] = useState<string | null>(null);
 
   const pendingDiscovery = discoveries.find((d) => d.status === 'pending') ?? null;
   const selectedDiscovery = discoveries.find((d) => d.id === selectedDiscoveryId) ?? null;
@@ -154,6 +161,7 @@ export default function App() {
   const loadUserData = useCallback(
     async (userId: string) => {
       setDataLoading(true);
+      setLoadError(null);
       try {
         const [p, u, r, h, d, c, hc, sync] = await Promise.all([
           fetchProfile(userId),
@@ -178,19 +186,25 @@ export default function App() {
         }
       } catch (e) {
         // A locally cached session can outlive the account it belongs to
-        // (e.g. deleted from another device, or deleted then the app
-        // resumed from background without ever re-checking auth state).
-        // The JWT still looks valid client-side, but every fetch here fails
-        // because the underlying rows are gone. Without this, profile stays
-        // null forever and the app is stuck on the loading spinner below —
-        // signing out clears the stale session and returns to onboarding.
-        console.error('Failed to load user data, signing out:', e);
-        try {
-          await signOut();
-        } catch (signOutError) {
-          // Nothing more we can do locally — surfacing this would just be a
-          // second stuck state. Logged so it's not silently invisible.
-          console.error('Sign-out during recovery also failed:', signOutError);
+        // (deleted from another device, say). There the JWT still looks valid
+        // client-side but every fetch fails, and signing out is the only way
+        // to escape a permanent spinner.
+        //
+        // Everything else — most importantly a dropped connection — must NOT
+        // sign her out. That used to happen on any failure, so opening the app
+        // with no signal ejected her from her account.
+        if (isAuthFailure(e)) {
+          console.error('Session is no longer valid, signing out:', e);
+          try {
+            await signOut();
+          } catch (signOutError) {
+            console.error('Sign-out during recovery also failed:', signOutError);
+          }
+        } else {
+          console.error('Could not load user data (keeping session):', e);
+          setLoadError(
+            "I couldn't reach your data just now. Check your connection and try again."
+          );
         }
       } finally {
         setDataLoading(false);
@@ -303,6 +317,28 @@ export default function App() {
     );
   }
 
+  // A failed load no longer signs her out, so it needs somewhere to land
+  // other than a spinner that never resolves.
+  if (!dataLoading && !profile && loadError) {
+    return (
+      <SafeAreaProvider>
+        <View style={styles.loading}>
+          <Text style={styles.retryTitle}>I can't reach your data.</Text>
+          <Text style={styles.retryBody}>{loadError}</Text>
+          <View style={styles.retryButton}>
+            <PrimaryButton
+              label="Try again"
+              onPress={() => {
+                if (session?.user?.id) loadUserData(session.user.id);
+              }}
+            />
+          </View>
+          <StatusBar style="dark" />
+        </View>
+      </SafeAreaProvider>
+    );
+  }
+
   if (dataLoading || !profile) {
     return (
       <SafeAreaProvider>
@@ -370,6 +406,10 @@ export default function App() {
                   setDataPrivacyVisible(true);
                 } else if (section === 'connections' && row === 'health-source') {
                   setHealthSyncVisible(true);
+                } else if (PROFILE_FIELDS[row]) {
+                  setEditRowId(row);
+                } else if (isHealthNoteRow(row)) {
+                  setHealthNoteRowId(row);
                 } else {
                   setRowSheet({ section, row });
                 }
@@ -396,6 +436,7 @@ export default function App() {
       <CuriosityOverlay
         visible={curiosityVisible}
         onClose={() => setCuriosityVisible(false)}
+        userId={session?.user?.id ?? null}
         activeCuriosity={activeCuriosity}
         onAnswerCuriosity={handleAnswerCuriosity}
       />
@@ -410,6 +451,26 @@ export default function App() {
       <DiscoveryDetailSheet
         discovery={selectedDiscovery}
         onClose={() => setSelectedDiscoveryId(null)}
+      />
+
+      <ProfileEditSheet
+        rowId={editRowId}
+        profile={profile}
+        onClose={() => setEditRowId(null)}
+        onSave={async (patch) => {
+          if (!session?.user?.id) return;
+          const updated = await updateProfile(session.user.id, patch as never);
+          setProfile(updated);
+        }}
+      />
+
+      <HealthNoteSheet
+        rowId={healthNoteRowId}
+        userId={session?.user?.id ?? null}
+        onClose={() => setHealthNoteRowId(null)}
+        onSaved={() => {
+          if (session?.user?.id) loadUserData(session.user.id);
+        }}
       />
 
       <HealthSyncSheet
@@ -454,6 +515,25 @@ const styles = StyleSheet.create({
     backgroundColor: colors.canvas,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  retryTitle: {
+    fontFamily: fontTokens.serif,
+    fontSize: 26,
+    color: colors.ink,
+    textAlign: 'center',
+  },
+  retryBody: {
+    fontFamily: fontTokens.sans,
+    fontSize: 14.5,
+    lineHeight: 21,
+    color: colors.ink2,
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  retryButton: {
+    alignSelf: 'stretch',
+    marginTop: 24,
   },
   app: {
     flex: 1,

@@ -16,7 +16,13 @@ export default function GhostButton({
   const color =
     tone === 'ink' ? colors.ink : tone === 'light' ? colors.white : colors.ink2;
   return (
-    <Pressable onPress={onPress} hitSlop={10} style={styles.wrap}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      hitSlop={10}
+      style={styles.wrap}
+    >
       {({ pressed }) => (
         <Text style={[styles.label, { color, opacity: pressed ? 0.6 : 1 }, style]}>
           {label}

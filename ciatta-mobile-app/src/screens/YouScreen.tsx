@@ -51,7 +51,10 @@ export default function YouScreen({
       : c
   );
   const sharedHealthItemIds = new Set(
-    profile.shared_health_rows.map((id) => ONBOARDING_ROW_TO_HEALTH_ITEM[id]).filter(Boolean)
+    // Onboarding writes its own short ids ('medical', 'meds'); the health
+    // rows write their own ('medical-history', 'medications'). Accept both,
+    // otherwise a note saved from this screen never shows as shared.
+    profile.shared_health_rows.map((id) => ONBOARDING_ROW_TO_HEALTH_ITEM[id] ?? id).filter(Boolean)
   );
   const healthItemsWithRealStatus = healthItems.map((item) =>
     sharedHealthItemIds.has(item.id) ? { ...item, value: 'Shared' } : item
@@ -84,6 +87,16 @@ export default function YouScreen({
           label="Identity"
           value={identityLine}
           onPress={() => onOpenRow('who-you-are', 'identity')}
+        />
+        <DisclosureRow
+          label="Date of birth"
+          value={profile.dob || 'Not set'}
+          onPress={() => onOpenRow('who-you-are', 'dob')}
+        />
+        <DisclosureRow
+          label="Pronouns"
+          value={profile.pronouns || 'Not set'}
+          onPress={() => onOpenRow('who-you-are', 'pronouns')}
         />
         <DisclosureRow
           label="Life stage"
