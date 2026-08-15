@@ -3,16 +3,41 @@ import { Platform, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts } from '../theme/tokens';
 import BottomSheet from '../components/BottomSheet';
 import PrimaryButton from '../components/PrimaryButton';
+import StatRow from '../components/StatRow';
 import { connectHealthConnect } from '../lib/healthConnect';
 import { connectHealthKit } from '../lib/healthKit';
+import { fetchSyncReflection, type SyncReflection } from '../lib/observations';
 
 const SOURCE_NAME = Platform.OS === 'android' ? 'Health Connect' : 'Apple Health';
 
 type SyncOutcome =
-  | { kind: 'synced'; count: number }
+  | { kind: 'synced'; count: number; reflection: SyncReflection }
   | { kind: 'unavailable' }
   | { kind: 'permission-denied' }
   | { kind: 'error'; message: string };
+
+function formatSleep(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function reflectionRows(reflection: SyncReflection): { label: string; value: string }[] {
+  const rows: { label: string; value: string }[] = [];
+  if (reflection.sleepMinutes != null) {
+    rows.push({ label: 'Sleep, last night', value: formatSleep(reflection.sleepMinutes) });
+  }
+  if (reflection.steps != null) {
+    rows.push({ label: 'Steps, last 24h', value: reflection.steps.toLocaleString() });
+  }
+  if (reflection.restingHeartRateBpm != null) {
+    rows.push({
+      label: 'Resting heart rate',
+      value: `${Math.round(reflection.restingHeartRateBpm)} bpm`,
+    });
+  }
+  return rows;
+}
 
 export default function HealthSyncSheet({
   visible,
@@ -50,7 +75,8 @@ export default function HealthSyncSheet({
         );
         return;
       }
-      setOutcome({ kind: 'synced', count: result.observationsSynced });
+      const reflection = await fetchSyncReflection(userId);
+      setOutcome({ kind: 'synced', count: result.observationsSynced, reflection });
       onSynced();
     } catch (e) {
       setOutcome({ kind: 'error', message: e instanceof Error ? e.message : 'Something went wrong.' });
@@ -77,11 +103,20 @@ export default function HealthSyncSheet({
           />
 
           {outcome?.kind === 'synced' && (
-            <Text style={styles.result}>
-              {outcome.count > 0
-                ? `Pulled in ${outcome.count} new reading${outcome.count === 1 ? '' : 's'}.`
-                : `No new data since last time — I'll have more to work with the next time you sync.`}
-            </Text>
+            <>
+              <Text style={styles.result}>
+                {outcome.count > 0
+                  ? `Pulled in ${outcome.count} new reading${outcome.count === 1 ? '' : 's'}.`
+                  : `No new data since last time — I'll have more to work with the next time you sync.`}
+              </Text>
+              {reflectionRows(outcome.reflection).length > 0 && (
+                <View style={styles.reflection}>
+                  {reflectionRows(outcome.reflection).map((row, i, arr) => (
+                    <StatRow key={row.label} label={row.label} value={row.value} last={i === arr.length - 1} />
+                  ))}
+                </View>
+              )}
+            </>
           )}
           {outcome?.kind === 'unavailable' && (
             <Text style={styles.error}>
@@ -131,6 +166,10 @@ const styles = StyleSheet.create({
     color: colors.ink2,
     marginTop: 10,
     textAlign: 'center',
+  },
+  reflection: {
+    marginTop: 18,
+    paddingHorizontal: 4,
   },
   error: {
     fontFamily: fonts.sans,
