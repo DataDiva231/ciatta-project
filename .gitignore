@@ -28,3 +28,15 @@ yarn-error.log*
 !.vscode/extensions.json
 .idea/
 .DS_Store
+# Local build artifacts
+*.apk
+*.aab
+
+# Supabase CLI local state
+/supabase/.temp/
+
+# Conversation backup — contains a service_role key in plain text.
+my_chat_backup.txt
+
+# Design source files kept beside the repo, not shipped with it
+/ciatta-core-mvp.png

@@ -106,7 +106,9 @@ export default function YouScreen({
         <DisclosureRow
           label="Goals & focus"
           value={
-            profile.goals.length > 0 ? `${profile.goals.length} priorities` : 'Not set'
+            profile.goals.length > 0
+              ? `${profile.goals.length} ${profile.goals.length === 1 ? 'priority' : 'priorities'}`
+              : 'Not set'
           }
           onPress={() => onOpenRow('who-you-are', 'goals')}
         />

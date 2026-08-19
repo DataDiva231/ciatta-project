@@ -22,6 +22,14 @@
     "production": {
       "autoIncrement": true,
       "channel": "production"
+    },
+    "waydroid": {
+      "extends": "preview",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease -PreactNativeArchitectures=x86_64"
+      },
+      "channel": "preview"
     }
   },
   "submit": {

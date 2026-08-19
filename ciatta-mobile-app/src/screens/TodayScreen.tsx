@@ -1,23 +1,32 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts } from '../theme/tokens';
 import type { ActiveCuriosity } from '../lib/curiosity';
 import type { UnderstandingRow } from '../lib/queries';
+import type { Domain } from '../lib/types';
 import { domainLabel } from '../lib/mockData';
 import { formatSleepMinutes, type RecentSyncSummary } from '../lib/observations';
+import { derivePriority } from '../lib/priority';
 import ScreenContainer from '../components/ScreenContainer';
-import EditorialHeader from '../components/EditorialHeader';
 import BodySilhouette from '../components/BodySilhouette';
 import CuriosityCard from '../components/CuriosityCard';
 import Card from '../components/Card';
+import { ArrowRightIcon, InfoIcon } from '../components/icons';
 
 const THANKS_VISIBLE_MS = 3000;
 
-const TODAY_LABEL = new Date().toLocaleDateString(undefined, {
-  weekday: 'long',
-  month: 'long',
-  day: 'numeric',
-});
+const WORDMARK = require('../../assets/images/wordmark.png');
+// The artwork ships white on transparent so it can be tinted to whatever the
+// palette calls for; these are its true proportions (3575x1046).
+const WORDMARK_ASPECT = 3575 / 1046;
+const WORDMARK_HEIGHT = 19;
+
+function greeting(d: Date): string {
+  const h = d.getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
+}
 
 function formatSyncedAgo(iso: string): string {
   const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
@@ -43,6 +52,8 @@ function syncSummaryLine(summary: RecentSyncSummary): string {
 
 export default function TodayScreen({
   onOpenDiscoveryNudge,
+  onOpenUnderstanding,
+  onOpenInfo,
   activeCuriosity,
   onAnswerCuriosity,
   hasPendingDiscovery,
@@ -51,6 +62,8 @@ export default function TodayScreen({
   recentSyncSummary,
 }: {
   onOpenDiscoveryNudge: () => void;
+  onOpenUnderstanding: (domain: Domain) => void;
+  onOpenInfo: () => void;
   activeCuriosity: ActiveCuriosity | null;
   onAnswerCuriosity: (answer: string) => Promise<void>;
   hasPendingDiscovery: boolean;
@@ -70,6 +83,16 @@ export default function TodayScreen({
     return () => clearTimeout(t);
   }, [answered]);
 
+  // Computed per render, not at module load: the app survives midnight in the
+  // background, and a header reading yesterday's date is a small betrayal on
+  // a screen whose whole claim is that it is up to date.
+  const now = new Date();
+  const dateLabel = now.toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+
   // The most recently updated Understanding is "today's" — whatever the
   // engine last touched is the freshest thing to feature.
   const featured =
@@ -78,6 +101,8 @@ export default function TodayScreen({
           (a, b) => new Date(b.last_updated).getTime() - new Date(a.last_updated).getTime()
         )[0]
       : null;
+
+  const priority = derivePriority(featured, recentSyncSummary);
 
   async function handleAnswer(answer: string) {
     setSubmitError(null);
@@ -93,22 +118,50 @@ export default function TodayScreen({
 
   return (
     <ScreenContainer>
-      <EditorialHeader
-        title={`Good morning, ${preferredName || 'there'}`}
-        subtitle={TODAY_LABEL}
-      />
-
-      {recentSyncSummary ? (
-        <Text style={styles.syncLine} numberOfLines={1} ellipsizeMode="tail">
-          {syncSummaryLine(recentSyncSummary)}
-        </Text>
-      ) : null}
-
-      <View style={styles.hero}>
-        <BodySilhouette variant="today" crop={0.75} activeDomain={featured?.domain} />
+      <View style={styles.header}>
+        <View style={styles.headerText}>
+          <Image
+            source={WORDMARK}
+            style={styles.wordmark}
+            resizeMode="contain"
+            accessible
+            accessibilityRole="image"
+            accessibilityLabel="Ciatta"
+          />
+          <Text style={styles.greeting}>
+            {greeting(now)}
+            {preferredName ? `, ${preferredName}` : ''}
+          </Text>
+          <Text style={styles.date}>{dateLabel}</Text>
+          {recentSyncSummary ? (
+            <Text style={styles.syncLine} numberOfLines={1} ellipsizeMode="tail">
+              {syncSummaryLine(recentSyncSummary)}
+            </Text>
+          ) : null}
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="About the Today screen"
+          onPress={onOpenInfo}
+          hitSlop={10}
+          style={({ pressed }) => [styles.infoButton, pressed && styles.pressedSoft]}
+        >
+          <InfoIcon size={18} color={colors.ink2} />
+        </Pressable>
       </View>
 
-      <Card style={styles.heroCard}>
+      <View style={styles.hero}>
+        <BodySilhouette
+          variant="today"
+          crop={0.78}
+          scale={1.48}
+          marker="sun"
+          activeDomain={featured?.domain}
+          onDomainPress={featured ? onOpenUnderstanding : undefined}
+        />
+      </View>
+
+      <View style={styles.section}>
         <Text style={styles.label}>TODAY'S UNDERSTANDING</Text>
         {featured ? (
           <>
@@ -127,10 +180,30 @@ export default function TodayScreen({
             </Text>
           </>
         )}
-      </Card>
+      </View>
+
+      {priority ? (
+        <>
+          <View style={styles.divider} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Today's priority: ${priority.text}`}
+            onPress={() => onOpenUnderstanding(priority.domain)}
+            style={({ pressed }) => [styles.priorityRow, pressed && styles.pressedSoft]}
+          >
+            <View style={styles.priorityText}>
+              <Text style={styles.label}>TODAY'S PRIORITY</Text>
+              <Text style={styles.priorityHeadline}>{priority.text}</Text>
+            </View>
+            <View style={styles.arrowButton}>
+              <ArrowRightIcon size={18} color={colors.accent} />
+            </View>
+          </Pressable>
+        </>
+      ) : null}
 
       {answered || activeCuriosity ? (
-        <View style={styles.section}>
+        <View style={styles.block}>
           {answered ? (
             <Card>
               <Text style={styles.thanks}>
@@ -164,19 +237,123 @@ export default function TodayScreen({
 }
 
 const styles = StyleSheet.create({
+  header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  headerText: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  wordmark: {
+    height: WORDMARK_HEIGHT,
+    width: WORDMARK_HEIGHT * WORDMARK_ASPECT,
+    tintColor: colors.ink,
+  },
+  greeting: {
+    fontFamily: fonts.serif,
+    fontSize: 15,
+    lineHeight: 21,
+    color: colors.ink,
+    marginTop: 8,
+  },
+  date: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    color: colors.ink3,
+    marginTop: 6,
+  },
   syncLine: {
     fontFamily: fonts.sans,
     fontSize: 12.5,
     color: colors.ink3,
-    marginTop: -10,
-    marginBottom: 18,
+    marginTop: 4,
+  },
+  infoButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 6,
+  },
+  pressedSoft: {
+    opacity: 0.6,
   },
   hero: {
-    marginTop: 4,
-    marginBottom: 24,
+    // Negative, deliberately: the source PNG carries ~19px of transparent
+    // padding above the head (bbox top = 19 of 586), so a zero margin still
+    // leaves a visible gap. This pulls the figure past its own dead space.
+    marginTop: -16,
+    marginBottom: 28,
   },
-  heroCard: {
-    padding: 22,
+  section: {},
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 24,
+  },
+  label: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 11,
+    letterSpacing: 1.1,
+    color: colors.ink3,
+    marginBottom: 10,
+  },
+  headline: {
+    fontFamily: fonts.serif,
+    fontSize: 26,
+    lineHeight: 33,
+    color: colors.ink,
+    marginBottom: 12,
+  },
+  body: {
+    fontFamily: fonts.sans,
+    fontSize: 14.5,
+    lineHeight: 22,
+    color: colors.ink2,
+  },
+  priorityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  priorityText: {
+    flex: 1,
+  },
+  priorityHeadline: {
+    fontFamily: fonts.serif,
+    fontSize: 26,
+    lineHeight: 33,
+    color: colors.ink,
+  },
+  arrowButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  block: {
+    marginTop: 28,
+  },
+  thanks: {
+    fontFamily: fonts.serif,
+    fontSize: 17,
+    lineHeight: 23,
+    color: colors.ink,
+  },
+  submitError: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    color: colors.accent,
+    marginTop: 10,
   },
   nudgeFooter: {
     backgroundColor: colors.accentSoft,
@@ -197,40 +374,5 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: colors.ink,
     lineHeight: 24,
-  },
-  label: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 11,
-    letterSpacing: 1.1,
-    color: colors.ink3,
-    marginBottom: 10,
-  },
-  headline: {
-    fontFamily: fonts.serif,
-    fontSize: 27,
-    lineHeight: 33,
-    color: colors.ink,
-    marginBottom: 14,
-  },
-  body: {
-    fontFamily: fonts.sans,
-    fontSize: 14.5,
-    lineHeight: 21,
-    color: colors.ink2,
-  },
-  section: {
-    marginTop: 28,
-  },
-  thanks: {
-    fontFamily: fonts.serif,
-    fontSize: 17,
-    lineHeight: 23,
-    color: colors.ink,
-  },
-  submitError: {
-    fontFamily: fonts.sans,
-    fontSize: 13,
-    color: colors.accent,
-    marginTop: 10,
   },
 });

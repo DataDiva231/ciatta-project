@@ -50,6 +50,7 @@ import YouScreen from './src/screens/YouScreen';
 import BottomNav, { MainTab } from './src/components/BottomNav';
 
 import UnderstandingSheet from './src/overlays/UnderstandingSheet';
+import TodayInfoSheet from './src/overlays/TodayInfoSheet';
 import CuriosityOverlay from './src/overlays/CuriosityOverlay';
 import DiscoveryFlow from './src/overlays/DiscoveryFlow';
 import DiscoveryDetailSheet from './src/overlays/DiscoveryDetailSheet';
@@ -102,6 +103,7 @@ export default function App() {
   const [tab, setTab] = useState<MainTab>('today');
   const [understandingDomain, setUnderstandingDomain] = useState<Domain | null>(null);
   const [curiosityVisible, setCuriosityVisible] = useState(false);
+  const [todayInfoVisible, setTodayInfoVisible] = useState(false);
   const [discoveryFlowVisible, setDiscoveryFlowVisible] = useState(false);
   const [selectedDiscoveryId, setSelectedDiscoveryId] = useState<string | null>(null);
   const [dataPrivacyVisible, setDataPrivacyVisible] = useState(false);
@@ -385,6 +387,8 @@ export default function App() {
           {tab === 'today' && (
             <TodayScreen
               onOpenDiscoveryNudge={() => setDiscoveryFlowVisible(true)}
+              onOpenUnderstanding={(d) => setUnderstandingDomain(d)}
+              onOpenInfo={() => setTodayInfoVisible(true)}
               activeCuriosity={activeCuriosity}
               onAnswerCuriosity={handleAnswerCuriosity}
               hasPendingDiscovery={hasPendingDiscovery}
@@ -424,6 +428,12 @@ export default function App() {
         </View>
         <BottomNav active={tab} onChange={setTab} />
       </View>
+
+      <TodayInfoSheet
+        visible={todayInfoVisible}
+        understandings={understandings}
+        onClose={() => setTodayInfoVisible(false)}
+      />
 
       <UnderstandingSheet
         domain={understandingDomain}

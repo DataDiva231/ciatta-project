@@ -116,3 +116,26 @@ export function PlusIcon({ size = 18, color = colors.ink }: IconProps) {
     </Svg>
   );
 }
+
+export function InfoIcon({ size = 18, color = colors.ink2 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M12 11v6" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+      <Circle cx="12" cy="7.4" r="1.15" fill={color} />
+    </Svg>
+  );
+}
+
+export function ArrowRightIcon({ size = 18, color = colors.accent }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M4 12h15M13 6l6 6-6 6"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}

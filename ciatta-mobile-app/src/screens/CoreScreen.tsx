@@ -1,17 +1,15 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { colors, fonts } from '../theme/tokens';
-import { domainLabel, domains, evolutionStages, strengthLabel } from '../lib/mockData';
+import { domainLabel, domains } from '../lib/mockData';
 import type { Domain, Strength } from '../lib/types';
 import type { DiscoveryRow } from '../lib/queries';
 import ScreenContainer from '../components/ScreenContainer';
 import EditorialHeader from '../components/EditorialHeader';
 import BodySilhouette from '../components/BodySilhouette';
-import EvolutionCard from '../components/EvolutionCard';
 import Card from '../components/Card';
-import { ChevronIcon } from '../components/icons';
 
-type Tab = 'understandings' | 'discoveries' | 'unwritten';
+type Tab = 'discoveries' | 'unwritten';
 
 export default function CoreScreen({
   onOpenUnderstanding,
@@ -24,7 +22,7 @@ export default function CoreScreen({
   strengths: Partial<Record<Domain, Strength>>;
   discoveries: DiscoveryRow[];
 }) {
-  const [tab, setTab] = useState<Tab>('understandings');
+  const [tab, setTab] = useState<Tab>('discoveries');
   const understoodDomains = domains.filter((d) => strengths[d]);
   const unwrittenDomains = domains.filter((d) => !strengths[d]);
 
@@ -36,12 +34,13 @@ export default function CoreScreen({
         <BodySilhouette
           variant="core"
           labeled
+          marker="dot"
           strengths={strengths}
           onDomainPress={onOpenUnderstanding}
         />
         <Text style={styles.tapHint}>
           {understoodDomains.length > 0
-            ? 'Tap a point to explore'
+            ? 'Tap a point to explore your understandings'
             : "I don't have anything to show here yet."}
         </Text>
       </View>
@@ -49,7 +48,6 @@ export default function CoreScreen({
       <View style={styles.tabs}>
         {(
           [
-            ['understandings', 'Understandings'],
             ['discoveries', 'Discoveries'],
             ['unwritten', 'Unwritten'],
           ] as [Tab, string][]
@@ -63,28 +61,6 @@ export default function CoreScreen({
           </Text>
         ))}
       </View>
-
-      {tab === 'understandings' &&
-        (understoodDomains.length > 0 ? (
-          <View style={styles.list}>
-            {understoodDomains.map((d) => (
-              <Card key={d} onPress={() => onOpenUnderstanding(d)} style={styles.row}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.rowTitle}>{domainLabel[d]}</Text>
-                  <Text style={styles.rowSub}>{strengthLabel[strengths[d] as Strength]}</Text>
-                </View>
-                <ChevronIcon />
-              </Card>
-            ))}
-          </View>
-        ) : (
-          <Card style={styles.list}>
-            <Text style={styles.emptyText}>
-              I don't have any understandings yet. As we spend time together,
-              I'll start noticing patterns and sharing them here.
-            </Text>
-          </Card>
-        ))}
 
       {tab === 'discoveries' &&
         (discoveries.length > 0 ? (
@@ -127,21 +103,6 @@ export default function CoreScreen({
         </View>
       )}
 
-      <Text style={[styles.label, { marginTop: 32 }]}>UNDERSTANDING EVOLUTION</Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.evolutionRow}
-      >
-        {evolutionStages.map((stage) => (
-          <EvolutionCard
-            key={stage.id}
-            label={stage.label}
-            caption={stage.caption}
-            stage={stage.density as 0 | 1 | 2 | 3}
-          />
-        ))}
-      </ScrollView>
     </ScreenContainer>
   );
 }
@@ -168,12 +129,6 @@ const styles = StyleSheet.create({
   tab: {
     fontFamily: fonts.sansMedium,
     fontSize: 14,
-    color: colors.ink3,
-  },
-  label: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 11,
-    letterSpacing: 1.1,
     color: colors.ink3,
   },
   tabActive: {
@@ -204,11 +159,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     color: colors.ink2,
-  },
-  evolutionRow: {
-    flexDirection: 'row',
-    gap: 18,
-    paddingTop: 14,
-    paddingRight: 10,
   },
 });

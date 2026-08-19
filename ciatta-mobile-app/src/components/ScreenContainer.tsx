@@ -1,7 +1,7 @@
 import React from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '../theme/tokens';
+import { colors, NAV_CLEARANCE } from '../theme/tokens';
 
 export default function ScreenContainer({
   children,
@@ -27,7 +27,10 @@ export default function ScreenContainer({
         style={styles.flex}
         contentContainerStyle={[
           styles.content,
-          { paddingTop: insets.top + 20 },
+          // The nav floats above the content rather than sitting beside it, so
+          // the scroll view has to reserve its own clearance or the last line
+          // of every screen ends up underneath the glass.
+          { paddingTop: insets.top + 20, paddingBottom: NAV_CLEARANCE + insets.bottom },
         ]}
         showsVerticalScrollIndicator={false}
       >
