@@ -80,7 +80,8 @@
         {
           "color": "#8C3A44"
         }
-      ]
+      ],
+      "expo-video"
     ],
     "extra": {
       "eas": {

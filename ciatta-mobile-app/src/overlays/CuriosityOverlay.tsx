@@ -1,14 +1,5 @@
 import React, { useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  Modal,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, radii } from '../theme/tokens';
 import type { ActiveCuriosity } from '../lib/curiosity';
@@ -16,6 +7,7 @@ import { insertObservation } from '../lib/observations';
 import TextField from '../components/TextField';
 import PrimaryButton from '../components/PrimaryButton';
 import { CloseIcon } from '../components/icons';
+import KeyboardAvoidingScreen from '../components/KeyboardAvoidingScreen';
 
 export default function CuriosityOverlay({
   visible,
@@ -83,10 +75,7 @@ export default function CuriosityOverlay({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
-      <KeyboardAvoidingView
-        style={[styles.flex, { paddingTop: insets.top + 12 }]}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <KeyboardAvoidingScreen style={[styles.flex, { paddingTop: insets.top + 12 }]}>
         <View style={styles.header}>
           <Text style={styles.title}>Tell me anything.</Text>
           <Pressable onPress={handleClose} hitSlop={10}>
@@ -122,9 +111,7 @@ export default function CuriosityOverlay({
           ) : null}
 
           {answered ? (
-            <Text style={styles.confirmation}>
-              Thank you. I'm folding that into what I understand about you.
-            </Text>
+            <Text style={styles.confirmation}>Added to your understanding.</Text>
           ) : null}
 
           <View style={styles.noteBlock}>
@@ -156,9 +143,7 @@ export default function CuriosityOverlay({
               </View>
             ) : null}
             {noteSaved ? (
-              <Text style={styles.confirmationSmall}>
-                Saved. I'll take it into account as I keep learning.
-              </Text>
+              <Text style={styles.confirmationSmall}>Added to your understanding.</Text>
             ) : null}
           </View>
 
@@ -170,7 +155,7 @@ export default function CuriosityOverlay({
             Private to you, and used only to understand you better.
           </Text>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardAvoidingScreen>
     </Modal>
   );
 }

@@ -5,6 +5,7 @@ import { colors, fonts, radii } from '../theme/tokens';
 import type { DiscoveryRow } from '../lib/queries';
 import PrimaryButton from '../components/PrimaryButton';
 import ConfidenceBar from '../components/ConfidenceBar';
+import KeyboardAvoidingScreen from '../components/KeyboardAvoidingScreen';
 
 type Step = 1 | 2 | 3;
 
@@ -58,7 +59,7 @@ export default function DiscoveryFlow({
 
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={close}>
-      <View
+      <KeyboardAvoidingScreen
         style={[
           StyleSheet.absoluteFill,
           styles.flex,
@@ -144,7 +145,7 @@ export default function DiscoveryFlow({
             <PrimaryButton label="See in Core" onPress={handleFinish} loading={saving} />
           </View>
         )}
-      </View>
+      </KeyboardAvoidingScreen>
     </Modal>
   );
 }

@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { colors, radii } from '../theme/tokens';
+import KeyboardAvoidingScreen from './KeyboardAvoidingScreen';
 
 const { height: SCREEN_H } = Dimensions.get('window');
 
@@ -48,7 +49,11 @@ export default function BottomSheet({
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <View style={styles.container}>
+      {/* Wraps the whole flex-end container, not just the sheet — padding
+          added here shrinks the space justifyContent:'flex-end' has to work
+          with, which is what actually pushes the sheet (and whatever
+          TextInput is focused inside it) up above the keyboard. */}
+      <KeyboardAvoidingScreen style={styles.container}>
         <Animated.View style={[styles.backdrop, { opacity: backdrop }]}>
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         </Animated.View>
@@ -61,12 +66,13 @@ export default function BottomSheet({
           <View style={styles.handle} />
           <ScrollView
             contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
             {children}
           </ScrollView>
         </Animated.View>
-      </View>
+      </KeyboardAvoidingScreen>
     </Modal>
   );
 }

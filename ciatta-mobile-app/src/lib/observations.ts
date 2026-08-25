@@ -1,6 +1,19 @@
 import { supabase } from './supabase';
 
-export type ObservationSource = 'apple-health' | 'health-connect' | 'arc' | 'manual' | 'curiosity';
+// 'provider' — a patient-mediated report of what a provider said or
+// determined (see UnderstandingSheet's "Log what your provider said"),
+// distinct from 'manual' (the user's own unprompted note) even though
+// both are typed in by the user: who the information originated FROM is
+// what this field tracks, and provider assessments are their own source
+// of evidence for future intelligence work, not folded into the user's own
+// observations.
+export type ObservationSource =
+  | 'apple-health'
+  | 'health-connect'
+  | 'arc'
+  | 'manual'
+  | 'curiosity'
+  | 'provider';
 
 export interface NewObservation {
   source: ObservationSource;
@@ -25,6 +38,37 @@ export async function insertObservation(userId: string, observation: NewObservat
     { onConflict: 'user_id,source,type,recorded_at', ignoreDuplicates: true }
   );
   if (error) throw error;
+}
+
+// Provider Feedback / Outcome — both are ordinary Observations
+// (source: 'provider'), never a separate table: 'provider_assessment' is
+// what the provider said (patient-relayed, free text — UnderstandingSheet's
+// existing "Log what your provider said"); 'provider_outcome' is the
+// closed-form result of that conversation (see PROVIDER_OUTCOME in
+// UnderstandingSheet.tsx). Both are additive-only inserts, same as every
+// other Observation this app writes — nothing here ever updates or deletes
+// a prior Observation or Understanding, and neither type is in the
+// Understanding Engine's own loadObservations() type list, so today
+// neither can retroactively change what Ciatta already believes; they
+// exist as provenance-tagged history for a future engine change to read
+// deliberately, not by accident.
+export interface ProviderFeedbackRow {
+  id: string;
+  type: string;
+  value: Record<string, unknown>;
+  recorded_at: string;
+  context: Record<string, unknown>;
+}
+
+export async function fetchProviderFeedback(userId: string): Promise<ProviderFeedbackRow[]> {
+  const { data, error } = await supabase
+    .from('observations')
+    .select('id, type, value, recorded_at, context')
+    .eq('user_id', userId)
+    .in('type', ['provider_assessment', 'provider_outcome'])
+    .order('recorded_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as ProviderFeedbackRow[];
 }
 
 export interface SyncReflection {

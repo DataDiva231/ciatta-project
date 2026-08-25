@@ -194,6 +194,9 @@ export default function TodayScreen({
             <View style={styles.priorityText}>
               <Text style={styles.label}>TODAY'S PRIORITY</Text>
               <Text style={styles.priorityHeadline}>{priority.text}</Text>
+              {priority.consider ? (
+                <Text style={styles.considerText}>{priority.consider}</Text>
+              ) : null}
             </View>
             <View style={styles.arrowButton}>
               <ArrowRightIcon size={18} color={colors.accent} />
@@ -330,6 +333,13 @@ const styles = StyleSheet.create({
     fontSize: 26,
     lineHeight: 33,
     color: colors.ink,
+  },
+  considerText: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.ink3,
+    marginTop: 8,
   },
   arrowButton: {
     width: 46,

@@ -9,6 +9,10 @@ export interface ActiveCuriosity {
   domain: Domain;
   answerOptions: string[];
   observationType: string;
+  // Only set for onboarding-driven questions (see fetchNextOnboardingQuestion
+  // below) — the daily rotation neither needs nor sets these.
+  tag?: string;
+  inputKind?: 'chip' | 'text';
 }
 
 interface CuriosityRow {
@@ -48,6 +52,52 @@ export async function fetchActiveCuriosity(userId: string): Promise<ActiveCurios
   };
 }
 
+interface OnboardingQuestionRow {
+  curiosity_id: string;
+  tag: string;
+  question: string;
+  purpose: string;
+  domain: Domain;
+  answer_options: string[];
+  observation_type: string;
+  input_kind: 'chip' | 'text';
+}
+
+/**
+ * The conversational onboarding's equivalent of fetchActiveCuriosity: asks
+ * the server what to ask next, same "client only ever reads and answers"
+ * rule as the rest of this engine. Pass the tag/answer just given so a
+ * follow-up it unlocks is offered before the fixed backbone resumes; call
+ * with no arguments to start. Returns null once nothing is left to ask —
+ * that's the signal the conversation is done, not an error.
+ */
+export async function fetchNextOnboardingQuestion(
+  userId: string,
+  lastTag?: string,
+  lastAnswer?: string
+): Promise<ActiveCuriosity | null> {
+  const { data, error } = await supabase.rpc('next_onboarding_question', {
+    p_user_id: userId,
+    p_last_tag: lastTag ?? null,
+    p_last_answer: lastAnswer ?? null,
+  });
+  if (error) throw error;
+
+  const row = (data as OnboardingQuestionRow[] | null)?.[0];
+  if (!row) return null;
+
+  return {
+    id: row.curiosity_id,
+    question: row.question,
+    purpose: row.purpose,
+    domain: row.domain,
+    answerOptions: row.answer_options,
+    observationType: row.observation_type,
+    tag: row.tag,
+    inputKind: row.input_kind,
+  };
+}
+
 // Shared scale for every rating-style question (energy, mood, ...). Kept
 // client-side since it's presentation-adjacent, not content — the bank
 // only owns question text and which scale a domain uses.
@@ -56,7 +106,12 @@ const RATING_VALUE: Record<string, number> = { Low: 1, Okay: 2, Good: 3, Great: 
 export async function answerCuriosity(
   userId: string,
   curiosity: ActiveCuriosity,
-  answer: string
+  answer: string,
+  // Behind-the-scenes provenance only (e.g. health-domain classification of
+  // a free-text answer) — never anything the user chose or saw as a
+  // category. Merged into the Observation's context, not stored anywhere
+  // the client itself later reads.
+  extraContext: Record<string, unknown> = {}
 ): Promise<void> {
   const { error } = await supabase
     .from('curiosities')
@@ -74,6 +129,6 @@ export async function answerCuriosity(
     type: curiosity.observationType,
     value,
     recordedAt: new Date().toISOString(),
-    context: { question: curiosity.question },
+    context: { question: curiosity.question, ...extraContext },
   });
 }

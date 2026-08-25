@@ -1,6 +1,12 @@
 import { supabase } from './supabase';
 import type { Discovery, Domain, Strength } from './types';
 
+// 'primary-care' | 'ob-gyn' | 'mental-health' — mirrors
+// understanding-engine/careGuidance.ts's CareRecommendationType. Kept as a
+// plain string here rather than re-exporting a union: the client only ever
+// displays this value, never branches on it, so a mismatch would show up
+// as a wrong label, not a type error worth chasing across the Deno/RN
+// boundary.
 export interface UnderstandingRow {
   id: string;
   domain: Domain;
@@ -12,13 +18,20 @@ export interface UnderstandingRow {
   first_observed: string | null;
   last_updated: string;
   still_learning: string[];
+  // Guidance and Care Connection — written by the same Understanding
+  // Engine run that writes `narrative`, gated on the same `strength`. Null
+  // on any row where the evidence didn't clear the bar; that IS "Ciatta
+  // stays silent," not a missing value to fall back on.
+  guidance: string | null;
+  care_recommendation_type: string | null;
+  care_recommendation_reason: string | null;
 }
 
 export async function fetchUnderstandings(userId: string): Promise<UnderstandingRow[]> {
   const { data, error } = await supabase
     .from('understandings')
     .select(
-      'id, domain, strength, narrative, observations_count, confidence_label, learning_since, first_observed, last_updated, still_learning'
+      'id, domain, strength, narrative, observations_count, confidence_label, learning_since, first_observed, last_updated, still_learning, guidance, care_recommendation_type, care_recommendation_reason'
     )
     .eq('user_id', userId);
   if (error) throw error;
@@ -57,6 +70,46 @@ export async function fetchRelationships(userId: string): Promise<RelationshipRo
     .eq('user_id', userId);
   if (error) throw error;
   return (data ?? []) as RelationshipRow[];
+}
+
+// A Cross-Domain Understanding — the Understanding Engine's own promotion
+// of an already-qualifying Relationship between two independently
+// actionable-strength, health_data Domain Understandings (see
+// crossDomainSynthesis.ts) into a higher-level row. Same shape/meaning as
+// UnderstandingRow's own guidance/care fields, deliberately: the client
+// renders these with the same components, it never needs a second
+// vocabulary. `label` (e.g. "sleep-related") is display-only categorization
+// picked by the engine; `from_domain`/`to_domain` are the real provenance —
+// see contributing_understanding_ids on the row itself, which the client
+// doesn't need since it already has both contributing UnderstandingRows
+// loaded by domain.
+export interface CrossDomainUnderstandingRow {
+  id: string;
+  from_domain: Domain;
+  to_domain: Domain;
+  label: string;
+  narrative: string;
+  strength: Strength;
+  confidence_label: string | null;
+  still_learning: string[];
+  guidance: string | null;
+  care_recommendation_type: string | null;
+  care_recommendation_reason: string | null;
+  first_observed: string | null;
+  last_updated: string;
+}
+
+export async function fetchCrossDomainUnderstandings(
+  userId: string
+): Promise<CrossDomainUnderstandingRow[]> {
+  const { data, error } = await supabase
+    .from('cross_domain_understandings')
+    .select(
+      'id, from_domain, to_domain, label, narrative, strength, confidence_label, still_learning, guidance, care_recommendation_type, care_recommendation_reason, first_observed, last_updated'
+    )
+    .eq('user_id', userId);
+  if (error) throw error;
+  return (data ?? []) as CrossDomainUnderstandingRow[];
 }
 
 export interface DiscoveryRow {
