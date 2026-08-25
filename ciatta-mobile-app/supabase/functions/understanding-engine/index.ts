@@ -44,7 +44,13 @@ import {
 } from './hrvAnalysis.ts';
 import { analyzeMood, buildMoodUnderstanding } from './moodAnalysis.ts';
 import { deriveGuidance } from './careGuidance.ts';
-import { buildContextualUnderstanding, mapConcernToDomain } from './contextualUnderstanding.ts';
+import { buildContextualUnderstanding, mapConcernToDomain, type Domain } from './contextualUnderstanding.ts';
+import { nextDecayedState } from './decay.ts';
+import { buildCrossDomainDraft } from './crossDomainSynthesis.ts';
+import {
+  selectNewProviderFeedbackDrafts,
+  type ProviderFeedbackObservation,
+} from './providerFeedbackEvidence.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -80,6 +86,7 @@ interface LoadedObservations {
   concern: ContextualObservation | null;
   concernElaboration: ContextualObservation | null;
   concernRecency: ContextualObservation | null;
+  providerFeedback: ProviderFeedbackObservation[];
 }
 
 async function loadObservations(
@@ -102,6 +109,8 @@ async function loadObservations(
       'health_concern',
       'health_concern_detail',
       'health_concern_recency',
+      'provider_assessment',
+      'provider_outcome',
     ])
     .order('recorded_at', { ascending: true });
 
@@ -122,6 +131,7 @@ async function loadObservations(
   let concern: ContextualObservation | null = null;
   let concernElaboration: ContextualObservation | null = null;
   let concernRecency: ContextualObservation | null = null;
+  const providerFeedback: ProviderFeedbackObservation[] = [];
 
   for (const row of rows) {
     if (row.type === 'menstrual_flow') {
@@ -166,7 +176,16 @@ async function loadObservations(
     } else if (row.type === 'hrv') {
       const ms = row.value?.ms;
       if (typeof ms === 'number') {
-        hrv.push({ id: row.id, recordedAt: row.recorded_at, ms });
+        // SDNN (HealthKit) and RMSSD (Health Connect) are both real HRV
+        // metrics, computed differently — see hrvAnalysis.ts's own
+        // filterToConsistentMetric(), the one place this actually matters.
+        const metric = row.context?.metric;
+        hrv.push({
+          id: row.id,
+          recordedAt: row.recorded_at,
+          ms,
+          metric: typeof metric === 'string' ? metric : null,
+        });
       }
     } else if (row.type === 'health_concern') {
       const answer = row.value?.answer;
@@ -201,10 +220,39 @@ async function loadObservations(
       if (typeof answer === 'string') {
         concernRecency = { id: row.id, recordedAt: row.recorded_at, answer, healthDomains: [] };
       }
+    } else if (row.type === 'provider_assessment' || row.type === 'provider_outcome') {
+      // Both written client-side with the same context shape (see
+      // UnderstandingSheet.tsx's handleSaveProviderNote) — domain and
+      // understandingId name what this feedback is about; ownership of
+      // that understandingId is verified separately, server-side, in
+      // processProviderFeedbackEvidence() before anything is written from
+      // it, since this context is client-supplied JSON on the client's own
+      // observation row, not something RLS validates the *contents* of.
+      const domain = row.context?.domain;
+      const understandingId = row.context?.understandingId;
+      providerFeedback.push({
+        id: row.id,
+        type: row.type,
+        recordedAt: row.recorded_at,
+        domain: typeof domain === 'string' ? (domain as Domain) : null,
+        understandingId: typeof understandingId === 'string' ? understandingId : null,
+      });
     }
   }
 
-  return { flow, rhr, energy, mood, sleep, steps, hrv, concern, concernElaboration, concernRecency };
+  return {
+    flow,
+    rhr,
+    energy,
+    mood,
+    sleep,
+    steps,
+    hrv,
+    concern,
+    concernElaboration,
+    concernRecency,
+    providerFeedback,
+  };
 }
 
 interface UnderstandingDraftLike {
@@ -248,7 +296,7 @@ async function upsertUnderstanding(
 
   const { data: existing, error: fetchError } = await supabase
     .from('understandings')
-    .select('id, strength')
+    .select('id, strength, learning_since')
     .eq('user_id', userId)
     .eq('domain', domain)
     .maybeSingle();
@@ -273,10 +321,17 @@ async function upsertUnderstanding(
       : (relatedRows[0].from_domain as string)
     : null;
 
+  // Same anchor upsertUnderstanding's own `learning_since` write below
+  // uses: the persisted value once one exists, else this run's own
+  // firstObserved for a brand-new row — evidenceSentence() only ever needs
+  // one date, not both fields separately.
+  const learningSinceAnchor = (existing as { learning_since?: string | null } | null)?.learning_since ?? firstObserved;
+
   const { guidance, careRecommendationType, careRecommendationReason } = deriveGuidance(
     domain,
     draft.strength,
-    connectedDomain
+    connectedDomain,
+    { observationsCount: observationIds.length, learningSince: learningSinceAnchor }
   );
 
   const { data: upserted, error: upsertError } = await supabase
@@ -735,8 +790,206 @@ async function processContextualDomain(
   return { wrote: true, domain, strength: draft.strength };
 }
 
-/** Confidence ladder, strongest first. */
-const STRENGTH_LADDER = ['very-strong', 'strong', 'moderate', 'emerging'] as const;
+/**
+ * Provider Feedback -> Evidence — the one new step this task adds. Turns
+ * any provider_assessment/provider_outcome Observation not yet reflected
+ * in Evidence into exactly one new `evidence` row (evidence_type =
+ * 'provider_reported') plus one new `understanding_history` entry on the
+ * Understanding it names — nothing else. In particular:
+ *
+ *   - Never writes to `understandings.strength`, `.narrative`,
+ *     `.confidence_label`, or `.last_updated` — this function has no
+ *     access to upsertUnderstanding() at all, so there is no path by which
+ *     feedback could itself manufacture or upgrade a Guidance-eligible
+ *     Understanding. The normal Evidence -> Understanding -> Guidance
+ *     gates (ACTIONABLE strength, evidence_type checks) are entirely
+ *     untouched by this function; a future engine change that wants
+ *     'provider_reported' evidence to actually inform strength would have
+ *     to do that explicitly, in upsertUnderstanding() or a processor, not
+ *     get it for free here.
+ *   - Never rewrites a past Evidence or understanding_history row — only
+ *     ever inserts, and only once per feedback observation (see
+ *     selectNewProviderFeedbackDrafts()'s idempotency check against
+ *     already-recorded observation ids).
+ *   - Only ever attaches to an Understanding this user actually owns (see
+ *     the ownership check in providerFeedbackEvidence.ts) — a
+ *     client-supplied understandingId that doesn't belong to this user is
+ *     silently skipped, not trusted.
+ */
+async function processProviderFeedbackEvidence(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  obs: LoadedObservations
+) {
+  if (obs.providerFeedback.length === 0) return { wrote: 0 };
+
+  const { data: understandingRows, error: understandingError } = await supabase
+    .from('understandings')
+    .select('id')
+    .eq('user_id', userId);
+  if (understandingError) throw understandingError;
+  const ownedUnderstandingIds = new Set((understandingRows ?? []).map((u) => u.id as string));
+
+  const { data: existingProviderEvidence, error: evidenceError } = await supabase
+    .from('evidence')
+    .select('observation_ids')
+    .eq('user_id', userId)
+    .eq('evidence_type', 'provider_reported');
+  if (evidenceError) throw evidenceError;
+  const alreadyRecorded = new Set<string>();
+  for (const row of existingProviderEvidence ?? []) {
+    for (const id of (row.observation_ids as string[]) ?? []) alreadyRecorded.add(id);
+  }
+
+  const drafts = selectNewProviderFeedbackDrafts(
+    obs.providerFeedback,
+    alreadyRecorded,
+    ownedUnderstandingIds
+  );
+
+  for (const draft of drafts) {
+    const { error: insertEvidenceError } = await supabase.from('evidence').insert({
+      user_id: userId,
+      domain: draft.domain,
+      observation_ids: [draft.observationId],
+      weight: 1,
+      confidence: null,
+      evidence_type: 'provider_reported',
+    });
+    if (insertEvidenceError) throw insertEvidenceError;
+
+    const { error: insertHistoryError } = await supabase.from('understanding_history').insert({
+      understanding_id: draft.understandingId,
+      user_id: userId,
+      event_date: draft.eventDate,
+      label: draft.historyLabel,
+    });
+    if (insertHistoryError) throw insertHistoryError;
+  }
+
+  return { wrote: drafts.length };
+}
+
+interface ContributingUnderstandingRow {
+  id: string;
+  domain: string;
+  strength: string;
+  evidence_type: string;
+  learning_since: string | null;
+  observations_count: number;
+}
+
+/**
+ * Cross-Domain Synthesis — the one new step in the pipeline this feature
+ * adds: Observation -> Evidence -> Domain Understanding -> [this] ->
+ * Guidance -> Care Connection. Runs after every physiological processor
+ * and processContextualDomain() above, reading only what this run itself
+ * already wrote to `understandings` and `relationships` — never raw
+ * Observations or Evidence directly, and never anything from outside this
+ * user's own data.
+ *
+ * All of the actual eligibility logic (which pairs qualify, what strength
+ * the result gets, what its provenance is) lives in
+ * buildCrossDomainDraft() — a pure function, fully covered by
+ * crossDomainSynthesis.test.ts. This function is only the I/O around it:
+ * load this user's relationships and understandings, hand each qualifying
+ * pair to that pure function, and — for anything it doesn't return null
+ * for — call the exact same deriveGuidance() every domain processor
+ * already calls before upserting.
+ */
+async function processCrossDomainSynthesis(supabase: ReturnType<typeof createClient>, userId: string) {
+  const { data: relationshipRows, error: relError } = await supabase
+    .from('relationships')
+    .select('from_domain, to_domain, strength')
+    .eq('user_id', userId);
+  if (relError) throw relError;
+
+  const { data: understandingRows, error: understandingError } = await supabase
+    .from('understandings')
+    .select('id, domain, strength, evidence_type, learning_since, observations_count')
+    .eq('user_id', userId);
+  if (understandingError) throw understandingError;
+
+  const byDomain = new Map<string, ContributingUnderstandingRow>();
+  for (const row of (understandingRows ?? []) as ContributingUnderstandingRow[]) {
+    byDomain.set(row.domain, row);
+  }
+
+  const results: { fromDomain: string; toDomain: string; wrote: boolean }[] = [];
+
+  for (const rel of (relationshipRows ?? []) as { from_domain: string; to_domain: string; strength: string }[]) {
+    const from = byDomain.get(rel.from_domain);
+    const to = byDomain.get(rel.to_domain);
+    if (!from || !to) {
+      results.push({ fromDomain: rel.from_domain, toDomain: rel.to_domain, wrote: false });
+      continue;
+    }
+
+    const draft = buildCrossDomainDraft(
+      { fromDomain: rel.from_domain as Domain, toDomain: rel.to_domain as Domain, strength: rel.strength },
+      {
+        id: from.id,
+        domain: from.domain as Domain,
+        strength: from.strength as Strength,
+        evidenceType: from.evidence_type,
+        learningSince: from.learning_since,
+        observationsCount: from.observations_count,
+      },
+      {
+        id: to.id,
+        domain: to.domain as Domain,
+        strength: to.strength as Strength,
+        evidenceType: to.evidence_type,
+        learningSince: to.learning_since,
+        observationsCount: to.observations_count,
+      }
+    );
+
+    if (!draft) {
+      results.push({ fromDomain: rel.from_domain, toDomain: rel.to_domain, wrote: false });
+      continue;
+    }
+
+    // The exact same function every domain processor already calls, with
+    // the pair's priority domain as `domain` (so a cycle-involving pattern
+    // keeps routing to ob-gyn via careGuidance.ts's own DOMAIN_CARE_TYPE,
+    // unchanged) and the other domain in the pair as `connectedDomain` —
+    // reusing deriveGuidance()'s existing "appears connected to your X"
+    // sentence for exactly the case it was already built for.
+    const { guidance, careRecommendationType, careRecommendationReason } = deriveGuidance(
+      draft.primaryDomain,
+      draft.strength,
+      draft.otherDomain,
+      { observationsCount: draft.observationsCount, learningSince: draft.learningSinceAnchor }
+    );
+
+    const { error: upsertError } = await supabase.from('cross_domain_understandings').upsert(
+      {
+        user_id: userId,
+        from_domain: draft.fromDomain,
+        to_domain: draft.toDomain,
+        label: draft.label,
+        narrative: draft.narrative,
+        strength: draft.strength,
+        confidence_label: draft.confidenceLabel,
+        contributing_understanding_ids: draft.contributingUnderstandingIds,
+        still_learning: draft.stillLearning,
+        guidance,
+        care_recommendation_type: careRecommendationType,
+        care_recommendation_reason: careRecommendationReason,
+        first_observed: draft.learningSinceAnchor,
+        last_updated: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,from_domain,to_domain' }
+    );
+    if (upsertError) throw upsertError;
+
+    results.push({ fromDomain: rel.from_domain, toDomain: rel.to_domain, wrote: true });
+  }
+
+  return results;
+}
+
 const STALE_AFTER_DAYS = 21;
 
 /**
@@ -767,13 +1020,20 @@ async function decayStaleUnderstandings(
   for (const u of stale ?? []) {
     if (refreshedDomains.includes(u.domain as string)) continue;
 
-    const idx = STRENGTH_LADDER.indexOf(u.strength as typeof STRENGTH_LADDER[number]);
-    if (idx === -1 || idx === STRENGTH_LADDER.length - 1) continue;
-    const next = STRENGTH_LADDER[idx + 1];
+    const decayedState = nextDecayedState(u.strength as string);
+    if (!decayedState) continue;
 
+    // strength and confidence_label are written together here so they can
+    // never disagree — previously only strength was updated, which could
+    // leave a row reading e.g. strength='moderate' next to a
+    // confidence_label of 'confident' left over from when it was 'strong'.
     const { error: updateError } = await supabase
       .from('understandings')
-      .update({ strength: next, last_updated: new Date().toISOString() })
+      .update({
+        strength: decayedState.strength,
+        confidence_label: decayedState.confidenceLabel,
+        last_updated: new Date().toISOString(),
+      })
       .eq('id', u.id);
     if (updateError) throw updateError;
 
@@ -805,6 +1065,20 @@ async function processUser(supabase: ReturnType<typeof createClient>, userId: st
   // physiological writes just did.
   const contextual = await processContextualDomain(supabase, userId, obs);
 
+  // Runs after the four physiological processors AND processContextualDomain
+  // — it reads `understandings` and `relationships` fresh off whatever this
+  // run itself just wrote (including the relationship rows the four
+  // processors above write as part of their own Promise.all), never raw
+  // Observations or Evidence directly. See crossDomainSynthesis.ts for the
+  // actual eligibility rule.
+  const crossDomain = await processCrossDomainSynthesis(supabase, userId);
+
+  // Independent of cross-domain synthesis — order between the two doesn't
+  // matter, since neither reads the other's output — but both need this
+  // run's own `understandings` state, so both run after the physiological
+  // processors and processContextualDomain() above.
+  const providerFeedback = await processProviderFeedbackEvidence(supabase, userId, obs);
+
   const refreshed = [
     cycle?.wrote ? 'cycle' : null,
     sleep?.wrote ? 'sleep' : null,
@@ -815,7 +1089,7 @@ async function processUser(supabase: ReturnType<typeof createClient>, userId: st
 
   const decayed = await decayStaleUnderstandings(supabase, userId, refreshed);
 
-  return { userId, cycle, sleep, recovery, mood, contextual, decayed };
+  return { userId, cycle, sleep, recovery, mood, contextual, crossDomain, providerFeedback, decayed };
 }
 
 Deno.serve(async (req) => {
@@ -846,6 +1120,13 @@ Deno.serve(async (req) => {
           // longer blind to the one non-physiological source that also
           // produces an Understanding.
           'health_concern',
+          // Same reasoning, for the newest source: a user whose only new
+          // activity since the last run was logging provider feedback
+          // still deserves processProviderFeedbackEvidence() actually
+          // running for them tonight, not waiting for unrelated
+          // physiological data to happen to arrive too.
+          'provider_assessment',
+          'provider_outcome',
         ]);
       if (error) throw error;
       userIds = [...new Set((data ?? []).map((r) => r.user_id as string))];

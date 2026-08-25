@@ -12,6 +12,13 @@
 // Observation — rather than a bespoke "visit prep" table. See
 // UnderstandingSheet's use of insertObservation after a successful share.
 
+export interface VisitBriefProvider {
+  name: string;
+  specialty: string | null;
+  address: string | null;
+  phone: string | null;
+}
+
 export interface VisitBriefInput {
   domainLabel: string;
   narrative: string;
@@ -21,12 +28,27 @@ export interface VisitBriefInput {
   timelineSteps: { label: string; detail: string }[];
   stillLearning: string[];
   guidance: string | null;
+  // Optional — set only when the user picked a result from Provider
+  // Search (see ProviderSearchSheet) before preparing this brief. Never
+  // required: a brief with no provider attached is just as valid, since
+  // Care Preparation and Provider Search are separate steps in the chain.
+  provider?: VisitBriefProvider | null;
 }
 
 export function buildVisitBrief(input: VisitBriefInput): string {
   const lines: string[] = [];
   lines.push(`Ciatta summary — ${input.domainLabel}`);
   lines.push('');
+
+  if (input.provider) {
+    lines.push('WHO YOU\'RE SEEING');
+    lines.push(
+      input.provider.specialty ? `${input.provider.name} — ${input.provider.specialty}` : input.provider.name
+    );
+    if (input.provider.address) lines.push(input.provider.address);
+    if (input.provider.phone) lines.push(input.provider.phone);
+    lines.push('');
+  }
 
   lines.push('WHAT CIATTA UNDERSTANDS');
   lines.push(input.narrative);

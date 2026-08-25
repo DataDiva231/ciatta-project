@@ -40,6 +40,37 @@ export async function insertObservation(userId: string, observation: NewObservat
   if (error) throw error;
 }
 
+// Provider Feedback / Outcome — both are ordinary Observations
+// (source: 'provider'), never a separate table: 'provider_assessment' is
+// what the provider said (patient-relayed, free text — UnderstandingSheet's
+// existing "Log what your provider said"); 'provider_outcome' is the
+// closed-form result of that conversation (see PROVIDER_OUTCOME in
+// UnderstandingSheet.tsx). Both are additive-only inserts, same as every
+// other Observation this app writes — nothing here ever updates or deletes
+// a prior Observation or Understanding, and neither type is in the
+// Understanding Engine's own loadObservations() type list, so today
+// neither can retroactively change what Ciatta already believes; they
+// exist as provenance-tagged history for a future engine change to read
+// deliberately, not by accident.
+export interface ProviderFeedbackRow {
+  id: string;
+  type: string;
+  value: Record<string, unknown>;
+  recorded_at: string;
+  context: Record<string, unknown>;
+}
+
+export async function fetchProviderFeedback(userId: string): Promise<ProviderFeedbackRow[]> {
+  const { data, error } = await supabase
+    .from('observations')
+    .select('id, type, value, recorded_at, context')
+    .eq('user_id', userId)
+    .in('type', ['provider_assessment', 'provider_outcome'])
+    .order('recorded_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as ProviderFeedbackRow[];
+}
+
 export interface SyncReflection {
   sleepMinutes: number | null;
   steps: number | null;

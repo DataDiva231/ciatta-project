@@ -20,12 +20,14 @@ import { isAuthFailure } from './src/lib/errors';
 import { isClockSkewError, logSessionClockSkew, withClockSkewRetry } from './src/lib/sessionGuard';
 import { fetchProfile, updateProfile } from './src/lib/profile';
 import {
+  fetchCrossDomainUnderstandings,
   fetchDiscoveries,
   fetchRelationships,
   fetchUnderstandingHistory,
   fetchUnderstandings,
   hasHealthSourceObservations,
   nameDiscovery,
+  type CrossDomainUnderstandingRow,
   type DiscoveryRow,
   type RelationshipRow,
   type UnderstandingHistoryRow,
@@ -34,7 +36,9 @@ import {
 import { answerCuriosity, fetchActiveCuriosity, type ActiveCuriosity } from './src/lib/curiosity';
 import {
   fetchLastHealthSyncAt,
+  fetchProviderFeedback,
   fetchRecentSyncSummary,
+  type ProviderFeedbackRow,
   type RecentSyncSummary,
 } from './src/lib/observations';
 import { registerForPush } from './src/lib/notifications';
@@ -147,6 +151,10 @@ export default function App() {
   const [understandings, setUnderstandings] = useState<UnderstandingRow[]>([]);
   const [relationships, setRelationships] = useState<RelationshipRow[]>([]);
   const [understandingHistory, setUnderstandingHistory] = useState<UnderstandingHistoryRow[]>([]);
+  const [crossDomainUnderstandings, setCrossDomainUnderstandings] = useState<
+    CrossDomainUnderstandingRow[]
+  >([]);
+  const [providerFeedback, setProviderFeedback] = useState<ProviderFeedbackRow[]>([]);
   const [discoveries, setDiscoveries] = useState<DiscoveryRow[]>([]);
   const [activeCuriosity, setActiveCuriosity] = useState<ActiveCuriosity | null>(null);
   const [healthSourceConnected, setHealthSourceConnected] = useState(false);
@@ -231,13 +239,15 @@ export default function App() {
         // the whole batch before it's treated as a real failure — see
         // sessionGuard.ts. Everything else (network drop, a genuinely dead
         // session) passes straight through to the catch below unchanged.
-        const [p, u, r, h, d, c, hc, sync] = await withClockSkewRetry(
+        const [p, u, r, h, cd, pf, d, c, hc, sync] = await withClockSkewRetry(
           () =>
             Promise.all([
               fetchProfile(userId),
               fetchUnderstandings(userId),
               fetchRelationships(userId),
               fetchUnderstandingHistory(userId),
+              fetchCrossDomainUnderstandings(userId),
+              fetchProviderFeedback(userId),
               fetchDiscoveries(userId),
               fetchActiveCuriosity(userId),
               hasHealthSourceObservations(userId),
@@ -249,6 +259,8 @@ export default function App() {
         setUnderstandings(u);
         setRelationships(r);
         setUnderstandingHistory(h);
+        setCrossDomainUnderstandings(cd);
+        setProviderFeedback(pf);
         setDiscoveries(d);
         setActiveCuriosity(c);
         setHealthSourceConnected(hc);
@@ -522,11 +534,17 @@ export default function App() {
         understandings={understandings}
         relationships={relationships}
         history={understandingHistory}
+        crossDomainUnderstandings={crossDomainUnderstandings}
+        providerFeedback={providerFeedback}
         userId={session?.user?.id ?? null}
+        profileLocation={profile?.location ?? null}
         onClose={() => setUnderstandingDomain(null)}
         onHelpLearnMore={() => {
           setUnderstandingDomain(null);
           setCuriosityVisible(true);
+        }}
+        onProviderFeedbackSaved={() => {
+          if (session?.user?.id) loadUserData(session.user.id);
         }}
       />
 

@@ -74,6 +74,31 @@ Deno.test('dailyMetricRatingRelationship: no correlation -> not eligible, no dis
   assertEquals(buildDailyMetricRatingDiscovery(result, COPY, 'energy'), null);
 });
 
+Deno.test('dailyMetricRatingRelationship: no amount of quantity manufactures confidence out of a pattern that never confirms', () => {
+  // 300 days, no correlation at all — quantity alone must never push
+  // confidence above 0 the way it can for a real, confirming pattern.
+  const days: [string, number][] = [];
+  const ratings: RatingObservation[] = [];
+  const start = new Date('2025-01-01T00:00:00Z');
+  for (let i = 0; i < 300; i++) {
+    const d = new Date(start.getTime() + i * 86400000);
+    const key = d.toISOString().slice(0, 10);
+    const isLow = i % 3 === 0;
+    days.push([key, isLow ? 10 : 50]);
+    const nextDay = new Date(d.getTime() + 86400000).toISOString().slice(0, 10);
+    // Rating alternates on a fixed 2-day cycle, entirely independent of
+    // whether the metric was low or normal that day.
+    ratings.push({ id: `r-${i}`, recordedAt: `${nextDay}T12:00:00Z`, rating: (i % 2) + 2 });
+  }
+
+  const result = analyzeDailyMetricRatingRelationship(dayMap(days), ratings, 14, 0.5);
+  assertEquals(result.daysWithBothSignals > 100, true); // plenty of quantity
+  assertEquals(result.confirms, false);
+  assertEquals(result.confidence, 0);
+  assertEquals(result.eligible, false);
+  assertEquals(buildDailyMetricRatingDiscovery(result, COPY, 'energy'), null);
+});
+
 Deno.test('dailyMetricRatingRelationship: below minDaysForBaseline is never eligible', () => {
   const days = dayMap([
     ['2025-06-01', 10],

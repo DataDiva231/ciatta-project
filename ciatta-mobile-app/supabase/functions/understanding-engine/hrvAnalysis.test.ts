@@ -4,6 +4,7 @@ import {
   buildHrvUnderstanding,
   analyzeHrvRatingRelationship,
   buildHrvRatingDiscovery,
+  filterToConsistentMetric,
   type HrvObservation,
 } from './hrvAnalysis.ts';
 import type { EnergyObservation } from './energyRelationship.ts';
@@ -125,6 +126,72 @@ Deno.test('hrvAnalysis: real low-HRV -> low-rating pattern is confirmed with eno
   assertEquals(relResult.eligible, true);
   assert(discovery !== null);
   assert(discovery!.narrative.toLowerCase().includes('hrv'));
+});
+
+// --- Signal-quality gate: SDNN (HealthKit) and RMSSD (Health Connect) are
+// real, already-captured provenance (context.metric), not a synthetic
+// score — see filterToConsistentMetric() in hrvAnalysis.ts. ---
+
+function taggedDay(day: string, ms: number, metric: string | null): HrvObservation {
+  return { id: id(), recordedAt: `${day}T08:00:00Z`, ms, metric };
+}
+
+Deno.test('filterToConsistentMetric: untagged observations pass through unchanged, single-metric too', () => {
+  const untagged = Array.from({ length: 20 }, (_, i) =>
+    taggedDay(`2025-06-${String(i + 1).padStart(2, '0')}`, 50, null)
+  );
+  assertEquals(filterToConsistentMetric(untagged), untagged);
+
+  const allSdnn = Array.from({ length: 20 }, (_, i) =>
+    taggedDay(`2025-06-${String(i + 1).padStart(2, '0')}`, 50, 'sdnn')
+  );
+  assertEquals(filterToConsistentMetric(allSdnn), allSdnn);
+});
+
+Deno.test('filterToConsistentMetric: a mix of two tagged metrics keeps only the more-represented one', () => {
+  const sdnnDays = Array.from({ length: 15 }, (_, i) =>
+    taggedDay(`2025-06-${String(i + 1).padStart(2, '0')}`, 50, 'sdnn')
+  );
+  const rmssdDays = Array.from({ length: 5 }, (_, i) =>
+    taggedDay(`2025-07-${String(i + 1).padStart(2, '0')}`, 50, 'rmssd')
+  );
+  const result = filterToConsistentMetric([...sdnnDays, ...rmssdDays]);
+  assertEquals(result.length, 15);
+  assert(result.every((o) => o.metric === 'sdnn'));
+});
+
+Deno.test('filterToConsistentMetric: untagged observations are never excluded, even alongside a tagged mix', () => {
+  const sdnnDays = Array.from({ length: 10 }, (_, i) =>
+    taggedDay(`2025-06-${String(i + 1).padStart(2, '0')}`, 50, 'sdnn')
+  );
+  const rmssdDays = Array.from({ length: 3 }, (_, i) =>
+    taggedDay(`2025-07-${String(i + 1).padStart(2, '0')}`, 50, 'rmssd')
+  );
+  const untaggedDays = Array.from({ length: 4 }, (_, i) =>
+    taggedDay(`2025-08-${String(i + 1).padStart(2, '0')}`, 50, null)
+  );
+  const result = filterToConsistentMetric([...sdnnDays, ...rmssdDays, ...untaggedDays]);
+  // The 10 dominant sdnn days plus all 4 untagged — the 3 minority rmssd
+  // days are the only ones excluded.
+  assertEquals(result.length, 14);
+  assert(result.every((o) => o.metric !== 'rmssd'));
+});
+
+Deno.test('analyzeHrv: a mixed-metric account still reaches an Understanding from its dominant metric alone, provenance intact', () => {
+  nextId = 1;
+  const sdnnDays = Array.from({ length: 20 }, (_, i) =>
+    taggedDay(`2025-06-${String(i + 1).padStart(2, '0')}`, 55, 'sdnn')
+  );
+  const rmssdDays = Array.from({ length: 6 }, (_, i) =>
+    taggedDay(`2025-07-${String(i + 1).padStart(2, '0')}`, 20, 'rmssd')
+  );
+  const result = analyzeHrv([...sdnnDays, ...rmssdDays]);
+  assertEquals(result.eligible, true);
+  assertEquals(result.totalDays, 20);
+  // The excluded RMSSD days' ids must not appear in provenance — they were
+  // never part of what produced this Understanding.
+  const rmssdIds = new Set(rmssdDays.map((o) => o.id));
+  assert(result.observationIds.every((oid) => !rmssdIds.has(oid)));
 });
 
 Deno.test('hrvAnalysis: low-HRV days happen but rating is uncorrelated -> no discovery', () => {
