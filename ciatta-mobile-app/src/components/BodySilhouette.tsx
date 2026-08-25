@@ -74,6 +74,11 @@ const FIGURES: Record<'torso' | 'full', Figure> = {
 
 const DOMAIN_ORDER: Domain[] = ['sleep', 'recovery', 'cycle', 'energy', 'mood'];
 
+// Exposed so callers (Core) can solve for a `scale` that fills the space
+// they have available without duplicating the full figure's raw dimensions.
+export const CORE_FIGURE_BASE_WIDTH = FIGURES.full.baseWidth;
+export const CORE_FIGURE_ASPECT = FIGURES.full.h / FIGURES.full.w;
+
 function Glow({
   domain,
   pos,

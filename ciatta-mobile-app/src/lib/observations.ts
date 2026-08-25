@@ -1,6 +1,19 @@
 import { supabase } from './supabase';
 
-export type ObservationSource = 'apple-health' | 'health-connect' | 'arc' | 'manual' | 'curiosity';
+// 'provider' — a patient-mediated report of what a provider said or
+// determined (see UnderstandingSheet's "Log what your provider said"),
+// distinct from 'manual' (the user's own unprompted note) even though
+// both are typed in by the user: who the information originated FROM is
+// what this field tracks, and provider assessments are their own source
+// of evidence for future intelligence work, not folded into the user's own
+// observations.
+export type ObservationSource =
+  | 'apple-health'
+  | 'health-connect'
+  | 'arc'
+  | 'manual'
+  | 'curiosity'
+  | 'provider';
 
 export interface NewObservation {
   source: ObservationSource;

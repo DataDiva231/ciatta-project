@@ -137,7 +137,9 @@ export default function YouScreen({
       </Card>
 
       <Text style={styles.section}>YOUR CONNECTIONS</Text>
-      <Text style={styles.sectionHint}>Connected data makes understanding stronger.</Text>
+      <Text style={styles.sectionHint}>
+        The more you connect — including your provider — the more context Ciatta has to work with.
+      </Text>
       <Card style={styles.groupCard}>
         {connectionsWithRealStatus.map((c, i) => (
           <DisclosureRow

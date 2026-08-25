@@ -43,6 +43,8 @@ import {
   type HrvObservation,
 } from './hrvAnalysis.ts';
 import { analyzeMood, buildMoodUnderstanding } from './moodAnalysis.ts';
+import { deriveGuidance } from './careGuidance.ts';
+import { buildContextualUnderstanding, mapConcernToDomain } from './contextualUnderstanding.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -55,6 +57,18 @@ interface ObservationRow {
   context: Record<string, unknown>;
 }
 
+// The onboarding conversation's own answer, kept as-typed — this module
+// never re-derives or paraphrases it, only reads it back.
+interface ContextualObservation {
+  id: string;
+  recordedAt: string;
+  answer: string;
+  // health_concern's own context.health_domains, written at answer time by
+  // the client's classifyHealthIntent() (src/lib/healthIntent.ts) — reused
+  // here rather than re-classifying the same text a second time.
+  healthDomains: string[];
+}
+
 interface LoadedObservations {
   flow: FlowObservation[];
   rhr: RhrObservation[];
@@ -63,6 +77,9 @@ interface LoadedObservations {
   sleep: SleepObservation[];
   steps: StepsObservation[];
   hrv: HrvObservation[];
+  concern: ContextualObservation | null;
+  concernElaboration: ContextualObservation | null;
+  concernRecency: ContextualObservation | null;
 }
 
 async function loadObservations(
@@ -82,6 +99,9 @@ async function loadObservations(
       'sleep_segment',
       'steps',
       'hrv',
+      'health_concern',
+      'health_concern_detail',
+      'health_concern_recency',
     ])
     .order('recorded_at', { ascending: true });
 
@@ -95,6 +115,13 @@ async function loadObservations(
   const sleep: SleepObservation[] = [];
   const steps: StepsObservation[] = [];
   const hrv: HrvObservation[] = [];
+  // Rows are loaded oldest-first, so simply overwriting on each match
+  // leaves the most recent answer for each — onboarding asks each of
+  // these at most once per user today, but this stays correct even if
+  // that ever changes.
+  let concern: ContextualObservation | null = null;
+  let concernElaboration: ContextualObservation | null = null;
+  let concernRecency: ContextualObservation | null = null;
 
   for (const row of rows) {
     if (row.type === 'menstrual_flow') {
@@ -141,10 +168,43 @@ async function loadObservations(
       if (typeof ms === 'number') {
         hrv.push({ id: row.id, recordedAt: row.recorded_at, ms });
       }
+    } else if (row.type === 'health_concern') {
+      const answer = row.value?.answer;
+      if (typeof answer === 'string') {
+        const domains = row.context?.health_domains;
+        concern = {
+          id: row.id,
+          recordedAt: row.recorded_at,
+          answer,
+          healthDomains: Array.isArray(domains) ? (domains as string[]) : [],
+        };
+      }
+    } else if (row.type === 'health_concern_detail') {
+      const answer = row.value?.answer;
+      if (typeof answer === 'string') {
+        // The elaboration is classified too (ConversationOnboarding.tsx
+        // runs classifyHealthIntent() on both 'concern' and
+        // 'concern_elaborate' answers) and is free text, so it's often the
+        // more specific signal of the two — e.g. a generic "I'm trying to
+        // improve something" chip followed by a free-text elaboration that
+        // actually names sleep.
+        const domains = row.context?.health_domains;
+        concernElaboration = {
+          id: row.id,
+          recordedAt: row.recorded_at,
+          answer,
+          healthDomains: Array.isArray(domains) ? (domains as string[]) : [],
+        };
+      }
+    } else if (row.type === 'health_concern_recency') {
+      const answer = row.value?.answer;
+      if (typeof answer === 'string') {
+        concernRecency = { id: row.id, recordedAt: row.recorded_at, answer, healthDomains: [] };
+      }
     }
   }
 
-  return { flow, rhr, energy, mood, sleep, steps, hrv };
+  return { flow, rhr, energy, mood, sleep, steps, hrv, concern, concernElaboration, concernRecency };
 }
 
 interface UnderstandingDraftLike {
@@ -154,7 +214,17 @@ interface UnderstandingDraftLike {
   stillLearning?: string[];
 }
 
-/** Writes Evidence + upserts the Understanding + logs history on change. */
+/** Writes Evidence + upserts the Understanding + logs history on change.
+ *
+ * `evidenceType` is always passed explicitly by every caller, never
+ * defaulted here — the four physiological domain processors pass
+ * 'health_data', processContextualDomain() passes 'user_reported'. It has
+ * to be explicit on every call because it's part of the upsert payload:
+ * leaving it out wouldn't fall back to the column's DB default on an
+ * UPDATE (only on a fresh INSERT), so an omitted value on a second write
+ * would silently leave a row's evidence_type stuck at whatever it was
+ * before — exactly backwards for a physiological write that's meant to
+ * upgrade a domain from 'user_reported' once real data arrives. */
 async function upsertUnderstanding(
   supabase: ReturnType<typeof createClient>,
   userId: string,
@@ -164,7 +234,8 @@ async function upsertUnderstanding(
   weight: number,
   confidence: number,
   firstObserved: string | null,
-  historyLabel: { first: string; changed: string }
+  historyLabel: { first: string; changed: string },
+  evidenceType: 'health_data' | 'user_reported'
 ): Promise<string> {
   const { error: evidenceError } = await supabase.from('evidence').insert({
     user_id: userId,
@@ -183,6 +254,31 @@ async function upsertUnderstanding(
     .maybeSingle();
   if (fetchError) throw fetchError;
 
+  // The strongest Relationship this domain already has in the model, if
+  // any — read before Guidance is derived so Guidance can name a real,
+  // already-represented connection instead of reading as generic advice.
+  // Relationships are only ever written from processing that already ran
+  // (this call happens before this run's own relationship step), so on a
+  // brand-new domain this is simply empty — never a reason to invent one.
+  const { data: relatedRows, error: relatedError } = await supabase
+    .from('relationships')
+    .select('from_domain, to_domain, confidence')
+    .or(`from_domain.eq.${domain},to_domain.eq.${domain}`)
+    .order('confidence', { ascending: false })
+    .limit(1);
+  if (relatedError) throw relatedError;
+  const connectedDomain = relatedRows?.[0]
+    ? relatedRows[0].from_domain === domain
+      ? (relatedRows[0].to_domain as string)
+      : (relatedRows[0].from_domain as string)
+    : null;
+
+  const { guidance, careRecommendationType, careRecommendationReason } = deriveGuidance(
+    domain,
+    draft.strength,
+    connectedDomain
+  );
+
   const { data: upserted, error: upsertError } = await supabase
     .from('understandings')
     .upsert(
@@ -197,6 +293,10 @@ async function upsertUnderstanding(
         learning_since: existing?.strength == null ? firstObserved : undefined,
         last_updated: new Date().toISOString(),
         still_learning: draft.stillLearning ?? [],
+        guidance,
+        care_recommendation_type: careRecommendationType,
+        care_recommendation_reason: careRecommendationReason,
+        evidence_type: evidenceType,
       },
       { onConflict: 'user_id,domain' }
     )
@@ -308,7 +408,8 @@ async function processCycleDomain(
     {
       first: 'Noticed a possible heart-rate pattern tied to your cycle.',
       changed: `This pattern has held for ${result.cyclesWithSufficientData} cycles now.`,
-    }
+    },
+    'health_data'
   );
 
   // Same rationale as the sleep domain: energy and mood are collected
@@ -378,7 +479,8 @@ async function processSleepDomain(
     {
       first: 'Noticed a pattern in how much you sleep.',
       changed: `This pattern has held across ${result.totalNights} nights now.`,
-    }
+    },
+    'health_data'
   );
 
   // Energy and mood are collected identically (same 1-4 curiosity scale),
@@ -473,7 +575,8 @@ async function processRecoveryDomain(
         ? 'Noticed a pattern in your heart rate variability.'
         : 'Noticed a pattern in how much you move day to day.',
       changed: `This pattern has held across ${weight} days now.`,
-    }
+    },
+    'health_data'
   );
 
   // Same rationale as cycle and sleep: energy and mood are collected
@@ -551,10 +654,85 @@ async function processMoodDomain(
     {
       first: 'Noticed a pattern in how you report your mood.',
       changed: `This pattern has held across ${result.totalAnswers} check-ins now.`,
-    }
+    },
+    'health_data'
   );
 
   return { wrote: true, strength: draft.strength, confidence: result.confidence };
+}
+
+/**
+ * The one non-physiological domain processor — builds an initial,
+ * user-reported Understanding from the onboarding conversation's own
+ * concern/elaboration/recency answers. Everything about how it writes is
+ * identical to the four processors above it (same upsertUnderstanding(),
+ * same Evidence row, same history log); the only real difference is where
+ * the draft comes from and one extra guard: it never overwrites a domain
+ * that already has a real physiological ('health_data') Understanding —
+ * the two are meant to complement each other, not compete, and a
+ * measured pattern always outranks a self-report of the same domain.
+ * (The reverse is exactly what already happens for free: once a
+ * physiological processor above writes 'health_data' for the same domain,
+ * this function's own guard sees it next run and steps aside for good.)
+ */
+async function processContextualDomain(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  obs: LoadedObservations
+) {
+  if (!obs.concern) return { wrote: false, reason: 'no-data' };
+
+  // The elaboration's own classification goes first — free text is
+  // typically more specific than the fixed concern chip it followed (see
+  // the comment on health_concern_detail in loadObservations above).
+  const domain = mapConcernToDomain([
+    ...(obs.concernElaboration?.healthDomains ?? []),
+    ...obs.concern.healthDomains,
+  ]);
+
+  const draft = buildContextualUnderstanding(domain, {
+    concernAnswer: obs.concern.answer,
+    concernElaboration: obs.concernElaboration?.answer ?? null,
+    recency: obs.concernRecency?.answer ?? null,
+  });
+  if (!draft) return { wrote: false, reason: 'not-eligible' };
+
+  const { data: existing, error: existingError } = await supabase
+    .from('understandings')
+    .select('evidence_type')
+    .eq('user_id', userId)
+    .eq('domain', domain)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (existing?.evidence_type === 'health_data') {
+    return { wrote: false, reason: 'superseded-by-physiological-understanding', domain };
+  }
+
+  const observationIds = [
+    obs.concern.id,
+    obs.concernElaboration?.id,
+    obs.concernRecency?.id,
+  ].filter((id): id is string => !!id);
+
+  await upsertUnderstanding(
+    supabase,
+    userId,
+    domain,
+    draft,
+    observationIds,
+    observationIds.length,
+    // A single self-report is never more than the system's own lowest
+    // confidence value — there's no sample size to speak of.
+    0.3,
+    obs.concern.recordedAt.slice(0, 10),
+    {
+      first: 'Noted what you shared about this during onboarding.',
+      changed: 'Updated based on what you shared during onboarding.',
+    },
+    'user_reported'
+  );
+
+  return { wrote: true, domain, strength: draft.strength };
 }
 
 /** Confidence ladder, strongest first. */
@@ -621,16 +799,23 @@ async function processUser(supabase: ReturnType<typeof createClient>, userId: st
     processMoodDomain(supabase, userId, obs),
   ]);
 
+  // Runs after, not alongside, the four physiological processors above —
+  // its "don't overwrite a real physiological Understanding" guard reads
+  // current DB state, which needs to reflect whatever this run's own
+  // physiological writes just did.
+  const contextual = await processContextualDomain(supabase, userId, obs);
+
   const refreshed = [
     cycle?.wrote ? 'cycle' : null,
     sleep?.wrote ? 'sleep' : null,
     recovery?.wrote ? 'recovery' : null,
     mood?.wrote ? 'mood' : null,
+    contextual?.wrote ? contextual.domain : null,
   ].filter((d): d is string => d !== null);
 
   const decayed = await decayStaleUnderstandings(supabase, userId, refreshed);
 
-  return { userId, cycle, sleep, recovery, mood, decayed };
+  return { userId, cycle, sleep, recovery, mood, contextual, decayed };
 }
 
 Deno.serve(async (req) => {
@@ -654,6 +839,13 @@ Deno.serve(async (req) => {
           'steps',
           'hrv',
           'mood_rating',
+          // A user with only onboarding observations and no physiological
+          // data yet still deserves the nightly run's own initial,
+          // contextual Understanding — this is the same discovery query
+          // the four physiological processors already share, just no
+          // longer blind to the one non-physiological source that also
+          // produces an Understanding.
+          'health_concern',
         ]);
       if (error) throw error;
       userIds = [...new Set((data ?? []).map((r) => r.user_id as string))];

@@ -1,5 +1,5 @@
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts, strengthColor } from '../theme/tokens';
 import { domainLabel, strengthLabel } from '../lib/mockData';
 import type { Domain, RelationshipRef } from '../lib/types';
@@ -8,11 +8,20 @@ import type {
   UnderstandingHistoryRow,
   UnderstandingRow,
 } from '../lib/queries';
+import { buildVisitBrief } from '../lib/visitPrep';
+import { insertObservation } from '../lib/observations';
 import BottomSheet from '../components/BottomSheet';
 import RelationshipList from '../components/RelationshipList';
 import Timeline from '../components/Timeline';
+import TextField from '../components/TextField';
 import PrimaryButton from '../components/PrimaryButton';
 import { CloseIcon } from '../components/icons';
+
+const CARE_TYPE_LABEL: Record<string, string> = {
+  'primary-care': 'PRIMARY CARE',
+  'ob-gyn': 'OB/GYN',
+  'mental-health': 'MENTAL HEALTH',
+};
 
 function formatDate(value: string | null): string {
   if (!value) return '—';
@@ -49,6 +58,7 @@ export default function UnderstandingSheet({
   understandings,
   relationships,
   history,
+  userId,
   onClose,
   onHelpLearnMore,
 }: {
@@ -56,9 +66,26 @@ export default function UnderstandingSheet({
   understandings: UnderstandingRow[];
   relationships: RelationshipRow[];
   history: UnderstandingHistoryRow[];
+  userId: string | null;
   onClose: () => void;
   onHelpLearnMore: () => void;
 }) {
+  // Care Preparation / Provider Feedback state. Hooks run unconditionally —
+  // this has to sit above the `!understanding` early return below.
+  const [loggingProvider, setLoggingProvider] = useState(false);
+  const [providerNote, setProviderNote] = useState('');
+  const [savingProviderNote, setSavingProviderNote] = useState(false);
+  const [providerNoteSaved, setProviderNoteSaved] = useState(false);
+  const [careActionError, setCareActionError] = useState<string | null>(null);
+
+  function handleClose() {
+    setLoggingProvider(false);
+    setProviderNote('');
+    setProviderNoteSaved(false);
+    setCareActionError(null);
+    onClose();
+  }
+
   const understanding = domain ? understandings.find((u) => u.domain === domain) ?? null : null;
 
   const relatedDomains: RelationshipRef[] = understanding
@@ -81,21 +108,84 @@ export default function UnderstandingSheet({
     : [];
 
   if (!understanding) {
-    return <BottomSheet visible={!!domain} onClose={onClose}>{null}</BottomSheet>;
+    return <BottomSheet visible={!!domain} onClose={handleClose}>{null}</BottomSheet>;
   }
 
   const span = formatSpan(understanding.learning_since);
   const confidence = understanding.confidence_label ?? strengthLabel[understanding.strength];
+  // Read straight off the row the Understanding Engine wrote — not
+  // recomputed here, so there is exactly one place Guidance is derived.
+  const guidance = understanding.guidance;
+
+  async function handlePrepareVisit() {
+    if (!understanding) return;
+    setCareActionError(null);
+    const brief = buildVisitBrief({
+      domainLabel: domainLabel[understanding.domain],
+      narrative: understanding.narrative,
+      confidenceLabel: confidence,
+      observationsCount: understanding.observations_count,
+      learningSpan: span,
+      timelineSteps: timelineSteps.map((s) => ({ label: s.label, detail: s.detail })),
+      stillLearning: understanding.still_learning,
+      guidance: understanding.guidance,
+    });
+    try {
+      await Share.share({ message: brief });
+      // The brief itself is never stored — it's assembled fresh from data
+      // already on screen. What's worth remembering is that preparing one
+      // happened at all, logged the same way every other user action in
+      // this app already is: as a manual Observation.
+      if (userId) {
+        await insertObservation(userId, {
+          source: 'manual',
+          type: 'visit_prep_shared',
+          value: { domain: understanding.domain },
+          context: { understandingId: understanding.id },
+        });
+      }
+    } catch (e) {
+      setCareActionError(e instanceof Error ? e.message : "That didn't go through — try again.");
+    }
+  }
+
+  async function handleSaveProviderNote() {
+    if (!userId || !understanding) return;
+    const note = providerNote.trim();
+    if (!note) return;
+    setSavingProviderNote(true);
+    setCareActionError(null);
+    try {
+      // 'provider' is its own provenance, distinct from 'manual' — this is
+      // what a provider determined, relayed by the user, not the user's
+      // own unprompted observation. Feeds back into the same Observations
+      // table every other source already writes to, so a future
+      // Understanding Engine run can draw on it like any other evidence.
+      await insertObservation(userId, {
+        source: 'provider',
+        type: 'provider_assessment',
+        value: { text: note },
+        context: { domain: understanding.domain, understandingId: understanding.id },
+      });
+      setProviderNote('');
+      setProviderNoteSaved(true);
+      setLoggingProvider(false);
+    } catch (e) {
+      setCareActionError(e instanceof Error ? e.message : "That didn't save — try again.");
+    } finally {
+      setSavingProviderNote(false);
+    }
+  }
 
   return (
-    <BottomSheet visible={!!domain} onClose={onClose}>
+    <BottomSheet visible={!!domain} onClose={handleClose}>
       <View>
         <View style={styles.headerRow}>
           <View style={styles.headerText}>
             <Text style={styles.eyebrow}>WHAT I UNDERSTAND ABOUT YOUR</Text>
             <Text style={styles.title}>{domainLabel[understanding.domain]}</Text>
           </View>
-          <Pressable onPress={onClose} hitSlop={10}>
+          <Pressable onPress={handleClose} hitSlop={10}>
             <CloseIcon />
           </Pressable>
         </View>
@@ -163,6 +253,54 @@ export default function UnderstandingSheet({
                 <Text style={styles.bulletText}>{q}</Text>
               </View>
             ))}
+          </>
+        ) : null}
+
+        {guidance ? (
+          <>
+            <Text style={styles.sectionLabel}>WORTH DISCUSSING</Text>
+            {understanding.care_recommendation_type ? (
+              <Text style={styles.careTypeBadge}>
+                {CARE_TYPE_LABEL[understanding.care_recommendation_type] ??
+                  understanding.care_recommendation_type}
+              </Text>
+            ) : null}
+            <Text style={styles.bulletText}>{guidance}</Text>
+
+            {userId ? (
+              <View style={styles.careActions}>
+                <Pressable onPress={handlePrepareVisit} hitSlop={8}>
+                  <Text style={styles.careActionLink}>Prepare for my visit</Text>
+                </Pressable>
+                <Pressable onPress={() => setLoggingProvider((v) => !v)} hitSlop={8}>
+                  <Text style={styles.careActionLink}>Log what your provider said</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
+            {loggingProvider ? (
+              <View style={{ marginTop: 12 }}>
+                <TextField
+                  value={providerNote}
+                  onChangeText={setProviderNote}
+                  placeholder="What did your provider say?"
+                  multiline
+                />
+                <View style={{ marginTop: 10 }}>
+                  <PrimaryButton
+                    label="Save"
+                    onPress={handleSaveProviderNote}
+                    loading={savingProviderNote}
+                    disabled={!providerNote.trim()}
+                  />
+                </View>
+              </View>
+            ) : null}
+
+            {providerNoteSaved ? (
+              <Text style={styles.careConfirmation}>Added to your understanding.</Text>
+            ) : null}
+            {careActionError ? <Text style={styles.careError}>{careActionError}</Text> : null}
           </>
         ) : null}
 
@@ -292,5 +430,36 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     lineHeight: 20,
     color: colors.ink2,
+  },
+  careTypeBadge: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 10.5,
+    letterSpacing: 0.8,
+    color: colors.accent,
+    marginBottom: 6,
+  },
+  careActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 18,
+    marginTop: 12,
+  },
+  careActionLink: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 13,
+    color: colors.accent,
+    textDecorationLine: 'underline',
+  },
+  careConfirmation: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    color: colors.evidence,
+    marginTop: 12,
+  },
+  careError: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    color: colors.accent,
+    marginTop: 10,
   },
 });

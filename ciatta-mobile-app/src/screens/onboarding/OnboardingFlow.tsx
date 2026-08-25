@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Linking,
   Platform,
@@ -10,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, radii } from '../../theme/tokens';
+import { colors, fonts } from '../../theme/tokens';
 import PrimaryButton from '../../components/PrimaryButton';
 import GhostButton from '../../components/GhostButton';
 import Card from '../../components/Card';
@@ -19,8 +20,21 @@ import { seedProfileName } from '../../lib/socialAuth';
 import SocialAuthButtons from '../../components/SocialAuthButtons';
 import { connectHealthConnect } from '../../lib/healthConnect';
 import { connectHealthKit } from '../../lib/healthKit';
+import ConversationOnboarding, { type ConversationSummary } from './ConversationOnboarding';
+import KeyboardAvoidingScreen from '../../components/KeyboardAvoidingScreen';
 
-const TOTAL_STEPS = 12;
+const TOTAL_STEPS = 5;
+
+// The single welcome screen (0), and the account-creation step it leads
+// into. Kept as a named constant so the "skip ahead" handler below doesn't
+// rely on a magic number.
+const ACCOUNT_STEP = 1;
+
+// The one welcome screen shown after the splash, before account creation.
+const WELCOME_SLIDE = {
+  title: 'Welcome to Ciatta.',
+  body: 'Every body tells a story. I build an understanding of yours over time, and help you make sense of what changes.',
+};
 
 export interface OnboardingDraft {
   name: string;
@@ -29,27 +43,9 @@ export interface OnboardingDraft {
   story: string | null;
   notifPref: string;
   sharedHealthRows: string[];
+  height: string;
+  weight: string;
 }
-
-const LIFE_STAGES = ['Reproductive Years', 'Perimenopause', 'Menopause', 'Postmenopause'];
-const STORY_OPTIONS = [
-  'I want to understand my energy.',
-  'I want to understand my cycle.',
-  "I'm preparing for pregnancy.",
-  "I'm entering menopause.",
-  'I simply want to understand my body better.',
-];
-const NOTIF_OPTIONS = [
-  { id: 'discoveries', title: 'Only discoveries', sub: 'The most meaningful moments.' },
-  { id: 'important', title: 'Important understandings', sub: 'When something shifts significantly.' },
-  { id: 'curiosity', title: 'Curiosity', sub: 'When I have a question for you.' },
-  { id: 'nothing', title: 'Nothing for now', sub: "I'll check in on my own." },
-];
-const HEALTH_ROWS = [
-  { id: 'cycle', title: 'Cycle history', sub: 'Helps me understand your patterns.' },
-  { id: 'medical', title: 'Medical history', sub: 'Important context for understanding.' },
-  { id: 'meds', title: 'Medications & supplements', sub: 'These can affect how your body responds.' },
-];
 
 const HEALTH_SOURCE_NAME = Platform.OS === 'android' ? 'Health Connect' : 'Apple Health';
 const HEALTH_SOURCE_BODY =
@@ -74,17 +70,35 @@ export default function OnboardingFlow({
   const [dob, setDob] = useState('');
   const [lifeStage, setLifeStage] = useState<string | null>(null);
   const [story, setStory] = useState<string | null>(null);
-  const [notifPref, setNotifPref] = useState('discoveries');
-  const [sharedHealthRows, setSharedHealthRows] = useState<string[]>([]);
+  const [concern, setConcern] = useState<string | null>(null);
+  const [height, setHeight] = useState('');
+  const [weight, setWeight] = useState('');
   const [appleHealthConnected, setAppleHealthConnected] = useState(false);
   const [healthConnecting, setHealthConnecting] = useState(false);
   const [healthConnectNote, setHealthConnectNote] = useState<string | null>(null);
-  const [arcConnected, setArcConnected] = useState(false);
+
+  // Onboarding no longer asks a separate "which categories can I share"
+  // question — the conversation itself asks about cycle/medical history/
+  // medications directly, so reaching this step already means all three
+  // were discussed (answered or explicitly declined) rather than merely
+  // permitted in the abstract.
+  function finishOnboarding() {
+    onComplete({
+      name,
+      dob,
+      lifeStage,
+      story,
+      notifPref: 'discoveries',
+      sharedHealthRows: ['cycle', 'medical', 'meds'],
+      height,
+      weight,
+    });
+  }
 
   async function handleConnectHealthSource() {
     if (!userId || (Platform.OS !== 'android' && Platform.OS !== 'ios')) {
       setAppleHealthConnected(true);
-      next();
+      finishOnboarding();
       return;
     }
     setHealthConnecting(true);
@@ -96,7 +110,7 @@ export default function OnboardingFlow({
           : await connectHealthKit(userId);
       if (result.granted) {
         setAppleHealthConnected(true);
-        next();
+        finishOnboarding();
       } else if (result.reason === 'unavailable') {
         setHealthConnectNote(
           Platform.OS === 'android'
@@ -117,10 +131,15 @@ export default function OnboardingFlow({
     }
   }
 
-  function toggleHealthRow(id: string) {
-    setSharedHealthRows((rows) =>
-      rows.includes(id) ? rows.filter((r) => r !== id) : [...rows, id]
-    );
+  function handleConversationDone(summary: ConversationSummary) {
+    setName(summary.name);
+    setDob(summary.dob);
+    setLifeStage(summary.lifeStage || null);
+    setHeight(summary.height);
+    setWeight(summary.weight);
+    setStory(summary.intent);
+    setConcern(summary.concern);
+    next();
   }
 
   function goTo(next: number) {
@@ -138,6 +157,8 @@ export default function OnboardingFlow({
 
   const next = () => goTo(step + 1);
   const back = () => step > 0 && goTo(step - 1);
+  // Begin drops straight into account creation.
+  const skipIntro = () => goTo(ACCOUNT_STEP);
 
   const dark = DARK_STEPS.has(step);
 
@@ -172,272 +193,47 @@ export default function OnboardingFlow({
         )}
       </View>
 
+      <KeyboardAvoidingScreen>
       <Animated.View style={[styles.body, { opacity: fade, paddingBottom: insets.bottom + 24 }]}>
         {step === 0 && (
           <Message
-            title="Welcome to Ciatta."
-            body="Every body tells a story. I'm here to spend time understanding yours."
+            title={WELCOME_SLIDE.title}
+            body={WELCOME_SLIDE.body}
             ctaLabel="Begin"
-            onContinue={next}
+            onContinue={skipIntro}
           />
         )}
 
-        {step === 1 && (
-          <Message
-            title="Understanding takes time."
-            body="I don't make assumptions. I learn through conversations, evidence, and your everyday life. My understanding grows with you.
+        {step === 1 && <AccountStep onAuthed={next} />}
 
-Every once in a while, I'll discover something meaningful about your biology. Those discoveries become part of the story we build together."
-            ctaLabel="Continue"
-            onContinue={next}
-          />
-        )}
+        {step === 2 &&
+          (userId ? (
+            <ConversationOnboarding userId={userId} onDone={handleConversationDone} />
+          ) : (
+            <View style={[styles.flex, { alignItems: 'center', justifyContent: 'center' }]}>
+              <ActivityIndicator color={colors.accent} />
+            </View>
+          ))}
 
-        {step === 2 && (
-          <Message
-            title="Your understanding belongs to you."
-            body="I only ask for what helps me understand you better.
-
-Your information is protected and private.
-
-Permissions can always be changed."
-            ctaLabel="I understand"
-            onContinue={next}
-          />
-        )}
-
-        {step === 3 && <AccountStep onAuthed={next} />}
+        {step === 3 && <BeginningYourStory onDone={next} />}
 
         {step === 4 && (
-          <View style={styles.flex}>
-            <Text style={styles.title}>A little about you.</Text>
-            <Text style={styles.subtitle}>This helps me understand you from the start.</Text>
-
-            <Text style={styles.fieldLabel}>NAME</Text>
-            <TextInput
-              value={name}
-              onChangeText={setName}
-              placeholder="Jennifer"
-              placeholderTextColor={colors.ink3}
-              style={styles.input}
-            />
-
-            <Text style={styles.fieldLabel}>DATE OF BIRTH</Text>
-            <TextInput
-              value={dob}
-              onChangeText={setDob}
-              placeholder="mm/dd/yyyy"
-              placeholderTextColor={colors.ink3}
-              style={styles.input}
-            />
-
-            <Text style={styles.fieldLabel}>LIFE STAGE</Text>
-            <View style={styles.grid2}>
-              {LIFE_STAGES.map((ls) => (
-                <Pressable
-                  key={ls}
-                  onPress={() => setLifeStage(ls)}
-                  style={[styles.chip, lifeStage === ls && styles.chipActive]}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      lifeStage === ls && styles.chipTextActive,
-                    ]}
-                  >
-                    {ls}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-
-            <View style={{ flex: 1 }} />
-            <PrimaryButton
-              label="Continue"
-              onPress={next}
-              disabled={!name.trim() || !lifeStage}
-            />
-          </View>
-        )}
-
-        {step === 5 && (
-          <View style={styles.flex}>
-            <Text style={styles.title}>What brings{'\n'}you here?</Text>
-            <Text style={styles.subtitle}>Choose what feels most true right now.</Text>
-            <View style={{ marginTop: 24, gap: 12 }}>
-              {STORY_OPTIONS.map((opt) => (
-                <Pressable
-                  key={opt}
-                  onPress={() => setStory(opt)}
-                  style={[styles.optionRow, story === opt && styles.optionRowActive]}
-                >
-                  <Text style={styles.optionRowText}>{opt}</Text>
-                </Pressable>
-              ))}
-            </View>
-            <View style={{ flex: 1 }} />
-            <PrimaryButton label="Continue" onPress={next} />
-          </View>
-        )}
-
-        {step === 6 && (
-          <View style={styles.flex}>
-            <Text style={styles.title}>A little about{'\n'}your health.</Text>
-            <Text style={styles.subtitle}>
-              Only what's relevant. This helps me make meaningful connections.
-            </Text>
-            <View style={{ marginTop: 24, gap: 12 }}>
-              {HEALTH_ROWS.map((row) => {
-                const selected = sharedHealthRows.includes(row.id);
-                return (
-                  <Pressable
-                    key={row.id}
-                    onPress={() => toggleHealthRow(row.id)}
-                    style={[styles.healthRow, selected && styles.healthRowActive]}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.optionRowText}>{row.title}</Text>
-                      <Text style={styles.optionRowSub}>{row.sub}</Text>
-                    </View>
-                    <View style={[styles.checkbox, selected && styles.checkboxActive]}>
-                      {selected && <Text style={styles.checkmark}>✓</Text>}
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <View style={{ flex: 1 }} />
-            <PrimaryButton label="Continue" onPress={next} />
-            <GhostButton label="Skip for now" onPress={next} />
-          </View>
-        )}
-
-        {step === 7 && (
-          <View style={styles.flex}>
-            <Text style={styles.title}>Let me remember{'\n'}what your body{'\n'}already knows.</Text>
-            <Text style={styles.subtitle}>{HEALTH_SOURCE_BODY}</Text>
-            {healthConnectNote ? (
-              <View style={{ marginTop: 20 }}>
-                <Text style={styles.authError}>{healthConnectNote}</Text>
-                {healthConnectNote.startsWith("Health Connect isn't installed") && (
-                  <GhostButton
-                    label="Open Play Store"
-                    tone="ink"
-                    onPress={() =>
-                      Linking.openURL(
-                        'market://details?id=com.google.android.apps.healthdata'
-                      ).catch(() =>
-                        Linking.openURL(
-                          'https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata'
-                        )
-                      )
-                    }
-                  />
-                )}
-              </View>
-            ) : null}
-            <View style={{ flex: 1 }} />
-            <PrimaryButton
-              label={appleHealthConnected ? 'Connected' : `Connect ${HEALTH_SOURCE_NAME}`}
-              onPress={handleConnectHealthSource}
-              loading={healthConnecting}
-              disabled={appleHealthConnected}
-            />
-            <GhostButton label="Maybe later" onPress={next} />
-          </View>
-        )}
-
-        {step === 8 && (
-          <View style={styles.flex}>
-            <Text style={styles.brand}>CIATTA</Text>
-            <Text style={styles.arcTitle}>Meet Arc.</Text>
-            <Text style={styles.arcBody}>
-              Arc quietly listens to your physiology throughout the day.
-              Together, we'll notice patterns neither of us could discover
-              alone.
-            </Text>
-            <View style={styles.arcOrb}>
-              <View style={styles.arcOrbInner} />
-              <View style={styles.arcOrbCore} />
-            </View>
-            <View style={{ flex: 1 }} />
-            <PrimaryButton
-              label="Connect Arc"
-              onPress={() => {
-                setArcConnected(true);
-                next();
-              }}
-            />
-            <GhostButton label="I'll do this later" onPress={next} />
-          </View>
-        )}
-
-        {step === 9 && (
-          <View style={styles.flex}>
-            <Text style={styles.title}>When should{'\n'}I reach out?</Text>
-            <Text style={styles.subtitle}>
-              I only reach out when I think something is worth your attention.
-            </Text>
-            <View style={{ marginTop: 24, gap: 12 }}>
-              {NOTIF_OPTIONS.map((opt) => (
-                <Pressable
-                  key={opt.id}
-                  onPress={() => setNotifPref(opt.id)}
-                  style={[
-                    styles.notifRow,
-                    notifPref === opt.id && styles.notifRowActive,
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.radio,
-                      notifPref === opt.id && styles.radioActive,
-                    ]}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.optionRowText}>{opt.title}</Text>
-                    <Text style={styles.optionRowSub}>{opt.sub}</Text>
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-            <View style={{ flex: 1 }} />
-            <PrimaryButton label="Continue" onPress={next} />
-          </View>
-        )}
-
-        {step === 10 && <BeginningYourStory onDone={next} />}
-
-        {step === 11 && (
-          <View style={styles.flex}>
-            <Text style={styles.title}>Here's what{'\n'}I know so far.</Text>
-            <Text style={styles.subtitle}>
-              Right now, my understanding is just beginning. As we spend more
-              time together, I'll become more confident.
-            </Text>
-            <Card style={{ marginTop: 28 }}>
-              <Text style={styles.rightNowLabel}>RIGHT NOW</Text>
-              <Text style={styles.rightNowText}>
-                Based on the information you've shared, recovery may become an
-                important part of your story.
-              </Text>
-              <View style={styles.rightNowDivider} />
-              <Text style={styles.rightNowLabel}>STILL LEARNING</Text>
-              <Text style={styles.rightNowSub}>
-                I'm just getting to know you. I'll become more confident over
-                time.
-              </Text>
-            </Card>
-            <View style={{ flex: 1 }} />
-            <PrimaryButton
-              label="Continue to Today"
-              onPress={() =>
-                onComplete({ name, dob, lifeStage, story, notifPref, sharedHealthRows })
-              }
-            />
-          </View>
+          <Reflection
+            name={name}
+            lifeStage={lifeStage}
+            story={story}
+            concern={concern}
+            healthSourceName={HEALTH_SOURCE_NAME}
+            healthSourceBody={HEALTH_SOURCE_BODY}
+            healthConnecting={healthConnecting}
+            healthConnectNote={healthConnectNote}
+            appleHealthConnected={appleHealthConnected}
+            onConnectHealth={handleConnectHealthSource}
+            onSkipHealth={finishOnboarding}
+          />
         )}
       </Animated.View>
+      </KeyboardAvoidingScreen>
     </View>
   );
 }
@@ -473,6 +269,105 @@ function BeginningYourStory({ onDone }: { onDone: () => void }) {
         </Text>
         <Text style={styles.beginningCaption}>Just a moment.</Text>
       </Animated.View>
+    </View>
+  );
+}
+
+// Merges what used to be two separate screens (a fake "here's what I know"
+// card, and a bare health-connect step) into one honest close: what the
+// conversation actually collected, then what Ciatta has actually observed
+// so far — which, before Apple Health/Health Connect is connected, is
+// nothing, and says so rather than inventing a claim to fill the space.
+function Reflection({
+  name,
+  lifeStage,
+  story,
+  concern,
+  healthSourceName,
+  healthSourceBody,
+  healthConnecting,
+  healthConnectNote,
+  appleHealthConnected,
+  onConnectHealth,
+  onSkipHealth,
+}: {
+  name: string;
+  lifeStage: string | null;
+  story: string | null;
+  concern: string | null;
+  healthSourceName: string;
+  healthSourceBody: string;
+  healthConnecting: boolean;
+  healthConnectNote: string | null;
+  appleHealthConnected: boolean;
+  onConnectHealth: () => void;
+  onSkipHealth: () => void;
+}) {
+  const told: string[] = [];
+  if (name.trim()) told.push(`Your name is ${name.trim()}.`);
+  if (lifeStage) told.push(`You're in ${lifeStage.toLowerCase()}.`);
+  if (story) told.push(story);
+  if (concern && concern !== "I'm not sure yet") told.push(`Right now: ${concern.toLowerCase()}.`);
+
+  return (
+    <View style={styles.flex}>
+      <Text style={styles.title}>What I'm beginning{'\n'}to understand.</Text>
+      <Text style={styles.subtitle}>
+        A quick honest look — what you told me, and what I've actually
+        observed so far.
+      </Text>
+
+      <Card style={{ marginTop: 24 }}>
+        <Text style={styles.rightNowLabel}>WHAT YOU TOLD ME</Text>
+        {told.length > 0 ? (
+          told.map((line, i) => (
+            <Text key={i} style={[styles.rightNowText, i > 0 && { marginTop: 8 }]}>
+              {line}
+            </Text>
+          ))
+        ) : (
+          <Text style={styles.rightNowText}>Nothing yet — we'll pick this up as we go.</Text>
+        )}
+
+        <View style={styles.rightNowDivider} />
+
+        <Text style={styles.rightNowLabel}>WHAT I'VE OBSERVED</Text>
+        <Text style={styles.rightNowSub}>
+          Nothing yet — I haven't seen any of your body's data. Once I do,
+          I'll start noticing real patterns instead of just what you tell me.
+        </Text>
+      </Card>
+
+      <Text style={[styles.subtitle, { marginTop: 24 }]}>{healthSourceBody}</Text>
+      {healthConnectNote ? (
+        <View style={{ marginTop: 14 }}>
+          <Text style={styles.authError}>{healthConnectNote}</Text>
+          {healthConnectNote.startsWith("Health Connect isn't installed") && (
+            <GhostButton
+              label="Open Play Store"
+              tone="ink"
+              onPress={() =>
+                Linking.openURL(
+                  'market://details?id=com.google.android.apps.healthdata'
+                ).catch(() =>
+                  Linking.openURL(
+                    'https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata'
+                  )
+                )
+              }
+            />
+          )}
+        </View>
+      ) : null}
+
+      <View style={{ flex: 1 }} />
+      <PrimaryButton
+        label={appleHealthConnected ? 'Connected' : `Connect ${healthSourceName}`}
+        onPress={onConnectHealth}
+        loading={healthConnecting}
+        disabled={appleHealthConnected}
+      />
+      <GhostButton label="I'll do this later" onPress={onSkipHealth} />
     </View>
   );
 }
@@ -731,158 +626,6 @@ const styles = StyleSheet.create({
     color: colors.accent,
     marginTop: 16,
   },
-  grid2: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  chip: {
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: radii.sm,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    width: '47%',
-  },
-  chipActive: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accentSoft,
-  },
-  chipText: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 13.5,
-    color: colors.ink,
-  },
-  chipTextActive: {
-    color: colors.accent,
-  },
-
-  optionRow: {
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    padding: 16,
-  },
-  optionRowActive: {
-    borderColor: colors.accent,
-  },
-  optionRowText: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 15,
-    color: colors.ink,
-  },
-  optionRowSub: {
-    fontFamily: fonts.sans,
-    fontSize: 12.5,
-    color: colors.ink2,
-    marginTop: 4,
-  },
-
-  healthRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    padding: 16,
-  },
-  healthRowActive: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accentSoft,
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxActive: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accent,
-  },
-  checkmark: {
-    color: colors.white,
-    fontSize: 12,
-    fontFamily: fonts.sansMedium,
-  },
-
-  notifRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    padding: 16,
-  },
-  notifRowActive: {
-    borderColor: colors.accent,
-  },
-  radio: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    marginTop: 2,
-  },
-  radioActive: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accent,
-  },
-
-  brand: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 12,
-    letterSpacing: 2,
-    color: colors.ink3,
-    marginTop: 8,
-  },
-  arcTitle: {
-    fontFamily: fonts.serif,
-    fontSize: 32,
-    color: colors.ink,
-    marginTop: 20,
-  },
-  arcBody: {
-    fontFamily: fonts.sans,
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.ink2,
-    marginTop: 12,
-    maxWidth: '92%',
-  },
-  arcOrb: {
-    alignSelf: 'center',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(140,58,68,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 48,
-  },
-  arcOrbInner: {
-    position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(140,58,68,0.22)',
-  },
-  arcOrbCore: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: colors.accent,
-  },
-
   pulseBox: {
     width: 64,
     height: 64,

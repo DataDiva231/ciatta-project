@@ -17,6 +17,7 @@ import { colors, fonts as fontTokens } from './src/theme/tokens';
 import { supabase } from './src/lib/supabase';
 import { signOut } from './src/lib/auth';
 import { isAuthFailure } from './src/lib/errors';
+import { isClockSkewError, logSessionClockSkew, withClockSkewRetry } from './src/lib/sessionGuard';
 import { fetchProfile, updateProfile } from './src/lib/profile';
 import {
   fetchDiscoveries,
@@ -73,6 +74,62 @@ function parseDob(input: string): string | null {
   return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
 }
 
+// The conversation collects height/weight as free text ("5'6\"", "165 cm",
+// "140 lb", "64 kg") rather than a constrained input, since forcing a unit
+// picker onto a chat bubble would break the conversational feel. These are
+// a best-effort parse into the columns' fixed units (cm / kg); an answer
+// that doesn't match anything recognizable is stored as null rather than
+// guessed at, since a wrong biometric is worse than a missing one.
+function parseHeightToCm(input: string): number | null {
+  const s = input.trim().toLowerCase();
+  if (!s) return null;
+
+  const feetInches = s.match(/^(\d+)\s*(?:'|ft)\s*(\d+)?\s*(?:"|in)?$/);
+  if (feetInches) {
+    const feet = Number(feetInches[1]);
+    const inches = Number(feetInches[2] ?? 0);
+    return Math.round((feet * 12 + inches) * 2.54 * 10) / 10;
+  }
+
+  const cm = s.match(/^(\d+(?:\.\d+)?)\s*cm$/);
+  if (cm) return Number(cm[1]);
+
+  const inOnly = s.match(/^(\d+(?:\.\d+)?)\s*(?:in|inches)$/);
+  if (inOnly) return Math.round(Number(inOnly[1]) * 2.54 * 10) / 10;
+
+  // A bare number is assumed to already be centimeters — the only unit a
+  // typical height (100-230) and this range don't collide with.
+  const bare = s.match(/^(\d+(?:\.\d+)?)$/);
+  if (bare) {
+    const n = Number(bare[1]);
+    return n >= 100 && n <= 230 ? n : null;
+  }
+
+  return null;
+}
+
+function parseWeightToKg(input: string): number | null {
+  const s = input.trim().toLowerCase();
+  if (!s) return null;
+
+  const lb = s.match(/^(\d+(?:\.\d+)?)\s*(?:lb|lbs|pounds?)$/);
+  if (lb) return Math.round(Number(lb[1]) * 0.453592 * 10) / 10;
+
+  const kg = s.match(/^(\d+(?:\.\d+)?)\s*(?:kg|kgs|kilograms?)$/);
+  if (kg) return Number(kg[1]);
+
+  // A bare number: kg and lb ranges overlap for adults, so this leans on
+  // the more common case (lb) once above a kg-implausible threshold.
+  const bare = s.match(/^(\d+(?:\.\d+)?)$/);
+  if (bare) {
+    const n = Number(bare[1]);
+    if (n > 160) return Math.round(n * 0.453592 * 10) / 10;
+    if (n > 0) return n;
+  }
+
+  return null;
+}
+
 export default function App() {
   const [fontsLoaded] = useFonts({
     Karla_400Regular,
@@ -118,8 +175,12 @@ export default function App() {
   const selectedDiscovery = discoveries.find((d) => d.id === selectedDiscoveryId) ?? null;
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+    supabase.auth.getSession().then(({ data }) => {
+      logSessionClockSkew(data.session?.access_token, 'getSession (restart/persisted)');
+      setSession(data.session);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      logSessionClockSkew(s?.access_token, `onAuthStateChange (${event})`);
       setSession(s);
     });
     return () => sub.subscription.unsubscribe();
@@ -166,16 +227,24 @@ export default function App() {
       setDataLoading(true);
       setLoadError(null);
       try {
-        const [p, u, r, h, d, c, hc, sync] = await Promise.all([
-          fetchProfile(userId),
-          fetchUnderstandings(userId),
-          fetchRelationships(userId),
-          fetchUnderstandingHistory(userId),
-          fetchDiscoveries(userId),
-          fetchActiveCuriosity(userId),
-          hasHealthSourceObservations(userId),
-          fetchRecentSyncSummary(userId),
-        ]);
+        // PGRST303 ("JWT issued at future") gets one refresh-and-retry of
+        // the whole batch before it's treated as a real failure — see
+        // sessionGuard.ts. Everything else (network drop, a genuinely dead
+        // session) passes straight through to the catch below unchanged.
+        const [p, u, r, h, d, c, hc, sync] = await withClockSkewRetry(
+          () =>
+            Promise.all([
+              fetchProfile(userId),
+              fetchUnderstandings(userId),
+              fetchRelationships(userId),
+              fetchUnderstandingHistory(userId),
+              fetchDiscoveries(userId),
+              fetchActiveCuriosity(userId),
+              hasHealthSourceObservations(userId),
+              fetchRecentSyncSummary(userId),
+            ]),
+          'loadUserData'
+        );
         setProfile(p);
         setUnderstandings(u);
         setRelationships(r);
@@ -207,7 +276,18 @@ export default function App() {
             console.error('Sign-out during recovery also failed:', signOutError);
           }
         } else {
-          console.error('Could not load user data (keeping session):', e);
+          if (isClockSkewError(e)) {
+            // Survived the refresh-and-retry in withClockSkewRetry and
+            // failed again — logged distinctly so a persistent (rather
+            // than one-off) skew is easy to spot instead of reading as an
+            // ordinary connectivity error.
+            console.error(
+              'PGRST303 (JWT issued at future) persisted through refresh + retry — treating as transient, not signing out:',
+              e
+            );
+          } else {
+            console.error('Could not load user data (keeping session):', e);
+          }
           setLoadError(
             "I couldn't reach your data just now. Check your connection and try again."
           );
@@ -263,6 +343,8 @@ export default function App() {
         goals: draft.story ? [draft.story] : [],
         notification_preference: draft.notifPref,
         shared_health_rows: draft.sharedHealthRows,
+        height_cm: parseHeightToCm(draft.height),
+        weight_kg: parseWeightToKg(draft.weight),
         onboarded_at: new Date().toISOString(),
       });
       setProfile(updated);
@@ -362,7 +444,7 @@ export default function App() {
         <StatusBar style="dark" />
         <OnboardingFlow
           onComplete={handleOnboardingComplete}
-          startStep={4}
+          startStep={2}
           userId={session?.user?.id}
         />
         {completeError ? (
@@ -440,6 +522,7 @@ export default function App() {
         understandings={understandings}
         relationships={relationships}
         history={understandingHistory}
+        userId={session?.user?.id ?? null}
         onClose={() => setUnderstandingDomain(null)}
         onHelpLearnMore={() => {
           setUnderstandingDomain(null);

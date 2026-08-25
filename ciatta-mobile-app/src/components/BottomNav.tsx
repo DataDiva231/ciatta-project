@@ -6,6 +6,12 @@ import { CoreIcon, PersonIcon, SunIcon } from './icons';
 
 export type MainTab = 'today' | 'core' | 'you';
 
+// Pill corner radius, scoped to this component only (not the shared `glass`
+// token, which other glass surfaces still read from) — sized for the
+// current, shorter capsule height so the ends stay a true stadium/pill
+// shape rather than a merely rounded rectangle.
+const PILL_RADIUS = 40;
+
 const TABS: { id: MainTab; label: string; Icon: typeof SunIcon }[] = [
   { id: 'today', label: 'Today', Icon: SunIcon },
   { id: 'core', label: 'Core', Icon: CoreIcon },
@@ -74,7 +80,11 @@ export default function BottomNav({
     // content scrolling underneath it.
     <View
       pointerEvents="box-none"
-      style={[styles.dock, { paddingBottom: Math.max(insets.bottom, 10) + 8 }]}
+      // Pure vertical translation: a minimal buffer above the safe-area
+      // floor (insets.bottom) instead of the original +8, so the pill sits
+      // almost at the true bottom edge without ever dipping into the
+      // reserved safe area itself.
+      style={[styles.dock, { paddingBottom: Math.max(insets.bottom, 10) + 2 }]}
     >
       {/* Two layers on purpose: Android drops elevation shadows on any view
           with overflow:hidden, so the shadow lives out here and the clipping
@@ -103,10 +113,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    // Back to the original width — only the compact width experiment is
+    // being undone here; height/radius/position stay as they are now.
     paddingHorizontal: 18,
   },
   shadowWrap: {
-    borderRadius: glass.radius,
+    borderRadius: PILL_RADIUS,
     backgroundColor: 'transparent',
     shadowColor: glass.shadowColor,
     shadowOffset: { width: 0, height: 8 },
@@ -117,19 +129,23 @@ const styles = StyleSheet.create({
   capsule: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: glass.radius,
+    borderRadius: PILL_RADIUS,
     backgroundColor: glass.fill,
     borderWidth: 1,
     borderColor: glass.border,
-    paddingVertical: 9,
+    // Shallower pill: ~22% off the total height, taken proportionally from
+    // here and tabInner's own paddingVertical below — width, radius, and
+    // content (icon/label/dot) sizing are untouched, so this only pulls the
+    // top/bottom padding in and content re-centers automatically.
+    paddingVertical: 4,
     paddingHorizontal: 8,
     overflow: 'hidden',
   },
   topHighlight: {
     position: 'absolute',
     top: 0,
-    left: glass.radius * 0.5,
-    right: glass.radius * 0.5,
+    left: PILL_RADIUS * 0.5,
+    right: PILL_RADIUS * 0.5,
     height: 1,
     backgroundColor: glass.highlight,
   },
@@ -142,7 +158,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignSelf: 'stretch',
     gap: 3,
-    paddingVertical: 7,
+    paddingVertical: 3,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: 'transparent',

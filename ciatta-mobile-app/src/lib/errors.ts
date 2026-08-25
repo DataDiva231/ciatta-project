@@ -13,6 +13,13 @@ export function isAuthFailure(e: unknown): boolean {
   const err = e as { code?: string; status?: number; message?: string } | null;
   if (!err) return false;
 
+  // PGRST303 ("JWT issued at future") is a clock-skew condition, not a dead
+  // session — sessionGuard.withClockSkewRetry already gives it a refresh
+  // and a retry before anything gets here. Excluded explicitly so it can
+  // never fall through the "jwt" substring check below and trigger a
+  // sign-out for what's usually a few seconds of timing noise.
+  if (err.code === 'PGRST303') return false;
+
   if (err.status === 401 || err.status === 403) return true;
 
   // PGRST301: JWT expired / invalid. PGRST116: no row returned, which for the
@@ -21,6 +28,8 @@ export function isAuthFailure(e: unknown): boolean {
 
   const msg = (err.message ?? '').toLowerCase();
   if (!msg) return false;
+
+  if (msg.includes('issued at future') || msg.includes('issued in the future')) return false;
 
   // A network failure can also mention "fetch", so check auth wording first
   // and bail out on anything that smells like connectivity.

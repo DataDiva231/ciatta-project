@@ -60,8 +60,8 @@ export default function DataPrivacySheet({
       <View>
         <Text style={styles.title}>Export or delete data</Text>
         <Text style={styles.intro}>
-          Everything I've learned about you is yours. Take a full copy with you, or ask me to
-          forget it all.
+          Everything I've learned about you is yours. Take a full copy with you, or delete it
+          completely.
         </Text>
 
         <View style={styles.section}>
