@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(24, 24, 24, 0.45)',
+    backgroundColor: 'rgba(28, 28, 30, 0.45)',
   },
   sheetMotion: {
     width: '100%',

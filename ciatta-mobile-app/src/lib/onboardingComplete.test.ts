@@ -125,6 +125,7 @@ function guestDraft(
     story: 'I want to understand my energy.',
     notifPref: 'discoveries',
     sharedHealthRows: ['cycle', 'medical', 'meds'],
+    pendingHealthNotes: {},
     height: `5'6"`,
     weight: '140 lb',
     answers: collectGuestAnswers(FRESH_REPLIES),
@@ -139,8 +140,10 @@ interface FakeAccount {
   profile: Record<string, unknown>;
   observations: { userId: string; type: string; answer: string; extra: Record<string, unknown> }[];
   guestDraft: OnboardingCompleteDraft | 'present' | null;
-  healthSyncedFor: string | null;
-  loadedFor: string | null;
+    healthSyncedFor: string | null;
+    calendarSyncedFor: string | null;
+    notesSaved: Record<string, string> | null;
+    loadedFor: string | null;
   log: string[];
 }
 
@@ -152,6 +155,8 @@ function createFake(onboarded: boolean) {
     observations: [],
     guestDraft: 'present',
     healthSyncedFor: null,
+    calendarSyncedFor: null,
+    notesSaved: null,
     loadedFor: null,
     log: [],
   };
@@ -207,6 +212,20 @@ function createFake(onboarded: boolean) {
         extra: {},
       });
     },
+    syncCalendar: async (userId: string) => {
+      state.log.push('syncCalendar');
+      state.calendarSyncedFor = userId;
+      state.observations.push({
+        userId,
+        type: 'health_profile_note',
+        answer: 'calendar',
+        extra: { category: 'calendar' },
+      });
+    },
+    saveHealthNotes: async (_userId: string, notes: Record<string, string>) => {
+      state.log.push('saveHealthNotes');
+      state.notesSaved = notes;
+    },
     clearGuestDraft: async () => {
       state.log.push('clearGuestDraft');
       state.guestDraft = null;
@@ -223,6 +242,13 @@ function createFake(onboarded: boolean) {
 Deno.test('flow: account is after conversation and reflection, not before', () => {
   assertEquals(ONBOARDING_FLOW_STEPS[ONBOARDING_CONVERSATION_STEP], 'conversation');
   assertEquals(ONBOARDING_FLOW_STEPS[3], 'reflection');
+  assertEquals(ONBOARDING_FLOW_STEPS[4], 'mental-health');
+  assertEquals(ONBOARDING_FLOW_STEPS[5], 'health-documents');
+  assertEquals(ONBOARDING_FLOW_STEPS[6], 'medical-records');
+  assertEquals(ONBOARDING_FLOW_STEPS[7], 'wearables');
+  assertEquals(ONBOARDING_FLOW_STEPS[8], 'calendar');
+  assertEquals(ONBOARDING_FLOW_STEPS[9], 'notifications');
+  assertEquals(ONBOARDING_FLOW_STEPS[10], 'policies');
   assertEquals(ONBOARDING_FLOW_STEPS[ONBOARDING_ACCOUNT_STEP], 'account');
   assert(ONBOARDING_ACCOUNT_STEP > 3);
   assertEquals(afterAccountAuth(true), 'persist');
@@ -322,4 +348,45 @@ Deno.test('guest draft is discarded when signing into an already-onboarded accou
   assertEquals(state.profile.name, 'Existing');
   assertEquals(state.healthSyncedFor, null);
   assertEquals(state.log.includes('updateProfile'), false);
+});
+
+Deno.test('guest health notes persist only after account creation', async () => {
+  const { state, deps } = createFake(false);
+  const draft = guestDraft({
+    pendingHealthNotes: { cycle: 'Typically 28 days' },
+  });
+  assertEquals(state.notesSaved, null);
+  const result = await completeOnboardingAfterAuth('user-notes', draft, deps);
+  assertEquals(result.status, 'onboarded');
+  assertEquals(state.notesSaved, { cycle: 'Typically 28 days' });
+});
+
+Deno.test('setup documents, tests, and mental health become notes only after account creation', async () => {
+  const { state, deps } = createFake(false);
+  const result = await completeOnboardingAfterAuth(
+    'user-setup',
+    guestDraft({
+      pendingDocuments: [{ id: '1', name: 'labs.pdf', kind: 'file' }],
+      suggestedTests: ['blood-panel'],
+      includeMentalEmotional: true,
+    }),
+    deps
+  );
+  assertEquals(result.status, 'onboarded');
+  assertEquals(state.notesSaved?.['health-documents'], 'labs.pdf (file)');
+  assertEquals(state.notesSaved?.['suggested-tests'], 'Comprehensive blood panel');
+  assertEquals(state.notesSaved?.['mental-emotional'], 'Included as part of the whole picture.');
+  assertEquals(state.calendarSyncedFor, null);
+});
+
+Deno.test('calendar permission does not persist data until after account creation', async () => {
+  const { state, deps } = createFake(false);
+  const result = await completeOnboardingAfterAuth(
+    'user-cal',
+    guestDraft({ connectCalendarAfterAuth: true }),
+    deps
+  );
+  assertEquals(result.status, 'onboarded');
+  assertEquals(state.calendarSyncedFor, 'user-cal');
+  assert(state.log.indexOf('syncCalendar') > state.log.indexOf('updateProfile'));
 });

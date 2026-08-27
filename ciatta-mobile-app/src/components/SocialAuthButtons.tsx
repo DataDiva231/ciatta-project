@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   googleFallback: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },

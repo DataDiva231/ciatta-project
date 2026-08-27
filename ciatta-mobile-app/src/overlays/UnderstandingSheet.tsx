@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts, glass, strengthColor } from '../theme/tokens';
 import { domainLabel, strengthLabel } from '../lib/mockData';
@@ -99,6 +99,7 @@ export default function UnderstandingSheet({
   onClose,
   onHelpLearnMore,
   onProviderFeedbackSaved,
+  startWithProviderSearch = false,
 }: {
   domain: Domain | null;
   understandings: UnderstandingRow[];
@@ -111,6 +112,7 @@ export default function UnderstandingSheet({
   onClose: () => void;
   onHelpLearnMore: () => void;
   onProviderFeedbackSaved: () => void;
+  startWithProviderSearch?: boolean;
 }) {
   // Care Preparation / Provider Feedback / Provider Search state. Hooks run
   // unconditionally — this has to sit above the `!understanding` early
@@ -130,6 +132,12 @@ export default function UnderstandingSheet({
   // below, rather than from `understanding` directly — the same three
   // handlers serve both cases, nothing is duplicated per-target.
   const [careTargetId, setCareTargetId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (domain && startWithProviderSearch) {
+      setProviderSearchOpen(true);
+    }
+  }, [domain, startWithProviderSearch]);
 
   function handleClose() {
     setLoggingProvider(false);
@@ -308,6 +316,7 @@ export default function UnderstandingSheet({
             providerSource: selectedProvider?.source ?? null,
           },
         });
+        onProviderFeedbackSaved();
       }
     } catch (e) {
       setCareActionError(e instanceof Error ? e.message : "That didn't go through. Try again.");

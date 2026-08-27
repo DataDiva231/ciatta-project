@@ -51,11 +51,13 @@ export default function HealthNoteSheet({
   userId,
   onClose,
   onSaved,
+  onGuestSave,
 }: {
   rowId: string | null;
   userId: string | null;
   onClose: () => void;
   onSaved: (rowId: string) => void;
+  onGuestSave?: (rowId: string, text: string) => void;
 }) {
   const spec = rowId ? PROMPTS[rowId] ?? null : null;
   const [value, setValue] = useState('');
@@ -84,11 +86,18 @@ export default function HealthNoteSheet({
   }, [rowId, userId, spec]);
 
   async function handleSave() {
-    if (!rowId || !userId) return;
+    if (!rowId) return;
+    const text = value.trim();
+    if (!userId) {
+      onGuestSave?.(rowId, text);
+      onSaved(rowId);
+      onClose();
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      await saveHealthNote(userId, rowId, value.trim());
+      await saveHealthNote(userId, rowId, text);
       onSaved(rowId);
       onClose();
     } catch (e) {

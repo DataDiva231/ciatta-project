@@ -71,6 +71,17 @@ export async function fetchProviderFeedback(userId: string): Promise<ProviderFee
   return (data ?? []) as ProviderFeedbackRow[];
 }
 
+export async function fetchVisitPrepShared(userId: string): Promise<ProviderFeedbackRow[]> {
+  const { data, error } = await supabase
+    .from('observations')
+    .select('id, type, value, recorded_at, context')
+    .eq('user_id', userId)
+    .eq('type', 'visit_prep_shared')
+    .order('recorded_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as ProviderFeedbackRow[];
+}
+
 export interface SyncReflection {
   sleepMinutes: number | null;
   steps: number | null;

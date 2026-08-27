@@ -93,6 +93,7 @@ export default function TodayScreen({
   const [tamponBleeding, setTamponBleeding] = useState(false);
   const [tamponBusy, setTamponBusy] = useState(false);
   const [tamponTick, setTamponTick] = useState(0);
+  const careNotice = selectCareNotice(understandings);
 
   // The thank-you is an acknowledgement, not a resting state — let it sit
   // long enough to read, then clear so the section collapses away rather
@@ -423,6 +424,7 @@ const styles = StyleSheet.create({
     // leaves a visible gap. This pulls the figure past its own dead space.
     marginTop: -16,
     marginBottom: 28,
+    backgroundColor: colors.canvas,
   },
   section: {},
   divider: {

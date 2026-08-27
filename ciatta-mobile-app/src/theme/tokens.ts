@@ -15,32 +15,32 @@ type AppleTextRamp =
 
 type TypeStyle = TextStyle & { dynamicTypeRamp?: AppleTextRamp };
 
-// Ciatta MVP palette. Every hue in the product is one of these seven:
-// White, Charcoal, Living Coral, Soft Amber, Sage, Ocean, Deep Plum.
-// Secondary text, borders, and washes are Charcoal at reduced opacity —
-// not additional colors.
+// Ciatta MVP palette. Neutrals are canvas, surface, and ink. Accents stay
+// Living Coral, Soft Amber, Sage, Ocean, and Deep Plum. Mood still uses
+// its existing domain charcoal. Washes and borders are ink at reduced
+// opacity, not additional hues.
 export const colors = {
-  canvas: '#FFFFFF',
+  canvas: '#FFFCF7',
   grouped: '#F2F2F7',
-  surface: '#FFFFFF',
-  wash: 'rgba(24, 24, 24, 0.04)',
-  border: 'rgba(24, 24, 24, 0.12)',
-  ink: '#181818',
-  ink2: 'rgba(24, 24, 24, 0.64)',
-  ink3: 'rgba(24, 24, 24, 0.45)',
+  surface: '#FFFDFA',
+  wash: 'rgba(28, 28, 30, 0.04)',
+  border: 'rgba(28, 28, 30, 0.12)',
+  ink: '#1C1C1E',
+  ink2: '#6B6B6F',
+  ink3: '#8E8E93',
   accent: '#F27D72',
-  onAccent: '#181818',
+  onAccent: '#1C1C1E',
   accentSoft: 'rgba(242, 125, 114, 0.12)',
   accentSofter: 'rgba(242, 125, 114, 0.06)',
-  // Measured/confidence chrome sits in Charcoal, not a domain color.
-  evidence: '#181818',
-  evidenceSoft: 'rgba(24, 24, 24, 0.08)',
-  evidenceSofter: 'rgba(24, 24, 24, 0.04)',
-  dark: '#181818',
-  darkSurface: '#181818',
-  white: '#FFFFFF',
-  silhouetteFill: 'rgba(24, 24, 24, 0.28)',
-  silhouetteFillDark: 'rgba(255, 255, 255, 0.16)',
+  // Measured/confidence chrome sits in ink, not a domain color.
+  evidence: '#1C1C1E',
+  evidenceSoft: 'rgba(28, 28, 30, 0.08)',
+  evidenceSofter: 'rgba(28, 28, 30, 0.04)',
+  dark: '#1C1C1E',
+  darkSurface: '#1C1C1E',
+  white: '#FFFCF7',
+  silhouetteFill: 'rgba(28, 28, 30, 0.28)',
+  silhouetteFillDark: 'rgba(255, 252, 247, 0.16)',
 } as const;
 
 // Domain constellation hues. The product still has five domains; names in
@@ -208,16 +208,16 @@ export const glass = {
   radius: 32,
   radiusCard: 22,
   radiusControl: 999,
-  fillCard: 'rgba(255, 255, 255, 0.86)',
-  fill: 'rgba(255, 255, 255, 0.72)',
-  fillSolid: '#FFFFFF',
-  // Dedicated nav plate only. Canvas stays #FFFFFF. ~95% of #FAFAF8 so
-  // scrolling copy cannot be read through the dock.
-  navBacking: 'rgba(250, 250, 248, 0.95)',
-  highlight: 'rgba(255, 255, 255, 0.92)',
-  border: 'rgba(24, 24, 24, 0.08)',
-  shadowColor: '#181818',
-  tint: '#FFFFFF',
+  fillCard: '#FFFDFA',
+  fill: 'rgba(255, 253, 250, 0.72)',
+  fillSolid: '#FFFDFA',
+  // Dedicated nav plate only. Canvas stays #FFFCF7, so scrolling copy
+  // cannot be read through the dock.
+  navBacking: 'rgba(255, 253, 250, 0.95)',
+  highlight: 'rgba(255, 253, 250, 0.92)',
+  border: 'rgba(28, 28, 30, 0.08)',
+  shadowColor: '#1C1C1E',
+  tint: '#FFFCF7',
   activeFill: 'rgba(242, 125, 114, 0.12)',
   activeBorder: 'rgba(242, 125, 114, 0.2)',
 } as const;
@@ -237,8 +237,8 @@ export const radii = {
 // domain color is reserved for which part of the body is being named.
 export const strengthColor: Record<string, string> = {
   'very-strong': colors.ink,
-  strong: 'rgba(24, 24, 24, 0.8)',
-  moderate: 'rgba(24, 24, 24, 0.55)',
+  strong: 'rgba(28, 28, 30, 0.8)',
+  moderate: 'rgba(28, 28, 30, 0.55)',
   emerging: colors.ink3,
 };
 

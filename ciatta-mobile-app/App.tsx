@@ -27,23 +27,21 @@ import {
   type UnderstandingRow,
 } from './src/lib/queries';
 import { answerCuriosity, fetchActiveCuriosity, fetchNextOnboardingQuestion, type ActiveCuriosity } from './src/lib/curiosity';
-import {
-  fetchLastHealthSyncAt,
-  fetchProviderFeedback,
-  fetchRecentSyncSummary,
-  type ProviderFeedbackRow,
-  type RecentSyncSummary,
-} from './src/lib/observations';
+import { fetchLastHealthSyncAt, fetchProviderFeedback, fetchRecentSyncSummary, fetchVisitPrepShared, type ProviderFeedbackRow, type RecentSyncSummary } from './src/lib/observations';
 import { registerForPush } from './src/lib/notifications';
 import { connectHealthConnect } from './src/lib/healthConnect';
 import { connectHealthKit } from './src/lib/healthKit';
+import { syncCalendarContext } from './src/lib/calendarContext';
+import { saveHealthNote } from './src/lib/healthNotes';
+import { domainLabel } from './src/lib/mockData';
+import { displayCopy } from './src/lib/displayCopy';
 import type { Domain, Profile, Strength } from './src/lib/types';
 
 import OnboardingFlow, {
   type OnboardingDraft,
 } from './src/screens/onboarding/OnboardingFlow';
 import { ONBOARDING_CONVERSATION_STEP } from './src/lib/onboardingConversation';
-import { isEligibleCareConnection, selectCareNotice } from './src/lib/careConnection';
+import { isEligibleCareConnection, selectCareNotice, CARE_YOU_ROWS } from './src/lib/careConnection';
 import { completeOnboardingAfterAuth } from './src/lib/onboardingComplete';
 import { clearGuestOnboardingDraft } from './src/lib/onboardingDraft';
 import TodayScreen from './src/screens/TodayScreen';
@@ -53,6 +51,7 @@ import BottomNav, { MainTab } from './src/components/BottomNav';
 import { NavAdaptivityProvider } from './src/lib/NavAdaptivity';
 
 import UnderstandingSheet from './src/overlays/UnderstandingSheet';
+import ProviderSearchSheet from './src/overlays/ProviderSearchSheet';
 import TodayInfoSheet from './src/overlays/TodayInfoSheet';
 import CuriosityOverlay from './src/overlays/CuriosityOverlay';
 import DiscoveryFlow from './src/overlays/DiscoveryFlow';
@@ -69,6 +68,24 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const AUTO_SYNC_COOLDOWN_MS = 60 * 60 * 1000;
 
+function careYouLabel(rowId: string): string {
+  return CARE_YOU_ROWS.find((r) => r.id === rowId)?.label ?? rowId.replace(/-/g, ' ');
+}
+
+function sharedSummaryLine(row: ProviderFeedbackRow): string {
+  const domain = typeof row.value?.domain === 'string' ? row.value.domain : null;
+  const domainText =
+    domain && domain in domainLabel ? domainLabel[domain as Domain] : 'Visit summary';
+  const when = displayCopy(
+    new Date(row.recorded_at).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  );
+  return `${domainText} · ${when}`;
+}
+
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -79,6 +96,7 @@ export default function App() {
     CrossDomainUnderstandingRow[]
   >([]);
   const [providerFeedback, setProviderFeedback] = useState<ProviderFeedbackRow[]>([]);
+  const [visitPrepShared, setVisitPrepShared] = useState<ProviderFeedbackRow[]>([]);
   const [discoveries, setDiscoveries] = useState<DiscoveryRow[]>([]);
   const [activeCuriosity, setActiveCuriosity] = useState<ActiveCuriosity | null>(null);
   const [healthSourceConnected, setHealthSourceConnected] = useState(false);
@@ -92,6 +110,9 @@ export default function App() {
 
   const [tab, setTab] = useState<MainTab>('today');
   const [understandingDomain, setUnderstandingDomain] = useState<Domain | null>(null);
+  const [startUnderstandingWithProviderSearch, setStartUnderstandingWithProviderSearch] =
+    useState(false);
+  const [youProviderSearchVisible, setYouProviderSearchVisible] = useState(false);
   const [curiosityVisible, setCuriosityVisible] = useState(false);
   const [todayInfoVisible, setTodayInfoVisible] = useState(false);
   const [discoveryFlowVisible, setDiscoveryFlowVisible] = useState(false);
@@ -164,7 +185,7 @@ export default function App() {
         // the whole batch before it's treated as a real failure — see
         // sessionGuard.ts. Everything else (network drop, a genuinely dead
         // session) passes straight through to the catch below unchanged.
-        const [p, u, r, h, cd, pf, d, c, hc, sync] = await withClockSkewRetry(
+        const [p, u, r, h, cd, pf, d, c, hc, sync, briefs] = await withClockSkewRetry(
           () =>
             Promise.all([
               fetchProfile(userId),
@@ -177,6 +198,7 @@ export default function App() {
               fetchActiveCuriosity(userId),
               hasHealthSourceObservations(userId),
               fetchRecentSyncSummary(userId),
+              fetchVisitPrepShared(userId),
             ]),
           'loadUserData'
         );
@@ -190,6 +212,7 @@ export default function App() {
         setActiveCuriosity(c);
         setHealthSourceConnected(hc);
         setRecentSyncSummary(sync);
+        setVisitPrepShared(briefs);
         // Fire-and-forget: push is an enhancement and must never block or
         // fail the load. Honours the preference captured at onboarding.
         registerForPush(userId, p?.notification_preference);
@@ -284,6 +307,18 @@ export default function App() {
             else if (Platform.OS === 'ios') await connectHealthKit(id);
           } catch (healthError) {
             console.error('Health source sync after onboarding failed:', healthError);
+          }
+        },
+        syncCalendar: async (id) => {
+          try {
+            await syncCalendarContext(id);
+          } catch (calendarError) {
+            console.error('Calendar context after onboarding failed:', calendarError);
+          }
+        },
+        saveHealthNotes: async (id, notes) => {
+          for (const [category, text] of Object.entries(notes)) {
+            if (text.trim()) await saveHealthNote(id, category, text);
           }
         },
         clearGuestDraft: clearGuestOnboardingDraft,
@@ -443,14 +478,21 @@ export default function App() {
               profile={profile}
               healthSourceConnected={healthSourceConnected}
               hasEligibleCareConnection={understandings.some(isEligibleCareConnection)}
+              sharedSummaryCount={visitPrepShared.length}
               onOpenRow={(section, row) => {
                 if (section === 'privacy' && row === 'export') {
                   setDataPrivacyVisible(true);
                 } else if (section === 'connections' && row === 'health-source') {
                   setHealthSyncVisible(true);
-                } else if (section === 'care' && row === 'privacy') {
-                  setDataPrivacyVisible(true);
-                } else if (section === 'care' && (row === 'provider' || row === 'visit-prep')) {
+                } else if (section === 'care' && row === 'provider') {
+                  const notice = selectCareNotice(understandings);
+                  if (notice) {
+                    setStartUnderstandingWithProviderSearch(true);
+                    setUnderstandingDomain(notice.domain);
+                  } else {
+                    setYouProviderSearchVisible(true);
+                  }
+                } else if (section === 'care' && row === 'visit-prep') {
                   const notice = selectCareNotice(understandings);
                   if (notice) setUnderstandingDomain(notice.domain);
                   else setRowSheet({ section, row });
@@ -485,14 +527,28 @@ export default function App() {
         providerFeedback={providerFeedback}
         userId={session?.user?.id ?? null}
         profileLocation={profile?.location ?? null}
-        onClose={() => setUnderstandingDomain(null)}
+        startWithProviderSearch={startUnderstandingWithProviderSearch}
+        onClose={() => {
+          setUnderstandingDomain(null);
+          setStartUnderstandingWithProviderSearch(false);
+        }}
         onHelpLearnMore={() => {
           setUnderstandingDomain(null);
+          setStartUnderstandingWithProviderSearch(false);
           setCuriosityVisible(true);
         }}
         onProviderFeedbackSaved={() => {
           if (session?.user?.id) loadUserData(session.user.id);
         }}
+      />
+
+      <ProviderSearchSheet
+        visible={youProviderSearchVisible}
+        understandingId={null}
+        careRecommendationType={null}
+        profileLocation={profile?.location ?? null}
+        onClose={() => setYouProviderSearchVisible(false)}
+        onSelectProvider={() => setYouProviderSearchVisible(false)}
       />
 
       <CuriosityOverlay
@@ -558,15 +614,25 @@ export default function App() {
         {rowSheet ? (
           <View>
             <Text style={styles.rowSheetTitle}>
-              {rowSheet.row.replace(/-/g, ' ')}
+              {displayCopy(careYouLabel(rowSheet.row))}
             </Text>
-            <Text style={styles.rowSheetBody}>
-              {rowSheet.section === 'care' && rowSheet.row === 'shared'
-                ? 'Summaries you prepare for a visit are assembled from what you have already learned. They are not stored as a diagnosis. After you share one from an Understanding, you can come back here to prepare again.'
-                : rowSheet.section === 'care'
-                  ? 'When something is worth discussing with a provider, you can prepare a summary from Today, Core, or an Understanding. This does not diagnose or decide treatment.'
-                  : 'This is where you can review and update this. For now, there isn\'t more to show here.'}
-            </Text>
+            {rowSheet.section === 'care' && rowSheet.row === 'shared' && visitPrepShared.length > 0 ? (
+              <View style={styles.sharedList}>
+                {visitPrepShared.map((row) => (
+                  <Text key={row.id} style={styles.rowSheetItem}>
+                    {sharedSummaryLine(row)}
+                  </Text>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.rowSheetBody}>
+                {rowSheet.section === 'care' && rowSheet.row === 'shared'
+                  ? 'Summaries you prepare for a visit are assembled from what you have already learned. They are not stored as a diagnosis. After you share one from an Understanding, you can come back here to see it listed.'
+                  : rowSheet.section === 'care'
+                    ? 'When something is worth discussing with a provider, you can prepare a summary from Today, Core, or an Understanding. This does not diagnose or decide treatment.'
+                    : 'This is where you can review and update this. For now, there isn\'t more to show here.'}
+              </Text>
+            )}
           </View>
         ) : null}
       </BottomSheet>
@@ -614,6 +680,16 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     color: colors.ink2,
     marginTop: 12,
+  },
+  sharedList: {
+    marginTop: 12,
+    gap: 10,
+  },
+  rowSheetItem: {
+    ...fontTokens.sans,
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.ink,
   },
   completeErrorBanner: {
     position: 'absolute',

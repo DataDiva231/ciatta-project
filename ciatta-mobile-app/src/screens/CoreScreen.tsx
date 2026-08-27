@@ -207,6 +207,7 @@ const styles = StyleSheet.create({
   model: {
     alignItems: 'center',
     marginVertical: 12,
+    backgroundColor: colors.canvas,
   },
   tapHint: {
     ...fonts.sans,

@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { Animated, Pressable, StyleSheet, type ViewStyle } from 'react-native';
-import { glass } from '../theme/tokens';
+import { colors, glass } from '../theme/tokens';
 import GlassSurface, { useLiquidGlass } from './GlassSurface';
 
 const PRESS_IN_MS = 120;
@@ -8,7 +8,7 @@ const PRESS_OUT_MS = 220;
 
 function tintFrom(style?: ViewStyle): string {
   const bg = StyleSheet.flatten(style)?.backgroundColor;
-  return bg != null && bg !== 'transparent' ? String(bg) : glass.tint;
+  return bg != null && bg !== 'transparent' ? String(bg) : colors.surface;
 }
 
 /**

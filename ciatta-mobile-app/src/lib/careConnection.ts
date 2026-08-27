@@ -68,5 +68,4 @@ export const CARE_YOU_ROWS = [
   { id: 'provider', label: 'Provider connections' },
   { id: 'visit-prep', label: 'Visit preparation' },
   { id: 'shared', label: 'Previously shared summaries' },
-  { id: 'privacy', label: 'Privacy & permissions' },
 ] as const;

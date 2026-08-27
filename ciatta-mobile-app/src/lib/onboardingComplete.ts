@@ -1,5 +1,6 @@
 import type { OnboardingAnswer } from './onboardingConversation';
 import { commitOnboardingAnswers } from './onboardingConversation';
+import { notesFromOnboardingSetup, type PendingHealthDocument } from './onboardingSetup';
 
 export interface OnboardingCompleteDraft {
   name: string;
@@ -8,11 +9,16 @@ export interface OnboardingCompleteDraft {
   story: string | null;
   notifPref: string;
   sharedHealthRows: string[];
+  pendingHealthNotes: Record<string, string>;
   height: string;
   weight: string;
   answers: OnboardingAnswer[];
   needsCommit: boolean;
   connectHealthAfterAuth: boolean;
+  connectCalendarAfterAuth?: boolean;
+  pendingDocuments?: PendingHealthDocument[];
+  suggestedTests?: string[];
+  includeMentalEmotional?: boolean;
 }
 
 export type CompleteOnboardingResult =
@@ -33,6 +39,8 @@ export interface CompleteOnboardingDeps {
   fetchNext: Parameters<typeof commitOnboardingAnswers>[2]['fetchNext'];
   answer: Parameters<typeof commitOnboardingAnswers>[2]['answer'];
   syncHealth: (userId: string) => Promise<void>;
+  syncCalendar: (userId: string) => Promise<void>;
+  saveHealthNotes: (userId: string, notes: Record<string, string>) => Promise<void>;
   clearGuestDraft: () => Promise<void>;
   loadUserData: (userId: string) => Promise<void>;
 }
@@ -137,11 +145,24 @@ export async function completeOnboardingAfterAuth(
     onboarded_at: new Date().toISOString(),
   });
 
+  const notes = notesFromOnboardingSetup(draft);
+  if (Object.keys(notes).length > 0) {
+    await deps.saveHealthNotes(userId, notes);
+  }
+
   if (draft.connectHealthAfterAuth) {
     try {
       await deps.syncHealth(userId);
     } catch {
       // Same as App: health sync must not fail onboarding.
+    }
+  }
+
+  if (draft.connectCalendarAfterAuth) {
+    try {
+      await deps.syncCalendar(userId);
+    } catch {
+      // Calendar context is optional. Onboarding continues either way.
     }
   }
 

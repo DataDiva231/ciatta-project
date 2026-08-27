@@ -24,11 +24,18 @@ export const ONBOARDING_FLOW_STEPS = [
   'conversation',
   'understanding',
   'reflection',
+  'mental-health',
+  'health-documents',
+  'medical-records',
+  'wearables',
+  'calendar',
+  'notifications',
+  'policies',
   'account',
 ] as const;
 
 export const ONBOARDING_CONVERSATION_STEP = 1;
-export const ONBOARDING_ACCOUNT_STEP = 4;
+export const ONBOARDING_ACCOUNT_STEP = ONBOARDING_FLOW_STEPS.length - 1;
 
 export const ONBOARDING_BACKBONE_TAGS = [
   'intent',

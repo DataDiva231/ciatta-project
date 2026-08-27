@@ -5,7 +5,7 @@ import BottomSheet from '../components/BottomSheet';
 import Card from '../components/Card';
 import { CloseIcon } from '../components/icons';
 import { displayCopy } from '../lib/displayCopy';
-import { searchProvidersForUnderstanding, type Provider } from '../lib/providerSearch';
+import { searchProvidersForUnderstanding, searchProviders, type Provider } from '../lib/providerSearch';
 
 const CARE_TYPE_LABEL: Record<string, string> = {
   'primary-care': 'primary care',
@@ -62,18 +62,18 @@ export default function ProviderSearchSheet({
   }, [visible]);
 
   async function runSearch(zipValue: string) {
-    if (!understandingId) return;
     setLoading(true);
     setError(null);
     try {
-      const result = await searchProvidersForUnderstanding(
-        understandingId,
-        zipValue.trim() ? { postalCode: zipValue.trim() } : undefined
-      );
+      const location = zipValue.trim() ? { postalCode: zipValue.trim() } : undefined;
+      const result = understandingId
+        ? await searchProvidersForUnderstanding(understandingId, location)
+        : await searchProviders(location ?? {});
       setProviders(result.providers);
       setSearchedZip(zipValue.trim() || null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "The provider directory couldn't be reached. Try again.");
+      const raw = e instanceof Error ? e.message : "The provider directory couldn't be reached. Try again.";
+      setError(displayCopy(raw) || "The provider directory couldn't be reached. Try again.");
     } finally {
       setLoading(false);
     }
@@ -83,7 +83,7 @@ export default function ProviderSearchSheet({
   // (including none — NPI Registry still returns specialty-only results
   // without a location filter, just less locally relevant ones).
   useEffect(() => {
-    if (visible && understandingId && providers === null && !loading) {
+    if (visible && providers === null && !loading) {
       runSearch(zip);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

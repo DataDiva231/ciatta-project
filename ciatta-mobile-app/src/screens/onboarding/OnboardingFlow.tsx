@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
-  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -20,6 +19,16 @@ import SocialAuthButtons from '../../components/SocialAuthButtons';
 import { connectHealthConnect, requestHealthConnectPermission } from '../../lib/healthConnect';
 import { connectHealthKit, requestHealthKitPermission } from '../../lib/healthKit';
 import ConversationOnboarding, { type ConversationSummary } from './ConversationOnboarding';
+import {
+  CalendarStep,
+  HealthDocumentsStep,
+  MedicalRecordsStep,
+  MentalHealthStep,
+  NotificationsStep,
+  PoliciesStep,
+  WearablesStep,
+} from './OnboardingSetupSteps';
+import type { PendingHealthDocument } from '../../lib/onboardingSetup';
 import KeyboardAvoidingScreen from '../../components/KeyboardAvoidingScreen';
 import {
   ONBOARDING_ACCOUNT_STEP,
@@ -37,6 +46,15 @@ const TOTAL_STEPS = ONBOARDING_FLOW_STEPS.length;
 
 const ACCOUNT_STEP = ONBOARDING_ACCOUNT_STEP;
 const CONVERSATION_STEP = ONBOARDING_CONVERSATION_STEP;
+const UNDERSTANDING_STEP = ONBOARDING_FLOW_STEPS.indexOf('understanding');
+const REFLECTION_STEP = ONBOARDING_FLOW_STEPS.indexOf('reflection');
+const MENTAL_HEALTH_STEP = ONBOARDING_FLOW_STEPS.indexOf('mental-health');
+const HEALTH_DOCUMENTS_STEP = ONBOARDING_FLOW_STEPS.indexOf('health-documents');
+const MEDICAL_RECORDS_STEP = ONBOARDING_FLOW_STEPS.indexOf('medical-records');
+const WEARABLES_STEP = ONBOARDING_FLOW_STEPS.indexOf('wearables');
+const CALENDAR_STEP = ONBOARDING_FLOW_STEPS.indexOf('calendar');
+const NOTIFICATIONS_STEP = ONBOARDING_FLOW_STEPS.indexOf('notifications');
+const POLICIES_STEP = ONBOARDING_FLOW_STEPS.indexOf('policies');
 
 // The one welcome screen shown after the splash, before the conversation.
 const WELCOME_SLIDE = {
@@ -51,11 +69,16 @@ export interface OnboardingDraft {
   story: string | null;
   notifPref: string;
   sharedHealthRows: string[];
+  pendingHealthNotes: Record<string, string>;
   height: string;
   weight: string;
   answers: OnboardingAnswer[];
   needsCommit: boolean;
   connectHealthAfterAuth: boolean;
+  connectCalendarAfterAuth: boolean;
+  pendingDocuments: PendingHealthDocument[];
+  suggestedTests: string[];
+  includeMentalEmotional: boolean;
 }
 
 const HEALTH_SOURCE_NAME = Platform.OS === 'android' ? 'Health Connect' : 'Apple Health';
@@ -91,6 +114,14 @@ export default function OnboardingFlow({
   const [appleHealthConnected, setAppleHealthConnected] = useState(false);
   const [healthConnecting, setHealthConnecting] = useState(false);
   const [healthConnectNote, setHealthConnectNote] = useState<string | null>(null);
+  const [notifPref, setNotifPref] = useState('discoveries');
+  const [sharedHealthRows, setSharedHealthRows] = useState<string[]>([]);
+  const [pendingHealthNotes, setPendingHealthNotes] = useState<Record<string, string>>({});
+  const [policiesAgreed, setPoliciesAgreed] = useState(false);
+  const [pendingDocuments, setPendingDocuments] = useState<PendingHealthDocument[]>([]);
+  const [suggestedTests, setSuggestedTests] = useState<string[]>([]);
+  const [includeMentalEmotional, setIncludeMentalEmotional] = useState(false);
+  const [connectCalendarAfterAuth, setConnectCalendarAfterAuth] = useState(false);
 
   function buildDraft(healthAfterAuth = connectHealthAfterAuth): OnboardingDraft {
     return {
@@ -98,13 +129,18 @@ export default function OnboardingFlow({
       dob,
       lifeStage,
       story,
-      notifPref: 'discoveries',
-      sharedHealthRows: ['cycle', 'medical', 'meds'],
+      notifPref,
+      sharedHealthRows,
+      pendingHealthNotes,
       height,
       weight,
       answers,
       needsCommit,
       connectHealthAfterAuth: healthAfterAuth,
+      connectCalendarAfterAuth,
+      pendingDocuments,
+      suggestedTests,
+      includeMentalEmotional,
     };
   }
 
@@ -127,6 +163,13 @@ export default function OnboardingFlow({
       conversationDone,
       needsCommit: true,
       step: nextStep,
+      notifPref,
+      sharedHealthRows,
+      pendingHealthNotes,
+      pendingDocuments,
+      suggestedTests,
+      includeMentalEmotional,
+      connectCalendarAfterAuth,
       ...extra,
     };
     saveGuestOnboardingDraft(snapshot).catch(() => {});
@@ -148,6 +191,17 @@ export default function OnboardingFlow({
       setNeedsCommit(saved.needsCommit);
       setConversationDone(saved.conversationDone);
       setConnectHealthAfterAuth(saved.connectHealthAfterAuth);
+      if (saved.notifPref) setNotifPref(saved.notifPref);
+      if (saved.sharedHealthRows) setSharedHealthRows(saved.sharedHealthRows);
+      if (saved.pendingHealthNotes) setPendingHealthNotes(saved.pendingHealthNotes);
+      if (saved.pendingDocuments) setPendingDocuments(saved.pendingDocuments);
+      if (saved.suggestedTests) setSuggestedTests(saved.suggestedTests);
+      if (typeof saved.includeMentalEmotional === 'boolean') {
+        setIncludeMentalEmotional(saved.includeMentalEmotional);
+      }
+      if (typeof saved.connectCalendarAfterAuth === 'boolean') {
+        setConnectCalendarAfterAuth(saved.connectCalendarAfterAuth);
+      }
       if (typeof saved.step === 'number' && saved.step > 0) {
         setStep(saved.step);
       }
@@ -166,19 +220,10 @@ export default function OnboardingFlow({
     onComplete(buildDraft(healthAfterAuth));
   }
 
-  function proceedAfterUnderstanding(healthAfterAuth = connectHealthAfterAuth) {
-    if (userId) {
-      finishOnboarding(healthAfterAuth);
-      return;
-    }
-    snapshotGuestDraft(ACCOUNT_STEP, true, { connectHealthAfterAuth: healthAfterAuth });
-    goTo(ACCOUNT_STEP);
-  }
-
   async function handleConnectHealthSource() {
     if (Platform.OS !== 'android' && Platform.OS !== 'ios') {
       setAppleHealthConnected(true);
-      proceedAfterUnderstanding(true);
+      setConnectHealthAfterAuth(true);
       return;
     }
     if (!userId) {
@@ -192,7 +237,6 @@ export default function OnboardingFlow({
         if (result.granted) {
           setAppleHealthConnected(true);
           setConnectHealthAfterAuth(true);
-          proceedAfterUnderstanding(true);
         } else if (result.reason === 'unavailable') {
           setHealthConnectNote(
             Platform.OS === 'android'
@@ -222,7 +266,6 @@ export default function OnboardingFlow({
           : await connectHealthKit(userId);
       if (result.granted) {
         setAppleHealthConnected(true);
-        finishOnboarding(false);
       } else if (result.reason === 'unavailable') {
         setHealthConnectNote(
           Platform.OS === 'android'
@@ -268,10 +311,15 @@ export default function OnboardingFlow({
     next();
   }
 
-  function goTo(next: number) {
+  function goTo(nextStep: number) {
+    if (nextStep === ACCOUNT_STEP && userId) {
+      snapshotGuestDraft(ACCOUNT_STEP, conversationDone);
+      finishOnboarding();
+      return;
+    }
     Animated.timing(fade, { toValue: 0, duration: 130, useNativeDriver: true }).start(
       () => {
-        setStep(next);
+        setStep(nextStep);
         Animated.timing(fade, {
           toValue: 1,
           duration: 250,
@@ -335,21 +383,116 @@ export default function OnboardingFlow({
           <ConversationOnboarding userId={userId} onDone={handleConversationDone} />
         )}
 
-        {step === 2 && <BeginningYourStory onDone={next} />}
+        {step === UNDERSTANDING_STEP && <BeginningYourStory onDone={next} />}
 
-        {step === 3 && (
+        {step === REFLECTION_STEP && (
           <Reflection
             name={name}
             lifeStage={lifeStage}
             story={story}
             concern={concern}
+            onContinue={() => {
+              snapshotGuestDraft(MENTAL_HEALTH_STEP, true);
+              next();
+            }}
+          />
+        )}
+
+        {step === MENTAL_HEALTH_STEP && (
+          <MentalHealthStep
+            onContinue={() => {
+              setIncludeMentalEmotional(true);
+              snapshotGuestDraft(HEALTH_DOCUMENTS_STEP, true, { includeMentalEmotional: true });
+              next();
+            }}
+          />
+        )}
+
+        {step === HEALTH_DOCUMENTS_STEP && (
+          <HealthDocumentsStep
+            userId={userId ?? null}
+            sharedIds={sharedHealthRows}
+            documents={pendingDocuments}
+            suggestedTests={suggestedTests}
+            onDocumentsChange={setPendingDocuments}
+            onSuggestedTestsChange={setSuggestedTests}
+            onGuestSave={(id, text) => {
+              setPendingHealthNotes((prev) => ({ ...prev, [id]: text }));
+              if (text) {
+                setSharedHealthRows((prev) => (prev.includes(id) ? prev : [...prev, id]));
+              } else {
+                setSharedHealthRows((prev) => prev.filter((row) => row !== id));
+              }
+            }}
+            onSaved={(id) => {
+              setSharedHealthRows((prev) => (prev.includes(id) ? prev : [...prev, id]));
+            }}
+            onContinue={next}
+            onSkip={next}
+          />
+        )}
+
+        {step === MEDICAL_RECORDS_STEP && (
+          <MedicalRecordsStep
+            userId={userId ?? null}
+            profileLocation={null}
+            onContinue={next}
+            onSkip={next}
+          />
+        )}
+
+        {step === WEARABLES_STEP && (
+          <WearablesStep
+            userId={userId ?? null}
             healthSourceName={HEALTH_SOURCE_NAME}
             healthSourceBody={HEALTH_SOURCE_BODY}
             healthConnecting={healthConnecting}
             healthConnectNote={healthConnectNote}
-            appleHealthConnected={appleHealthConnected}
-            onConnectHealth={handleConnectHealthSource}
-            onSkipHealth={() => proceedAfterUnderstanding(false)}
+            connected={appleHealthConnected}
+            onConnect={handleConnectHealthSource}
+            onContinue={next}
+            onSkip={() => {
+              setConnectHealthAfterAuth(false);
+              next();
+            }}
+            onSynced={() => {
+              setAppleHealthConnected(true);
+              setConnectHealthAfterAuth(false);
+            }}
+          />
+        )}
+
+        {step === CALENDAR_STEP && (
+          <CalendarStep
+            onAllow={() => {
+              setConnectCalendarAfterAuth(true);
+              next();
+            }}
+            onSkip={() => {
+              setConnectCalendarAfterAuth(false);
+              next();
+            }}
+          />
+        )}
+
+        {step === NOTIFICATIONS_STEP && (
+          <NotificationsStep
+            onAllow={() => {
+              setNotifPref('discoveries');
+              next();
+            }}
+            onSkip={() => {
+              setNotifPref('none');
+              next();
+            }}
+          />
+        )}
+
+        {step === POLICIES_STEP && (
+          <PoliciesStep
+            agreed={policiesAgreed}
+            onToggleAgree={() => setPoliciesAgreed((v) => !v)}
+            onContinue={next}
           />
         )}
 
@@ -415,25 +558,13 @@ function Reflection({
   lifeStage,
   story,
   concern,
-  healthSourceName,
-  healthSourceBody,
-  healthConnecting,
-  healthConnectNote,
-  appleHealthConnected,
-  onConnectHealth,
-  onSkipHealth,
+  onContinue,
 }: {
   name: string;
   lifeStage: string | null;
   story: string | null;
   concern: string | null;
-  healthSourceName: string;
-  healthSourceBody: string;
-  healthConnecting: boolean;
-  healthConnectNote: string | null;
-  appleHealthConnected: boolean;
-  onConnectHealth: () => void;
-  onSkipHealth: () => void;
+  onContinue: () => void;
 }) {
   const told: string[] = [];
   if (name.trim()) told.push(`Your name is ${name.trim()}.`);
@@ -470,36 +601,8 @@ function Reflection({
         </Text>
       </Card>
 
-      <Text style={[styles.subtitle, { marginTop: 24 }]}>{healthSourceBody}</Text>
-      {healthConnectNote ? (
-        <View style={{ marginTop: 14 }}>
-          <Text style={styles.authError}>{healthConnectNote}</Text>
-          {healthConnectNote.startsWith("Health Connect isn't installed") && (
-            <GhostButton
-              label="Open Play Store"
-              tone="ink"
-              onPress={() =>
-                Linking.openURL(
-                  'market://details?id=com.google.android.apps.healthdata'
-                ).catch(() =>
-                  Linking.openURL(
-                    'https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata'
-                  )
-                )
-              }
-            />
-          )}
-        </View>
-      ) : null}
-
       <View style={{ flex: 1 }} />
-      <PrimaryButton
-        label={appleHealthConnected ? 'Connected' : `Connect ${healthSourceName}`}
-        onPress={onConnectHealth}
-        loading={healthConnecting}
-        disabled={appleHealthConnected}
-      />
-      <GhostButton label="I'll do this later" onPress={onSkipHealth} />
+      <PrimaryButton label="Continue" onPress={onContinue} />
     </View>
   );
 }

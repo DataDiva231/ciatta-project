@@ -15,8 +15,6 @@ export const connections: ConnectionItem[] = [
   },
   { id: 'medical-records', label: 'Medical records', status: 'not-connected' },
   { id: 'arc', label: 'Ciatta Arc™', status: 'coming-soon' },
-  { id: 'webbee', label: 'Webbee™', status: 'coming-soon' },
-  { id: 'clinician', label: 'Clinician access', status: 'not-connected' },
 ];
 
 export const healthItems: HealthItem[] = [

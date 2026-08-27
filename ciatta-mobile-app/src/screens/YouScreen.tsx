@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, fonts, radii, type } from '../theme/tokens';
+import { colors, fonts, type } from '../theme/tokens';
 import { connections, healthItems } from '../lib/mockData';
 import type { Profile } from '../lib/types';
 import ScreenContainer from '../components/ScreenContainer';
@@ -68,12 +68,14 @@ export default function YouScreen({
   onOpenRow,
   onSignOut,
   hasEligibleCareConnection = false,
+  sharedSummaryCount = 0,
 }: {
   profile: Profile;
   healthSourceConnected: boolean;
   onOpenRow: (section: string, row: string) => void;
   onSignOut: () => void;
   hasEligibleCareConnection?: boolean;
+  sharedSummaryCount?: number;
 }) {
   const displayName = displayCopy(profile.preferred_name || profile.name || 'You');
   const connectionsWithRealStatus = connections.map((c) =>
@@ -93,7 +95,7 @@ export default function YouScreen({
   const age = ageFromDob(profile.dob);
 
   return (
-    <ScreenContainer grouped>
+    <ScreenContainer>
       <Text style={styles.screenTitle}>You</Text>
 
       <SettingsGroup>
@@ -122,11 +124,6 @@ export default function YouScreen({
           label="Date of birth"
           value={formatDob(profile.dob)}
           onPress={() => onOpenRow('who-you-are', 'dob')}
-        />
-        <DisclosureRow
-          label="Pronouns"
-          value={profile.pronouns ? displayCopy(profile.pronouns) : 'Not set'}
-          onPress={() => onOpenRow('who-you-are', 'pronouns')}
         />
         <DisclosureRow
           label="Life stage"
@@ -168,7 +165,11 @@ export default function YouScreen({
             key={item.id}
             label={item.label}
             value={
-              item.id === 'visit-prep' || item.id === 'provider'
+              item.id === 'shared'
+                ? sharedSummaryCount > 0
+                  ? `${sharedSummaryCount} ${sharedSummaryCount === 1 ? 'summary' : 'summaries'}`
+                  : 'None yet'
+                : item.id === 'visit-prep' || item.id === 'provider'
                 ? hasEligibleCareConnection
                   ? 'Ready to prepare'
                   : 'Nothing to discuss yet'
@@ -235,7 +236,7 @@ const styles = StyleSheet.create({
   },
   group: {
     backgroundColor: colors.surface,
-    borderRadius: radii.sm,
+    borderRadius: 40,
     overflow: 'hidden',
     paddingHorizontal: 16,
   },

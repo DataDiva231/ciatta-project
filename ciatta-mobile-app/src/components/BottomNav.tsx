@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, glass, type } from '../theme/tokens';
 import { useNavAdaptivity } from '../lib/NavAdaptivity';
 import { CoreIcon, PersonIcon, SunIcon } from './icons';
-import GlassSurface, { GlassGroup, useLiquidGlass } from './GlassSurface';
+import GlassSurface, { useLiquidGlass } from './GlassSurface';
 
 export type MainTab = 'today' | 'core' | 'you';
 
@@ -25,7 +25,6 @@ const TABS: { id: MainTab; label: string; Icon: typeof SunIcon }[] = [
 
 const PRESS_IN_MS = 120;
 const PRESS_OUT_MS = 220;
-const MERGE_SPACING = 28;
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -79,6 +78,7 @@ function NavTab({
       interactive
       animateStyle
       colorScheme="auto"
+      tintColor={colors.surface}
       style={[styles.tabGlass, compact && styles.tabGlassCompact]}
     >
       {inner}
@@ -126,6 +126,8 @@ export default function BottomNav({
     />
   ));
 
+  const barStyle = [styles.bar, compact && styles.barCompact];
+
   return (
     <View
       pointerEvents="box-none"
@@ -136,15 +138,15 @@ export default function BottomNav({
       ]}
     >
       {native ? (
-        <View pointerEvents="box-none" style={styles.stack}>
-          <View
-            pointerEvents="none"
-            style={[styles.opaquePlate, compact && styles.opaquePlateCompact]}
-          />
-          <GlassGroup spacing={MERGE_SPACING} style={styles.group}>
-            {tabs}
-          </GlassGroup>
-        </View>
+        <GlassSurface
+          kind="clear"
+          colorScheme="light"
+          tintColor={colors.surface}
+          style={barStyle}
+          accessibilityRole="tablist"
+        >
+          {tabs}
+        </GlassSurface>
       ) : (
         <View style={styles.shadowWrap}>
           <View style={[styles.capsuleFallback, compact && styles.capsuleFallbackCompact]} accessibilityRole="tablist">
@@ -169,20 +171,17 @@ const styles = StyleSheet.create({
   dockCompact: {
     paddingHorizontal: 52,
   },
-  stack: {
-    position: 'relative',
-  },
-  opaquePlate: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: glass.navBacking,
-    borderRadius: 40,
-  },
-  opaquePlateCompact: {
-    borderRadius: 28,
-  },
-  group: {
+  bar: {
     flexDirection: 'row',
     alignItems: 'center',
+    borderRadius: 40,
+    overflow: 'hidden',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  barCompact: {
+    borderRadius: 28,
+    paddingVertical: 2,
   },
   shadowWrap: {
     borderRadius: 40,
@@ -199,7 +198,7 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     paddingVertical: 4,
     paddingHorizontal: 8,
-    backgroundColor: glass.fillSolid,
+    backgroundColor: 'rgba(255, 253, 250, 0.55)',
     borderWidth: 1,
     borderColor: glass.border,
     overflow: 'hidden',
@@ -209,14 +208,13 @@ const styles = StyleSheet.create({
   },
   tabGlass: {
     flex: 1,
-    borderRadius: 40,
+    borderRadius: 32,
   },
   tabGlassCompact: {
-    borderRadius: 28,
+    borderRadius: 24,
   },
   tabPress: {
     flex: 1,
-    width: '100%',
     alignItems: 'center',
     minHeight: 44,
     justifyContent: 'center',

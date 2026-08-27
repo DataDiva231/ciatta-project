@@ -22,7 +22,7 @@ export default function CuriosityCard({
   return (
     <GlassSurface
       kind="regular"
-      tintColor={dark ? colors.dark : glass.tint}
+      tintColor={dark ? colors.dark : colors.surface}
       colorScheme={dark ? 'dark' : 'auto'}
       style={[styles.card, dark && styles.cardDark]}
       fallbackStyle={[styles.fallback, dark && styles.fallbackDark]}

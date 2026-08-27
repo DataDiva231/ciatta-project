@@ -106,6 +106,6 @@ Deno.test('complete flow: Today notice → prepare CTA names the Understanding; 
 
   assertEquals(
     CARE_YOU_ROWS.map((r) => r.id),
-    ['provider', 'visit-prep', 'shared', 'privacy']
+    ['provider', 'visit-prep', 'shared']
   );
 });

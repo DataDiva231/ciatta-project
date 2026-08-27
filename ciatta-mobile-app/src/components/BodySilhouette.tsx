@@ -248,6 +248,7 @@ export default function BodySilhouette({
             )}
           </Defs>
 
+          <Rect x={0} y={0} width={w} height={visibleH} fill={colors.canvas} />
           <SvgImage
             href={figure.src}
             x={0}

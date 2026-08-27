@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { OnboardingAnswer } from './onboardingConversation';
+import type { PendingHealthDocument } from './onboardingSetup';
 
 const GUEST_ONBOARDING_KEY = 'ciatta.guestOnboarding.v1';
 
@@ -16,6 +17,13 @@ export interface GuestOnboardingDraft {
   conversationDone: boolean;
   needsCommit: boolean;
   step: number;
+  notifPref?: string;
+  sharedHealthRows?: string[];
+  pendingHealthNotes?: Record<string, string>;
+  pendingDocuments?: PendingHealthDocument[];
+  suggestedTests?: string[];
+  includeMentalEmotional?: boolean;
+  connectCalendarAfterAuth?: boolean;
 }
 
 export async function saveGuestOnboardingDraft(draft: GuestOnboardingDraft): Promise<void> {

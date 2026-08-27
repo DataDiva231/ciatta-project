@@ -58,6 +58,42 @@ export interface ProviderSearchResult {
   providers: Provider[];
 }
 
+async function invokeProviderSearch(body: Record<string, unknown>): Promise<ProviderSearchResult> {
+  const { data, error } = await supabase.functions.invoke('provider-search', { body });
+  const payload = data as (ProviderSearchResult & { error?: string }) | null;
+  if (payload?.providers) return payload;
+  const fromPayload = typeof payload?.error === 'string' ? payload.error : null;
+  let fromContext: string | null = null;
+  const ctx = error && typeof error === 'object' && 'context' in error
+    ? (error as { context?: Response }).context
+    : undefined;
+  if (ctx && typeof ctx.json === 'function') {
+    try {
+      const nested = await ctx.json();
+      if (nested && typeof nested.error === 'string') fromContext = nested.error;
+    } catch {
+      /* The gateway's generic FunctionsHttpError has no JSON body. */
+    }
+  }
+  const message = fromContext ?? fromPayload;
+  if (message) throw new Error(message);
+  if (error) {
+    throw new Error("The provider directory couldn't be reached. Try again.");
+  }
+  throw new Error("The provider directory couldn't be reached. Try again.");
+}
+
+function hasDirectoryQuery(criteria: ProviderSearchCriteria): boolean {
+  return Boolean(
+    criteria.specialty?.trim() ||
+      criteria.providerName?.trim() ||
+      criteria.organization?.trim() ||
+      criteria.city?.trim() ||
+      criteria.state?.trim() ||
+      criteria.postalCode?.trim()
+  );
+}
+
 /**
  * The primary path: derives what to search for from an existing
  * Understanding's own Care Connection recommendation (care_recommendation_
@@ -69,22 +105,19 @@ export async function searchProvidersForUnderstanding(
   understandingId: string,
   locationOverride?: Pick<ProviderSearchCriteria, 'city' | 'state' | 'postalCode'>
 ): Promise<ProviderSearchResult> {
-  const { data, error } = await supabase.functions.invoke('provider-search', {
-    body: { understanding_id: understandingId, criteria: locationOverride ?? {} },
+  return invokeProviderSearch({
+    understanding_id: understandingId,
+    criteria: locationOverride ?? {},
   });
-  if (error) throw error;
-  return data as ProviderSearchResult;
 }
 
 /** The fallback path — a freeform search with no Understanding behind it,
  * for a general "find a provider" entry point rather than a Care
- * Connection-driven one. Not currently wired into any screen, but the
- * server endpoint already supports it, so the client-side seam exists
- * too. */
+ * Connection-driven one. You → Provider connections uses this when no
+ * eligible Understanding is available. */
 export async function searchProviders(criteria: ProviderSearchCriteria): Promise<ProviderSearchResult> {
-  const { data, error } = await supabase.functions.invoke('provider-search', {
-    body: { criteria },
-  });
-  if (error) throw error;
-  return data as ProviderSearchResult;
+  const withQuery = hasDirectoryQuery(criteria)
+    ? criteria
+    : { ...criteria, specialty: 'Family Medicine' };
+  return invokeProviderSearch({ criteria: withQuery });
 }
