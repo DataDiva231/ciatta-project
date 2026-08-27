@@ -1,11 +1,20 @@
-import React, { useEffect, useMemo, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AccessibilityInfo,
+  Animated,
+  Easing,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import Svg, {
   Circle,
   Defs,
   Line,
   LinearGradient,
   Mask,
+  RadialGradient,
   Rect,
   Stop,
   Image as SvgImage,
@@ -14,14 +23,15 @@ import { colors, domainColor, fonts } from '../theme/tokens';
 import { domainLabel, strengthShort } from '../lib/mockData';
 import type { Domain, Strength } from '../lib/types';
 import {
+  constellationBreath,
   constellationDotRadius,
+  constellationGlowRadius,
   constellationHaloOpacity,
   constellationLinkOpacity,
   todayConstellationDomains,
   uniqueConstellationLinks,
   type ConstellationLink,
 } from '../lib/constellation';
-import GlassSurface, { GlassGroup } from './GlassSurface';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -75,12 +85,30 @@ const DOMAIN_ORDER: Domain[] = ['sleep', 'recovery', 'cycle', 'energy', 'mood'];
 export const CORE_FIGURE_BASE_WIDTH = FIGURES.full.baseWidth;
 export const CORE_FIGURE_ASPECT = FIGURES.full.h / FIGURES.full.w;
 
+function useReduceMotion() {
+  const [reduceMotion, setReduceMotion] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    AccessibilityInfo.isReduceMotionEnabled?.().then((enabled) => {
+      if (alive) setReduceMotion(!!enabled);
+    });
+    const sub = AccessibilityInfo.addEventListener?.('reduceMotionChanged', (enabled) => {
+      setReduceMotion(!!enabled);
+    });
+    return () => {
+      alive = false;
+      sub?.remove();
+    };
+  }, []);
+  return reduceMotion;
+}
+
 function ConstellationStar({
   domain,
   pos,
   strength,
   focal,
-  delay,
+  gradientId,
   animated,
   w,
   h,
@@ -89,82 +117,68 @@ function ConstellationStar({
   pos: Position;
   strength: Strength;
   focal: boolean;
-  delay: number;
+  gradientId: string;
   animated: boolean;
   w: number;
   h: number;
 }) {
   const cx = pos.x * w;
   const cy = pos.y * h;
-  const color = domainColor[domain];
   const coreR = constellationDotRadius(w, strength, focal);
+  const glowR = constellationGlowRadius(coreR);
   const haloOpacity = constellationHaloOpacity(strength) * (focal ? 1.15 : 1);
-  const progress = useRef(new Animated.Value(0)).current;
+  const breath = constellationBreath(domain);
+  const progress = useRef(new Animated.Value(breath.phase)).current;
 
   useEffect(() => {
-    if (!animated) return;
+    if (!animated) {
+      progress.setValue(0.45);
+      return;
+    }
+    progress.setValue(breath.phase);
+    const half = breath.durationMs / 2;
+    const ease = Easing.inOut(Easing.sin);
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.delay(delay),
         Animated.timing(progress, {
           toValue: 1,
-          duration: 2400,
+          duration: half,
+          easing: ease,
           useNativeDriver: false,
         }),
         Animated.timing(progress, {
           toValue: 0,
-          duration: 2400,
+          duration: half,
+          easing: ease,
           useNativeDriver: false,
         }),
       ])
     );
     loop.start();
     return () => loop.stop();
-  }, [animated, delay, progress]);
+  }, [animated, breath.durationMs, breath.phase, progress]);
 
-  const outerR = animated
+  const fillOpacity = animated
     ? progress.interpolate({
         inputRange: [0, 1],
-        outputRange: [coreR * 3.1, coreR * 3.45],
+        outputRange: [0.72 + haloOpacity * 0.4, 1],
       })
-    : coreR * 3.2;
-  const midR = animated
+    : 0.9;
+  const glowSize = animated
     ? progress.interpolate({
         inputRange: [0, 1],
-        outputRange: [coreR * 1.85, coreR * 2.05],
+        outputRange: [glowR, glowR * 1.06],
       })
-    : coreR * 1.95;
-  const outerOp = animated
-    ? progress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [haloOpacity * 0.45, haloOpacity * 0.7],
-      })
-    : haloOpacity * 0.55;
-  const midOp = animated
-    ? progress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [haloOpacity * 0.75, haloOpacity],
-      })
-    : haloOpacity * 0.85;
+    : glowR;
 
   return (
-    <>
-      <AnimatedCircle
-        cx={cx}
-        cy={cy}
-        r={outerR as unknown as number}
-        fill={color}
-        opacity={outerOp as unknown as number}
-      />
-      <AnimatedCircle
-        cx={cx}
-        cy={cy}
-        r={midR as unknown as number}
-        fill={color}
-        opacity={midOp as unknown as number}
-      />
-      <Circle cx={cx} cy={cy} r={coreR} fill={color} />
-    </>
+    <AnimatedCircle
+      cx={cx}
+      cy={cy}
+      r={glowSize as unknown as number}
+      fill={`url(#${gradientId})`}
+      opacity={fillOpacity as unknown as number}
+    />
   );
 }
 
@@ -194,6 +208,7 @@ export default function BodySilhouette({
   scale = 1,
   crop = 1,
 }: BodySilhouetteProps) {
+  const reduceMotion = useReduceMotion();
   const learned = useMemo(
     () => new Set((strengths ? (Object.keys(strengths) as Domain[]) : []) as Domain[]),
     [strengths]
@@ -234,6 +249,22 @@ export default function BodySilhouette({
       <View style={{ position: 'absolute', left: gutter, top: 0 }}>
         <Svg width={w} height={visibleH}>
           <Defs>
+            {domainsToRender.map((d) => (
+              <RadialGradient
+                key={`heat-${d}`}
+                id={`heat-${variant}-${d}`}
+                cx="50%"
+                cy="50%"
+                r="50%"
+                fx="50%"
+                fy="50%"
+              >
+                <Stop offset="0%" stopColor={domainColor[d]} stopOpacity={1} />
+                <Stop offset="32%" stopColor={domainColor[d]} stopOpacity={0.62} />
+                <Stop offset="70%" stopColor={domainColor[d]} stopOpacity={0.18} />
+                <Stop offset="100%" stopColor={domainColor[d]} stopOpacity={0} />
+              </RadialGradient>
+            ))}
             {isCropped && (
               <>
                 <LinearGradient id="fadeGradient" x1="0" y1="0" x2="0" y2="1">
@@ -298,15 +329,15 @@ export default function BodySilhouette({
               );
             })}
 
-          {domainsToRender.map((d, i) => (
+          {domainsToRender.map((d) => (
             <ConstellationStar
               key={d}
               domain={d}
               pos={positions[d]}
               strength={strengths?.[d] ?? 'moderate'}
               focal={variant === 'today' && d === activeDomain}
-              delay={i * 420}
-              animated={animated && variant !== 'mini'}
+              gradientId={`heat-${variant}-${d}`}
+              animated={animated && variant !== 'mini' && !reduceMotion}
               w={w}
               h={h}
             />
@@ -316,7 +347,6 @@ export default function BodySilhouette({
 
       {onDomainPress ? (
         <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-          <GlassGroup spacing={36} style={StyleSheet.absoluteFill}>
           {domainsToRender.map((d) => {
             const pos = positions[d];
             const cx = gutter + pos.x * w;
@@ -325,37 +355,24 @@ export default function BodySilhouette({
             const strength = strengths?.[d] ?? 'moderate';
             const focal = variant === 'today' && d === activeDomain;
             const coreR = constellationDotRadius(w, strength, focal);
-            const lens = Math.max(22, coreR * 6.4);
-            const hitPad = Math.max(0, (44 - lens) / 2);
+            const hit = Math.max(44, coreR * 6.4);
             return (
-              <GlassSurface
+              <Pressable
                 key={`hotspot-${d}`}
-                kind={focal ? 'regular' : 'clear'}
-                interactive
-                animateStyle
-                tintColor={domainColor[d]}
-                colorScheme="auto"
+                accessibilityRole="button"
+                accessibilityLabel={`${domainLabel[d]}, open understanding`}
+                onPress={() => onDomainPress(d)}
                 style={{
                   position: 'absolute',
-                  left: cx - lens / 2,
-                  top: cy - lens / 2,
-                  width: lens,
-                  height: lens,
-                  borderRadius: lens / 2,
+                  left: cx - hit / 2,
+                  top: cy - hit / 2,
+                  width: hit,
+                  height: hit,
+                  borderRadius: hit / 2,
                 }}
-                fallbackStyle={styles.hotspotFallback}
-              >
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${domainLabel[d]}, open understanding`}
-                  onPress={() => onDomainPress(d)}
-                  hitSlop={hitPad}
-                  style={styles.hotspotPress}
-                />
-              </GlassSurface>
+              />
             );
           })}
-          </GlassGroup>
         </View>
       ) : null}
 
@@ -395,13 +412,6 @@ export default function BodySilhouette({
 }
 
 const styles = StyleSheet.create({
-  hotspotFallback: {
-    backgroundColor: 'transparent',
-    borderWidth: 0,
-  },
-  hotspotPress: {
-    flex: 1,
-  },
   labelWrap: {
     position: 'absolute',
     width: 92,

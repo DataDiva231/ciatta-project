@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { Animated, Pressable, StyleSheet, type ViewStyle } from 'react-native';
 import { colors, glass } from '../theme/tokens';
-import GlassSurface, { useLiquidGlass } from './GlassSurface';
+import GlassSurface from './GlassSurface';
 
 const PRESS_IN_MS = 120;
 const PRESS_OUT_MS = 220;
@@ -25,7 +25,6 @@ export default function Card({
   style?: ViewStyle;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
-  const native = useLiquidGlass();
 
   function animate(to: number, duration: number) {
     Animated.timing(scale, { toValue: to, duration, useNativeDriver: true }).start();
@@ -37,7 +36,7 @@ export default function Card({
       interactive={!!onPress}
       tintColor={tintFrom(style)}
       colorScheme="auto"
-      style={[styles.material, style, native && styles.clearFill]}
+      style={[styles.material, style]}
       fallbackStyle={styles.fallback}
     >
       {children}
@@ -66,10 +65,6 @@ const styles = StyleSheet.create({
   material: {
     borderRadius: glass.radiusCard,
     padding: 18,
-  },
-  clearFill: {
-    backgroundColor: 'transparent',
-    borderWidth: 0,
   },
   fallback: {
     backgroundColor: glass.fillCard,

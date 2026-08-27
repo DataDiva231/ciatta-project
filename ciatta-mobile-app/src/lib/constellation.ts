@@ -17,13 +17,18 @@ const STRENGTH_RANK: Record<Strength, number> = {
 export function constellationDotRadius(width: number, strength: Strength, focal: boolean): number {
   const base =
     strength === 'very-strong'
-      ? 0.022
+      ? 0.014
       : strength === 'strong'
-        ? 0.018
+        ? 0.012
         : strength === 'moderate'
-          ? 0.015
-          : 0.012;
-  return Math.max(2.5, width * base * (focal ? 1.12 : 1));
+          ? 0.0105
+          : 0.009;
+  return Math.max(2.25, width * base * (focal ? 1.08 : 1));
+}
+
+/** Compact fade extent. Kept tight so the mark stays a heatpoint, not a halo. */
+export function constellationGlowRadius(coreR: number): number {
+  return coreR * 2.15;
 }
 
 export function constellationHaloOpacity(strength: Strength): number {
@@ -34,6 +39,18 @@ export function constellationHaloOpacity(strength: Strength): number {
       : strength === 'moderate'
         ? 0.11
         : 0.07;
+}
+
+/** Slow, unsynced breath so every domain feels alive without pulsing together. */
+export function constellationBreath(domain: Domain): { durationMs: number; phase: number } {
+  const table: Record<Domain, { durationMs: number; phase: number }> = {
+    sleep: { durationMs: 4600, phase: 0 },
+    recovery: { durationMs: 5400, phase: 0.22 },
+    cycle: { durationMs: 4900, phase: 0.47 },
+    energy: { durationMs: 5800, phase: 0.13 },
+    mood: { durationMs: 5200, phase: 0.68 },
+  };
+  return table[domain];
 }
 
 export function constellationLinkOpacity(strength: Strength): number {

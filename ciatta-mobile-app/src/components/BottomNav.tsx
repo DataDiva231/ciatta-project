@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     paddingVertical: 4,
     paddingHorizontal: 8,
-    backgroundColor: 'rgba(255, 253, 250, 0.55)',
+    backgroundColor: glass.fillSolid,
     borderWidth: 1,
     borderColor: glass.border,
     overflow: 'hidden',

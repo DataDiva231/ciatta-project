@@ -20,9 +20,10 @@ type TypeStyle = TextStyle & { dynamicTypeRamp?: AppleTextRamp };
 // its existing domain charcoal. Washes and borders are ink at reduced
 // opacity, not additional hues.
 export const colors = {
+  // Canvas is the page and figure paper. Surface is cards, sheets, and nav.
   canvas: '#FFFCF7',
   grouped: '#F2F2F7',
-  surface: '#FFFDFA',
+  surface: '#FFFFFD',
   wash: 'rgba(28, 28, 30, 0.04)',
   border: 'rgba(28, 28, 30, 0.12)',
   ink: '#1C1C1E',
@@ -38,7 +39,7 @@ export const colors = {
   evidenceSofter: 'rgba(28, 28, 30, 0.04)',
   dark: '#1C1C1E',
   darkSurface: '#1C1C1E',
-  white: '#FFFCF7',
+  white: '#FFFFFD',
   silhouetteFill: 'rgba(28, 28, 30, 0.28)',
   silhouetteFillDark: 'rgba(255, 252, 247, 0.16)',
 } as const;
@@ -208,16 +209,16 @@ export const glass = {
   radius: 32,
   radiusCard: 22,
   radiusControl: 999,
-  fillCard: '#FFFDFA',
-  fill: 'rgba(255, 253, 250, 0.72)',
-  fillSolid: '#FFFDFA',
+  fillCard: '#FFFFFD',
+  fill: 'rgba(255, 255, 253, 0.72)',
+  fillSolid: '#FFFFFD',
   // Dedicated nav plate only. Canvas stays #FFFCF7, so scrolling copy
   // cannot be read through the dock.
-  navBacking: 'rgba(255, 253, 250, 0.95)',
-  highlight: 'rgba(255, 253, 250, 0.92)',
+  navBacking: '#FFFFFD',
+  highlight: 'rgba(255, 255, 253, 0.92)',
   border: 'rgba(28, 28, 30, 0.08)',
   shadowColor: '#1C1C1E',
-  tint: '#FFFCF7',
+  tint: '#FFFFFD',
   activeFill: 'rgba(242, 125, 114, 0.12)',
   activeBorder: 'rgba(242, 125, 114, 0.2)',
 } as const;

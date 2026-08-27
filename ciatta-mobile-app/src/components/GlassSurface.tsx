@@ -86,19 +86,25 @@ export default function GlassSurface({
   const glassEffectStyle: GlassStyle | GlassEffectStyleConfig = animateStyle
     ? { style: kind, animate: true }
     : kind;
+  // Plate is always the Ciatta surface (or an explicit tint). Glass then
+  // samples this plate instead of the warm canvas, figure glow, or domain
+  // washes sitting underneath.
+  const backing =
+    tintColor && tintColor !== 'transparent' ? tintColor : glass.tint;
 
   if (native) {
     return (
-      <GlassView
-        {...rest}
-        glassEffectStyle={glassEffectStyle}
-        isInteractive={interactive}
-        tintColor={tintColor}
-        colorScheme={colorScheme}
-        style={style}
-      >
+      <View {...rest} style={[styles.plate, style, { backgroundColor: backing }]}>
+        <GlassView
+          pointerEvents="none"
+          glassEffectStyle={glassEffectStyle}
+          isInteractive={interactive}
+          tintColor={backing}
+          colorScheme={colorScheme}
+          style={styles.glassLayer}
+        />
         {children}
-      </GlassView>
+      </View>
     );
   }
 
@@ -130,6 +136,12 @@ export function GlassGroup({
 }
 
 const styles = StyleSheet.create({
+  plate: {
+    overflow: 'hidden',
+  },
+  glassLayer: {
+    ...StyleSheet.absoluteFillObject,
+  },
   fallback: {
     backgroundColor: glass.fillSolid,
     borderWidth: 1,
