@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { colors, fonts } from '../theme/tokens';
+import { colors, fonts, type } from '../theme/tokens';
 import type { DiscoveryRow } from '../lib/queries';
 import BottomSheet from '../components/BottomSheet';
 import ConfidenceBar from '../components/ConfidenceBar';
@@ -49,19 +49,18 @@ export default function DiscoveryDetailSheet({
 
 const styles = StyleSheet.create({
   eyebrow: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 11,
     letterSpacing: 1,
     color: colors.ink3,
   },
   name: {
-    fontFamily: fonts.serif,
-    fontSize: 28,
+    ...type.title1,
     color: colors.ink,
     marginTop: 8,
   },
   date: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 12.5,
     color: colors.ink3,
     marginTop: 6,
@@ -75,13 +74,13 @@ const styles = StyleSheet.create({
     padding: 18,
   },
   narrative: {
-    fontFamily: fonts.serif,
+    ...fonts.serif,
     fontSize: 18,
     lineHeight: 25,
     color: colors.ink,
   },
   detail: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13.5,
     lineHeight: 19,
     color: colors.ink2,

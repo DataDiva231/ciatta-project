@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, fonts, radii } from '../theme/tokens';
+import { colors, fonts, radii, type } from '../theme/tokens';
+import GlassSurface from './GlassSurface';
 import {
   isAppleSignInAvailable,
   signInWithApple,
@@ -42,7 +43,7 @@ export default function SocialAuthButtons({
     } catch (e) {
       // A deliberate cancel isn't an error worth surfacing.
       if (e instanceof SocialAuthCancelled) return;
-      onError(e instanceof Error ? e.message : 'That sign-in did not go through.');
+      onError(e instanceof Error ? e.message : 'That sign in did not go through.');
     } finally {
       setBusy(null);
     }
@@ -75,21 +76,25 @@ export default function SocialAuthButtons({
       <Pressable
         onPress={() => run('google')}
         disabled={busy !== null}
-        style={({ pressed }) => [
-          styles.button,
-          styles.googleButton,
-          pressed && styles.pressed,
-          busy !== null && styles.disabled,
-        ]}
+        style={busy !== null ? styles.disabled : undefined}
       >
-        {busy === 'google' ? (
-          <ActivityIndicator color={colors.ink} />
-        ) : (
-          <>
-            <GoogleMark />
-            <Text style={[styles.label, styles.googleLabel]}>Continue with Google</Text>
-          </>
-        )}
+        <GlassSurface
+          kind="regular"
+          interactive={busy === null}
+          tintColor={colors.white}
+          colorScheme="light"
+          style={[styles.button, styles.googleButton]}
+          fallbackStyle={styles.googleFallback}
+        >
+          {busy === 'google' ? (
+            <ActivityIndicator color={colors.ink} />
+          ) : (
+            <>
+              <GoogleMark />
+              <Text style={[styles.label, styles.googleLabel]}>Continue with Google</Text>
+            </>
+          )}
+        </GlassSurface>
       </Pressable>
 
       <View style={styles.dividerRow}>
@@ -140,13 +145,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ink,
   },
   googleButton: {
+    overflow: 'hidden',
+  },
+  googleFallback: {
     backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.border,
   },
   label: {
-    fontFamily: fonts.sansSemiBold,
-    fontSize: 15,
+    ...type.subheadline,
+    fontWeight: '600',
   },
   appleLabel: {
     color: colors.white,
@@ -192,7 +200,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
   },
   dividerText: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.ink3,
   },

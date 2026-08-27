@@ -50,7 +50,7 @@ export async function exportAndShareUserData(userId: string): Promise<void> {
   const json = JSON.stringify(data, null, 2);
   await Share.share({
     message: json,
-    title: 'Ciatta data export',
+    title: 'Your data export',
   });
 }
 

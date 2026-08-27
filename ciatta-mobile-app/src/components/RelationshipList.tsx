@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { colors, fonts, strengthColor } from '../theme/tokens';
+import { colors, domainColor, fonts, strengthColor } from '../theme/tokens';
 import { domainLabel, strengthShort } from '../lib/mockData';
 import type { RelationshipRef } from '../lib/types';
 
@@ -18,7 +18,7 @@ export default function RelationshipList({
         >
           <View style={styles.dotRow}>
             <View
-              style={[styles.dot, { backgroundColor: strengthColor[rel.strength] }]}
+              style={[styles.dot, { backgroundColor: domainColor[rel.domain] }]}
             />
             <Text style={styles.domain}>{domainLabel[rel.domain]}</Text>
           </View>
@@ -53,12 +53,12 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   domain: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 14.5,
     color: colors.ink,
   },
   strength: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 13,
   },
 });

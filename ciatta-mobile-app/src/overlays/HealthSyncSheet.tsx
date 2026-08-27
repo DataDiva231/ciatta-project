@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
-import { colors, fonts } from '../theme/tokens';
+import { colors, fonts, type } from '../theme/tokens';
 import BottomSheet from '../components/BottomSheet';
 import PrimaryButton from '../components/PrimaryButton';
 import StatRow from '../components/StatRow';
@@ -85,7 +85,7 @@ export default function HealthSyncSheet({
         <Text style={styles.title}>{SOURCE_NAME}</Text>
         <Text style={styles.intro}>
           {connected
-            ? `${SOURCE_NAME} is connected. Sync any time to pull in what's changed since last time — the more days I have, the clearer the picture gets.`
+            ? `${SOURCE_NAME} is connected. Sync any time to pull in what's changed since last time. The more days that accumulate, the clearer the picture gets.`
             : `Connect ${SOURCE_NAME} to bring in your steps, heart rate, sleep, and cycle history without asking the same questions twice.`}
         </Text>
 
@@ -101,7 +101,7 @@ export default function HealthSyncSheet({
               <Text style={styles.result}>
                 {outcome.count > 0
                   ? `Pulled in ${outcome.count} new reading${outcome.count === 1 ? '' : 's'}.`
-                  : `No new data since last time — I'll have more to work with the next time you sync.`}
+                  : `No new data since last time. More can take shape the next time you sync.`}
               </Text>
               {reflectionRows(outcome.reflection).length > 0 && (
                 <View style={styles.reflection}>
@@ -121,7 +121,7 @@ export default function HealthSyncSheet({
           )}
           {outcome?.kind === 'permission-denied' && (
             <Text style={styles.error}>
-              I wasn't given permission to read your health data. You can try again, or check your
+              Permission wasn't granted to read your health data. You can try again, or check your
               {Platform.OS === 'android' ? ' Health Connect' : ' Health app'} permissions for Ciatta.
             </Text>
           )}
@@ -129,9 +129,9 @@ export default function HealthSyncSheet({
         </View>
 
         <Text style={styles.footnote}>
-          Some patterns — like how your cycle relates to your resting heart rate — need at least a
-          couple of weeks of data before I can say anything meaningful. Syncing regularly is what
-          gets me there.
+          Some patterns, like how your cycle relates to your resting heart rate, need at least a
+          couple of weeks of data before anything meaningful can take shape. Syncing regularly is
+          what gets there.
         </Text>
       </View>
     </BottomSheet>
@@ -140,12 +140,11 @@ export default function HealthSyncSheet({
 
 const styles = StyleSheet.create({
   title: {
-    fontFamily: fonts.serif,
-    fontSize: 26,
+    ...type.title2,
     color: colors.ink,
   },
   intro: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 14,
     lineHeight: 21,
     color: colors.ink2,
@@ -155,7 +154,7 @@ const styles = StyleSheet.create({
     marginTop: 26,
   },
   result: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.ink2,
     marginTop: 10,
@@ -166,14 +165,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   error: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.accent,
     marginTop: 10,
     textAlign: 'center',
   },
   footnote: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 12.5,
     lineHeight: 18,
     color: colors.ink3,

@@ -140,15 +140,15 @@ export function analyzeStepsRatingRelationship(
 }
 
 const STEPS_DISCOVERY_COPY = {
-  lowDayLabel: 'low-activity day',
-  lowDayLabelPlural: 'low-activity days',
+  lowDayLabel: 'low activity day',
+  lowDayLabelPlural: 'low activity days',
   narrative: {
-    energy: "Your energy tends to be lower the day after a low-activity day.",
-    mood: "Your mood tends to dip the day after a low-activity day.",
+    energy: "Your energy tends to be lower the day after a low activity day.",
+    mood: "Your mood tends to dip the day after a low activity day.",
   },
   suggestedNames: {
-    energy: ['The Movement Effect', 'Activity-Energy Link', 'The Rest Day Rebound'],
-    mood: ['The Movement-Mood Link', 'Motion and Mood', 'The Stillness Signal'],
+    energy: ['The Movement Effect', 'Activity Energy Link', 'The Rest Day Rebound'],
+    mood: ['The Movement Mood Link', 'Motion and Mood', 'The Stillness Signal'],
   },
 };
 

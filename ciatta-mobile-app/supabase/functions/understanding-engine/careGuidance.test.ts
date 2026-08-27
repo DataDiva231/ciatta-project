@@ -22,6 +22,12 @@ Deno.test('deriveGuidance: emerging and moderate understandings get no guidance 
   });
 });
 
+Deno.test('deriveGuidance: continuous processing does not lower the guidance gate — emerging still produces none', () => {
+  // Continuous mode reuses upsertUnderstanding → deriveGuidance unchanged.
+  assertEquals(deriveGuidance('recovery', 'emerging', null, EVIDENCE_3_WEEKS, NOW).guidance, null);
+  assertEquals(deriveGuidance('recovery', 'moderate', null, EVIDENCE_3_WEEKS, NOW).guidance, null);
+});
+
 Deno.test('deriveGuidance: strong and very-strong both produce guidance', () => {
   const strong = deriveGuidance('sleep', 'strong', null, EVIDENCE_3_WEEKS, NOW);
   const veryStrong = deriveGuidance('sleep', 'very-strong', null, EVIDENCE_3_WEEKS, NOW);
@@ -71,21 +77,21 @@ Deno.test('deriveGuidance: never diagnoses — output is limited to the enumerat
 
 // --- New: the three-question structure (WHY / CONSIDER / CARE) ---
 
-Deno.test('deriveGuidance: opens with why Ciatta believes this, derived from the evidence passed in', () => {
+Deno.test('deriveGuidance: opens with why this holds, derived from the evidence passed in', () => {
   const result = deriveGuidance('sleep', 'strong', null, EVIDENCE_3_WEEKS, NOW);
-  assert(result.guidance!.startsWith('Ciatta has been learning from your sleep patterns'));
+  assert(result.guidance!.startsWith('We\'ve been learning your sleep patterns'));
   // 2026-07-29 -> 2026-08-19 is 21 days, which durationPhrase buckets as "several weeks".
   assert(result.guidance!.includes('over the past several weeks'));
 });
 
 Deno.test('deriveGuidance: falls back to observation count, never a bare domain name, when there is no anchor date', () => {
   const result = deriveGuidance('sleep', 'strong', null, { observationsCount: 12, learningSince: null }, NOW);
-  assert(result.guidance!.startsWith('Ciatta has been learning from your sleep patterns across 12 observations.'));
+  assert(result.guidance!.startsWith('We\'ve been learning your sleep patterns across 12 observations.'));
 });
 
 Deno.test('deriveGuidance: falls back to a bare learning statement when there is neither a date nor a count', () => {
   const result = deriveGuidance('sleep', 'strong', null, NO_EVIDENCE, NOW);
-  assert(result.guidance!.startsWith('Ciatta has been learning from your sleep patterns.'));
+  assert(result.guidance!.startsWith('We\'ve been learning your sleep patterns.'));
 });
 
 Deno.test('deriveGuidance: includes a closed-form, domain-specific consideration for every domain', () => {

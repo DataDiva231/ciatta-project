@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated,
   Linking,
   Platform,
@@ -11,29 +10,38 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts } from '../../theme/tokens';
+import { colors, fonts, type } from '../../theme/tokens';
 import PrimaryButton from '../../components/PrimaryButton';
 import GhostButton from '../../components/GhostButton';
 import Card from '../../components/Card';
 import { signIn, signUp } from '../../lib/auth';
 import { seedProfileName } from '../../lib/socialAuth';
 import SocialAuthButtons from '../../components/SocialAuthButtons';
-import { connectHealthConnect } from '../../lib/healthConnect';
-import { connectHealthKit } from '../../lib/healthKit';
+import { connectHealthConnect, requestHealthConnectPermission } from '../../lib/healthConnect';
+import { connectHealthKit, requestHealthKitPermission } from '../../lib/healthKit';
 import ConversationOnboarding, { type ConversationSummary } from './ConversationOnboarding';
 import KeyboardAvoidingScreen from '../../components/KeyboardAvoidingScreen';
+import {
+  ONBOARDING_ACCOUNT_STEP,
+  ONBOARDING_CONVERSATION_STEP,
+  ONBOARDING_FLOW_STEPS,
+  type OnboardingAnswer,
+} from '../../lib/onboardingConversation';
+import {
+  loadGuestOnboardingDraft,
+  saveGuestOnboardingDraft,
+  type GuestOnboardingDraft,
+} from '../../lib/onboardingDraft';
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = ONBOARDING_FLOW_STEPS.length;
 
-// The single welcome screen (0), and the account-creation step it leads
-// into. Kept as a named constant so the "skip ahead" handler below doesn't
-// rely on a magic number.
-const ACCOUNT_STEP = 1;
+const ACCOUNT_STEP = ONBOARDING_ACCOUNT_STEP;
+const CONVERSATION_STEP = ONBOARDING_CONVERSATION_STEP;
 
-// The one welcome screen shown after the splash, before account creation.
+// The one welcome screen shown after the splash, before the conversation.
 const WELCOME_SLIDE = {
   title: 'Welcome to Ciatta.',
-  body: 'Every body tells a story. I build an understanding of yours over time, and help you make sense of what changes.',
+  body: 'Every body tells a story. Over time, an understanding of yours takes shape, so you can make sense of what changes.',
 };
 
 export interface OnboardingDraft {
@@ -45,13 +53,16 @@ export interface OnboardingDraft {
   sharedHealthRows: string[];
   height: string;
   weight: string;
+  answers: OnboardingAnswer[];
+  needsCommit: boolean;
+  connectHealthAfterAuth: boolean;
 }
 
 const HEALTH_SOURCE_NAME = Platform.OS === 'android' ? 'Health Connect' : 'Apple Health';
 const HEALTH_SOURCE_BODY =
   Platform.OS === 'android'
-    ? 'Health Connect helps me understand your sleep, activity, and heart health without asking you the same questions twice.'
-    : 'Apple Health helps me understand your sleep, activity, and heart health without asking you the same questions twice.';
+    ? 'Health Connect brings in your sleep, activity, and heart health without asking you the same questions twice.'
+    : 'Apple Health brings in your sleep, activity, and heart health without asking you the same questions twice.';
 
 export default function OnboardingFlow({
   onComplete,
@@ -73,17 +84,16 @@ export default function OnboardingFlow({
   const [concern, setConcern] = useState<string | null>(null);
   const [height, setHeight] = useState('');
   const [weight, setWeight] = useState('');
+  const [answers, setAnswers] = useState<OnboardingAnswer[]>([]);
+  const [needsCommit, setNeedsCommit] = useState(false);
+  const [conversationDone, setConversationDone] = useState(false);
+  const [connectHealthAfterAuth, setConnectHealthAfterAuth] = useState(false);
   const [appleHealthConnected, setAppleHealthConnected] = useState(false);
   const [healthConnecting, setHealthConnecting] = useState(false);
   const [healthConnectNote, setHealthConnectNote] = useState<string | null>(null);
 
-  // Onboarding no longer asks a separate "which categories can I share"
-  // question — the conversation itself asks about cycle/medical history/
-  // medications directly, so reaching this step already means all three
-  // were discussed (answered or explicitly declined) rather than merely
-  // permitted in the abstract.
-  function finishOnboarding() {
-    onComplete({
+  function buildDraft(healthAfterAuth = connectHealthAfterAuth): OnboardingDraft {
+    return {
       name,
       dob,
       lifeStage,
@@ -92,13 +102,115 @@ export default function OnboardingFlow({
       sharedHealthRows: ['cycle', 'medical', 'meds'],
       height,
       weight,
+      answers,
+      needsCommit,
+      connectHealthAfterAuth: healthAfterAuth,
+    };
+  }
+
+  function snapshotGuestDraft(
+    nextStep: number,
+    conversationDone: boolean,
+    extra: Partial<GuestOnboardingDraft> = {}
+  ) {
+    if (userId) return;
+    const snapshot: GuestOnboardingDraft = {
+      name,
+      dob,
+      lifeStage,
+      story,
+      concern,
+      height,
+      weight,
+      answers,
+      connectHealthAfterAuth,
+      conversationDone,
+      needsCommit: true,
+      step: nextStep,
+      ...extra,
+    };
+    saveGuestOnboardingDraft(snapshot).catch(() => {});
+  }
+
+  useEffect(() => {
+    if (userId) return;
+    let cancelled = false;
+    loadGuestOnboardingDraft().then((saved) => {
+      if (cancelled || !saved) return;
+      setName(saved.name);
+      setDob(saved.dob);
+      setLifeStage(saved.lifeStage);
+      setStory(saved.story);
+      setConcern(saved.concern);
+      setHeight(saved.height);
+      setWeight(saved.weight);
+      setAnswers(saved.answers);
+      setNeedsCommit(saved.needsCommit);
+      setConversationDone(saved.conversationDone);
+      setConnectHealthAfterAuth(saved.connectHealthAfterAuth);
+      if (typeof saved.step === 'number' && saved.step > 0) {
+        setStep(saved.step);
+      }
     });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  // Onboarding no longer asks a separate "which categories can I share"
+  // question — the conversation itself asks about cycle/medical history/
+  // medications directly, so reaching this step already means all three
+  // were discussed (answered or explicitly declined) rather than merely
+  // permitted in the abstract.
+  function finishOnboarding(healthAfterAuth = connectHealthAfterAuth) {
+    onComplete(buildDraft(healthAfterAuth));
+  }
+
+  function proceedAfterUnderstanding(healthAfterAuth = connectHealthAfterAuth) {
+    if (userId) {
+      finishOnboarding(healthAfterAuth);
+      return;
+    }
+    snapshotGuestDraft(ACCOUNT_STEP, true, { connectHealthAfterAuth: healthAfterAuth });
+    goTo(ACCOUNT_STEP);
   }
 
   async function handleConnectHealthSource() {
-    if (!userId || (Platform.OS !== 'android' && Platform.OS !== 'ios')) {
+    if (Platform.OS !== 'android' && Platform.OS !== 'ios') {
       setAppleHealthConnected(true);
-      finishOnboarding();
+      proceedAfterUnderstanding(true);
+      return;
+    }
+    if (!userId) {
+      setHealthConnecting(true);
+      setHealthConnectNote(null);
+      try {
+        const result =
+          Platform.OS === 'android'
+            ? await requestHealthConnectPermission()
+            : await requestHealthKitPermission();
+        if (result.granted) {
+          setAppleHealthConnected(true);
+          setConnectHealthAfterAuth(true);
+          proceedAfterUnderstanding(true);
+        } else if (result.reason === 'unavailable') {
+          setHealthConnectNote(
+            Platform.OS === 'android'
+              ? "Health Connect isn't installed on this device yet. Install it from the Play Store, then come back and connect."
+              : "Apple Health isn't available on this device."
+          );
+        } else {
+          setHealthConnectNote(
+            "Permission wasn't granted to read your health data. You can try again or continue without it for now."
+          );
+        }
+      } catch (e) {
+        setHealthConnectNote(
+          e instanceof Error ? e.message : `Something went wrong connecting ${HEALTH_SOURCE_NAME}.`
+        );
+      } finally {
+        setHealthConnecting(false);
+      }
       return;
     }
     setHealthConnecting(true);
@@ -110,7 +222,7 @@ export default function OnboardingFlow({
           : await connectHealthKit(userId);
       if (result.granted) {
         setAppleHealthConnected(true);
-        finishOnboarding();
+        finishOnboarding(false);
       } else if (result.reason === 'unavailable') {
         setHealthConnectNote(
           Platform.OS === 'android'
@@ -119,7 +231,7 @@ export default function OnboardingFlow({
         );
       } else {
         setHealthConnectNote(
-          "I wasn't given permission to read your health data. You can try again or continue without it for now."
+          "Permission wasn't granted to read your health data. You can try again or continue without it for now."
         );
       }
     } catch (e) {
@@ -139,6 +251,20 @@ export default function OnboardingFlow({
     setWeight(summary.weight);
     setStory(summary.intent);
     setConcern(summary.concern);
+    setAnswers(summary.answers);
+    setNeedsCommit(summary.needsCommit);
+    setConversationDone(true);
+    snapshotGuestDraft(step + 1, true, {
+      name: summary.name,
+      dob: summary.dob,
+      lifeStage: summary.lifeStage || null,
+      height: summary.height,
+      weight: summary.weight,
+      story: summary.intent,
+      concern: summary.concern,
+      answers: summary.answers,
+      needsCommit: summary.needsCommit,
+    });
     next();
   }
 
@@ -157,8 +283,7 @@ export default function OnboardingFlow({
 
   const next = () => goTo(step + 1);
   const back = () => step > 0 && goTo(step - 1);
-  // Begin drops straight into account creation.
-  const skipIntro = () => goTo(ACCOUNT_STEP);
+  const skipToAccount = () => goTo(ACCOUNT_STEP);
 
   const dark = DARK_STEPS.has(step);
 
@@ -200,24 +325,19 @@ export default function OnboardingFlow({
             title={WELCOME_SLIDE.title}
             body={WELCOME_SLIDE.body}
             ctaLabel="Begin"
-            onContinue={skipIntro}
+            onContinue={next}
+            secondaryLabel="Already have an account? Sign in"
+            onSecondary={skipToAccount}
           />
         )}
 
-        {step === 1 && <AccountStep onAuthed={next} />}
+        {step === CONVERSATION_STEP && (
+          <ConversationOnboarding userId={userId} onDone={handleConversationDone} />
+        )}
 
-        {step === 2 &&
-          (userId ? (
-            <ConversationOnboarding userId={userId} onDone={handleConversationDone} />
-          ) : (
-            <View style={[styles.flex, { alignItems: 'center', justifyContent: 'center' }]}>
-              <ActivityIndicator color={colors.accent} />
-            </View>
-          ))}
+        {step === 2 && <BeginningYourStory onDone={next} />}
 
-        {step === 3 && <BeginningYourStory onDone={next} />}
-
-        {step === 4 && (
+        {step === 3 && (
           <Reflection
             name={name}
             lifeStage={lifeStage}
@@ -229,7 +349,19 @@ export default function OnboardingFlow({
             healthConnectNote={healthConnectNote}
             appleHealthConnected={appleHealthConnected}
             onConnectHealth={handleConnectHealthSource}
-            onSkipHealth={finishOnboarding}
+            onSkipHealth={() => proceedAfterUnderstanding(false)}
+          />
+        )}
+
+        {step === ACCOUNT_STEP && (
+          <AccountStep
+            onAuthed={() => {
+              if (conversationDone) {
+                finishOnboarding();
+              } else {
+                goTo(CONVERSATION_STEP);
+              }
+            }}
           />
         )}
       </Animated.View>
@@ -244,7 +376,7 @@ export default function OnboardingFlow({
 const DARK_STEPS = new Set<number>([]);
 
 function BeginningYourStory({ onDone }: { onDone: () => void }) {
-  const lines = ["I'm beginning to", 'understand you.'];
+  const lines = ['Your understanding', 'is beginning.'];
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -311,14 +443,14 @@ function Reflection({
 
   return (
     <View style={styles.flex}>
-      <Text style={styles.title}>What I'm beginning{'\n'}to understand.</Text>
+      <Text style={styles.title}>What's taking{'\n'}shape so far.</Text>
       <Text style={styles.subtitle}>
-        A quick honest look — what you told me, and what I've actually
-        observed so far.
+        A quick honest look: what you shared, and what has actually
+        been observed so far.
       </Text>
 
       <Card style={{ marginTop: 24 }}>
-        <Text style={styles.rightNowLabel}>WHAT YOU TOLD ME</Text>
+        <Text style={styles.rightNowLabel}>WHAT YOU SHARED</Text>
         {told.length > 0 ? (
           told.map((line, i) => (
             <Text key={i} style={[styles.rightNowText, i > 0 && { marginTop: 8 }]}>
@@ -326,15 +458,15 @@ function Reflection({
             </Text>
           ))
         ) : (
-          <Text style={styles.rightNowText}>Nothing yet — we'll pick this up as we go.</Text>
+          <Text style={styles.rightNowText}>Nothing yet. We'll pick this up as we go.</Text>
         )}
 
         <View style={styles.rightNowDivider} />
 
-        <Text style={styles.rightNowLabel}>WHAT I'VE OBSERVED</Text>
+        <Text style={styles.rightNowLabel}>WHAT'S BEEN OBSERVED</Text>
         <Text style={styles.rightNowSub}>
-          Nothing yet — I haven't seen any of your body's data. Once I do,
-          I'll start noticing real patterns instead of just what you tell me.
+          Nothing yet. There isn't any of your body's data here. Once there is,
+          real patterns can take shape instead of only what you share.
         </Text>
       </Card>
 
@@ -412,7 +544,7 @@ function AccountStep({ onAuthed }: { onAuthed: () => void }) {
       setError(
         e instanceof Error
           ? e.message
-          : "That didn't work yet — try again once you've confirmed."
+          : "That didn't work yet. Try again once you've confirmed."
       );
     } finally {
       setLoading(false);
@@ -424,13 +556,13 @@ function AccountStep({ onAuthed }: { onAuthed: () => void }) {
       <View style={styles.flex}>
         <Text style={styles.title}>Check your email.</Text>
         <Text style={styles.subtitle}>
-          I've sent a confirmation link to {email}. Once you've confirmed, come
+          A confirmation link is on its way to {email}. Once you've confirmed, come
           back here to continue.
         </Text>
         {error ? <Text style={styles.authError}>{error}</Text> : null}
         <View style={{ flex: 1 }} />
         <PrimaryButton
-          label="I've confirmed — Continue"
+          label="I've confirmed. Continue"
           onPress={handleConfirmedContinue}
           loading={loading}
         />
@@ -515,12 +647,16 @@ function Message({
   body,
   ctaLabel,
   onContinue,
+  secondaryLabel,
+  onSecondary,
 }: {
   dark?: boolean;
   title: string;
   body: string;
   ctaLabel: string;
   onContinue: () => void;
+  secondaryLabel?: string;
+  onSecondary?: () => void;
 }) {
   return (
     <View style={styles.flex}>
@@ -530,6 +666,9 @@ function Message({
       </Text>
       <View style={{ flex: 1 }} />
       <PrimaryButton label={ctaLabel} onPress={onContinue} />
+      {secondaryLabel && onSecondary ? (
+        <GhostButton label={secondaryLabel} onPress={onSecondary} />
+      ) : null}
     </View>
   );
 }
@@ -565,7 +704,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
   },
   back: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.ink2,
   },
@@ -576,14 +715,12 @@ const styles = StyleSheet.create({
   },
 
   messageTitle: {
-    fontFamily: fonts.serif,
-    fontSize: 34,
-    lineHeight: 40,
+    ...type.title1,
     color: colors.ink,
     marginTop: 12,
   },
   messageBody: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 15.5,
     lineHeight: 23,
     color: colors.ink2,
@@ -591,21 +728,19 @@ const styles = StyleSheet.create({
   },
 
   title: {
-    fontFamily: fonts.serif,
-    fontSize: 32,
-    lineHeight: 38,
+    ...type.title1,
     color: colors.ink,
     marginTop: 8,
   },
   subtitle: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 14.5,
     lineHeight: 21,
     color: colors.ink2,
     marginTop: 10,
   },
   fieldLabel: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 11,
     letterSpacing: 1,
     color: colors.ink3,
@@ -615,13 +750,13 @@ const styles = StyleSheet.create({
   input: {
     borderBottomWidth: 1.5,
     borderBottomColor: colors.border,
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 16,
     color: colors.ink,
     paddingVertical: 10,
   },
   authError: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.accent,
     marginTop: 16,
@@ -634,28 +769,26 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   beginningTitle: {
-    fontFamily: fonts.serif,
-    fontSize: 30,
-    lineHeight: 36,
+    ...type.title1,
     color: colors.ink,
     textAlign: 'center',
   },
   beginningCaption: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.ink3,
     marginTop: 16,
   },
 
   rightNowLabel: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 11,
     letterSpacing: 1,
     color: colors.ink3,
     marginBottom: 8,
   },
   rightNowText: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 14.5,
     lineHeight: 21,
     color: colors.ink,
@@ -666,7 +799,7 @@ const styles = StyleSheet.create({
     marginVertical: 16,
   },
   rightNowSub: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13.5,
     lineHeight: 19,
     color: colors.ink2,

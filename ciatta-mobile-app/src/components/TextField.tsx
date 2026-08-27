@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
-import { colors, fonts, radii } from '../theme/tokens';
+import { colors, glass, radii, type } from '../theme/tokens';
 import { MicIcon } from './icons';
+import GlassSurface, { useLiquidGlass } from './GlassSurface';
 
 export default function TextField({
   value,
@@ -17,8 +18,23 @@ export default function TextField({
   multiline?: boolean;
 }) {
   const [focused, setFocused] = useState(false);
+  const native = useLiquidGlass();
+
   return (
-    <View style={[styles.wrap, focused && styles.focused, multiline && styles.multiline]}>
+    <GlassSurface
+      kind={focused ? 'clear' : 'regular'}
+      interactive
+      tintColor={glass.tint}
+      colorScheme="auto"
+      animateStyle
+      style={[
+        styles.wrap,
+        multiline && styles.multiline,
+        native && styles.clearFill,
+        !native && focused && styles.focused,
+      ]}
+      fallbackStyle={styles.fallback}
+    >
       <TextInput
         value={value}
         onChangeText={onChangeText}
@@ -26,15 +42,16 @@ export default function TextField({
         placeholderTextColor={colors.ink3}
         style={styles.input}
         multiline={multiline}
+        accessibilityLabel={placeholder}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
       />
       {onMicPress ? (
-        <View style={styles.mic} onTouchEnd={onMicPress}>
+        <View style={styles.mic} onTouchEnd={onMicPress} accessibilityRole="button" accessibilityLabel="Dictate">
           <MicIcon />
         </View>
       ) : null}
-    </View>
+    </GlassSurface>
   );
 }
 
@@ -42,15 +59,10 @@ const styles = StyleSheet.create({
   wrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    // Surface + a real border, so the field stays visible on canvas-coloured
-    // screens. It used to be canvas-on-canvas with a transparent border,
-    // which rendered as bare placeholder text with no visible input.
-    backgroundColor: colors.surface,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderColor: colors.border,
     paddingHorizontal: 18,
     paddingVertical: 12,
+    minHeight: 44,
   },
   multiline: {
     borderRadius: radii.md,
@@ -58,13 +70,22 @@ const styles = StyleSheet.create({
     minHeight: 120,
     paddingVertical: 14,
   },
+  clearFill: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+  },
+  fallback: {
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
   focused: {
-    borderColor: colors.accent,
+    borderColor: colors.ink,
   },
   input: {
     flex: 1,
-    fontFamily: fonts.sans,
-    fontSize: 15,
+    ...type.body,
+    fontSize: 17,
     color: colors.ink,
     padding: 0,
   },

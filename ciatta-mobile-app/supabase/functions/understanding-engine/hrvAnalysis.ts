@@ -35,8 +35,12 @@ export interface HrvObservation {
   metric?: string | null;
 }
 
-const BASELINE_MIN_DAYS = 14;
-const LOW_HRV_RATIO = 0.7;
+export const BASELINE_MIN_DAYS = 14;
+/** A day is "low" when its average is strictly below this fraction of the
+ * person's own median daily HRV — the same band analyzeHrv() and the
+ * recovery relationship already use. Continuous cadence must reuse this
+ * rather than invent a second swing threshold. */
+export const LOW_HRV_RATIO = 0.7;
 const CONFIDENCE_SAMPLE_CAP = 30;
 
 /**
@@ -107,6 +111,22 @@ export interface HrvUnderstandingResult {
   confidence: number;
   eligible: boolean;
   observationIds: string[];
+}
+
+/**
+ * Whether the latest *day* (all same-day samples averaged, same as
+ * analyzeHrv) sits in the existing low-HRV band versus this person's
+ * median. Returns false until BASELINE_MIN_DAYS of daily averages exist —
+ * a single noisy reading is not a swing, and neither is any dip before
+ * there is a personal baseline to compare against.
+ */
+export function latestDayIsLowVsPersonalBaseline(observations: HrvObservation[]): boolean {
+  const byDay = dailyHrvAverages(filterToConsistentMetric(observations));
+  if (byDay.size < BASELINE_MIN_DAYS) return false;
+  const values = [...byDay.keys()].sort().map((key) => byDay.get(key)!.value);
+  const baseline = median(values);
+  const latest = values[values.length - 1];
+  return latest < baseline * LOW_HRV_RATIO;
 }
 
 export function analyzeHrv(observations: HrvObservation[]): HrvUnderstandingResult {
@@ -188,7 +208,7 @@ const HRV_DISCOVERY_COPY = {
   },
   suggestedNames: {
     energy: ['The HRV Signal', 'Nervous System Rebound', 'The Recovery Lag'],
-    mood: ['HRV and Mood', 'The Recovery-Mood Link', 'The Quiet Signal'],
+    mood: ['HRV and Mood', 'The Recovery Mood Link', 'The Quiet Signal'],
   },
 };
 

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { colors, fonts, radii } from '../theme/tokens';
+import { colors, fonts, radii, type } from '../theme/tokens';
 import BottomSheet from '../components/BottomSheet';
 import Card from '../components/Card';
 import { CloseIcon } from '../components/icons';
+import { displayCopy } from '../lib/displayCopy';
 import { searchProvidersForUnderstanding, type Provider } from '../lib/providerSearch';
 
 const CARE_TYPE_LABEL: Record<string, string> = {
@@ -25,7 +26,7 @@ function formatAddress(provider: Provider): string | null {
   const a = provider.address;
   if (!a) return null;
   const line2 = [a.city, a.state, a.postalCode].filter(Boolean).join(', ');
-  return [a.line1, line2].filter(Boolean).join(', ') || null;
+  return displayCopy([a.line1, line2].filter(Boolean).join(', ') || '') || null;
 }
 
 export default function ProviderSearchSheet({
@@ -72,7 +73,7 @@ export default function ProviderSearchSheet({
       setProviders(result.providers);
       setSearchedZip(zipValue.trim() || null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "I couldn't reach the provider directory — try again.");
+      setError(e instanceof Error ? e.message : "The provider directory couldn't be reached. Try again.");
     } finally {
       setLoading(false);
     }
@@ -105,7 +106,7 @@ export default function ProviderSearchSheet({
       </View>
 
       <Text style={styles.subtitle}>
-        Based on what Ciatta understands, this is who it may be worth talking to. Results come
+        Based on what you've learned, this is who it may be worth talking to. Results come
         from the public NPI Registry, not a curated recommendation.
       </Text>
 
@@ -144,14 +145,16 @@ export default function ProviderSearchSheet({
         <View style={styles.results}>
           {providers.map((provider) => (
             <Card key={provider.id} onPress={() => onSelectProvider(provider)} style={styles.resultCard}>
-              <Text style={styles.resultName}>{provider.name}</Text>
+              <Text style={styles.resultName}>{displayCopy(provider.name)}</Text>
               {provider.specialty[0] ? (
-                <Text style={styles.resultSpecialty}>{provider.specialty[0]}</Text>
+                <Text style={styles.resultSpecialty}>{displayCopy(provider.specialty[0])}</Text>
               ) : null}
               {formatAddress(provider) ? (
                 <Text style={styles.resultDetail}>{formatAddress(provider)}</Text>
               ) : null}
-              {provider.phone ? <Text style={styles.resultDetail}>{provider.phone}</Text> : null}
+              {provider.phone ? (
+                <Text style={styles.resultDetail}>{displayCopy(provider.phone.replace(/-/g, ' '))}</Text>
+              ) : null}
             </Card>
           ))}
         </View>
@@ -167,19 +170,18 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   eyebrow: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 10.5,
     letterSpacing: 1.1,
     color: colors.ink3,
     marginBottom: 4,
   },
   title: {
-    fontFamily: fonts.serif,
-    fontSize: 27,
+    ...type.title2,
     color: colors.ink,
   },
   subtitle: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13.5,
     lineHeight: 20,
     color: colors.ink2,
@@ -194,20 +196,20 @@ const styles = StyleSheet.create({
     flex: 1,
     borderBottomWidth: 1.5,
     borderBottomColor: colors.border,
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 16,
     color: colors.ink,
     paddingVertical: 10,
   },
   searchButton: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.ink,
     borderRadius: radii.pill,
     paddingVertical: 10,
     paddingHorizontal: 18,
     justifyContent: 'center',
   },
   searchButtonText: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 14,
     color: colors.white,
   },
@@ -216,13 +218,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   error: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.accent,
     marginTop: 20,
   },
   empty: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13.5,
     lineHeight: 20,
     color: colors.ink2,
@@ -236,18 +238,18 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   resultName: {
-    fontFamily: fonts.sansSemiBold,
+    ...fonts.sansSemiBold,
     fontSize: 15,
     color: colors.ink,
   },
   resultSpecialty: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 12.5,
-    color: colors.accent,
+    color: colors.ink2,
     marginTop: 3,
   },
   resultDetail: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 12.5,
     color: colors.ink2,
     marginTop: 3,

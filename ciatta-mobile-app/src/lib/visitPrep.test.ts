@@ -34,9 +34,9 @@ Deno.test('buildVisitBrief: a selected provider (from Provider Search) flows int
     },
   });
   assert(brief.includes("WHO YOU'RE SEEING"));
-  assert(brief.includes('A Park Avenue OBGYN PC — Obstetrics & Gynecology, Gynecology'));
+  assert(brief.includes('A Park Avenue OBGYN PC, Obstetrics & Gynecology, Gynecology'));
   assert(brief.includes('36E 70TH ST, NEW YORK, NY, 10021'));
-  assert(brief.includes('212-677-1000'));
+  assert(brief.includes('212 677 1000'));
 });
 
 Deno.test('buildVisitBrief: the understanding, evidence, and guidance sections are always present regardless of provider selection', () => {
@@ -46,7 +46,7 @@ Deno.test('buildVisitBrief: the understanding, evidence, and guidance sections a
   });
   const withoutProvider = buildVisitBrief(BASE_INPUT);
   for (const brief of [withProvider, withoutProvider]) {
-    assert(brief.includes('WHAT CIATTA UNDERSTANDS'));
+    assert(brief.includes("WHAT YOU'VE LEARNED"));
     assert(brief.includes(BASE_INPUT.narrative));
     assert(brief.includes('EVIDENCE'));
     assert(brief.includes('WORTH DISCUSSING'));
@@ -68,5 +68,5 @@ Deno.test('buildVisitBrief: a provider with only a name (no specialty/address/ph
     provider: { name: 'Dr. Test', specialty: null, address: null, phone: null },
   });
   assert(brief.includes('Dr. Test'));
-  assert(!brief.includes('Dr. Test —')); // no dangling separator with nothing after it
+  assert(!brief.includes('Dr. Test,')); // no dangling separator with nothing after it
 });

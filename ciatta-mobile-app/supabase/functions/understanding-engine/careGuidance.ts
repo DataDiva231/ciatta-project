@@ -11,8 +11,8 @@
 //   Observation    — what was measured or reported (the observations table)
 //   Pattern        — what changed or appears connected (the Relationship
 //                    lookup below, when one already exists in the model)
-//   Understanding  — what Ciatta currently understands (the narrative this
-//                    module is handed, never generated here)
+//   Understanding  — the current narrative this module is handed, never
+//                    generated here
 //   Guidance       — what the user may reasonably consider (this module's
 //                    one output)
 //   Action         — what the user chooses to do (not this module's
@@ -26,7 +26,7 @@
 // The `guidance` string answers three distinct questions, in order, as
 // three sentences — still one plain-text field, still the same column,
 // still nothing outside this file's own enumerated maps:
-//   1. WHY does Ciatta believe this?   — evidenceSentence(), built only
+//   1. WHY does this hold?             — evidenceSentence(), built only
 //      from the Understanding's own already-persisted evidence metadata
 //      (observations_count, learning_since/first_observed) — never from
 //      external knowledge.
@@ -73,8 +73,8 @@ const CARE_LABEL: Record<CareRecommendationType, string> = {
 
 const CARE_REASON: Record<CareRecommendationType, string> = {
   'primary-care': 'General or unexplained changes are usually best started with primary care.',
-  'ob-gyn': 'Cycle-related patterns are usually best discussed with an OB/GYN.',
-  'mental-health': 'Mood-related patterns are usually best discussed with a mental health provider.',
+  'ob-gyn': 'Patterns related to your cycle are usually best discussed with an OB/GYN.',
+  'mental-health': 'Patterns related to mood are usually best discussed with a mental health provider.',
 };
 
 export const DOMAIN_LABEL: Record<string, string> = {
@@ -94,7 +94,7 @@ export const DOMAIN_LABEL: Record<string, string> = {
 const CONSIDER_ACTION: Record<string, string> = {
   sleep: 'keeping your sleep schedule consistent',
   recovery: 'prioritizing recovery and easing up where you can',
-  energy: 'pacing your activity and noticing what precedes your low-energy days',
+  energy: 'pacing your activity and noticing what precedes your low energy days',
   cycle: 'noting how this shows up across your cycle',
   mood: 'noticing what tends to precede these shifts',
 };
@@ -117,7 +117,7 @@ function daysSince(dateStr: string, now: Date): number {
 }
 
 // Coarse, fixed buckets rather than "X days" — precise day counts read as
-// a stat, not as something Ciatta "believes." Exported so the buckets
+// a stat, not as a belief. Exported so the buckets
 // themselves are directly testable without needing to fake wall-clock time
 // through the rest of deriveGuidance().
 export function durationPhrase(days: number): string {
@@ -128,20 +128,20 @@ export function durationPhrase(days: number): string {
   return 'over the past several months';
 }
 
-// Answers "why does Ciatta believe this?" — built only from this
-// Understanding's own already-persisted evidence metadata. Falls back to
-// the raw observation count when no anchor date is available (should be
-// rare — every Understanding that reaches this function has already been
-// through upsertUnderstanding() at least once), never falls back to
-// nothing but a bare domain name.
+// Answers "why does this hold?" — built only from this Understanding's
+// own already-persisted evidence metadata. Falls back to the raw
+// observation count when no anchor date is available (should be rare —
+// every Understanding that reaches this function has already been through
+// upsertUnderstanding() at least once), never falls back to nothing but a
+// bare domain name.
 function evidenceSentence(domainWord: string, evidence: EvidenceContext, now: Date): string {
   if (evidence.learningSince) {
-    return `Ciatta has been learning from your ${domainWord} patterns ${durationPhrase(daysSince(evidence.learningSince, now))}.`;
+    return `We've been learning your ${domainWord} patterns ${durationPhrase(daysSince(evidence.learningSince, now))}.`;
   }
   if (evidence.observationsCount > 0) {
-    return `Ciatta has been learning from your ${domainWord} patterns across ${evidence.observationsCount} observations.`;
+    return `We've been learning your ${domainWord} patterns across ${evidence.observationsCount} observations.`;
   }
-  return `Ciatta has been learning from your ${domainWord} patterns.`;
+  return `We've been learning your ${domainWord} patterns.`;
 }
 
 // Answers "what might the user consider doing?" — one fixed sentence per

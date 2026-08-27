@@ -192,15 +192,15 @@ const RATING_DOMAIN_COPY: Record<
 > = {
   energy: {
     narrative:
-      'Your energy tends to dip in the same days your resting heart rate rises — usually in the two weeks before your period.',
+      'Your energy tends to dip in the same days your resting heart rate rises, usually in the two weeks before your period.',
     label: 'energy',
-    suggestedNames: ['The Pre-Period Dip', 'Cycle Energy Shift', 'The Two-Week Signal'],
+    suggestedNames: ['The Pre Period Dip', 'Cycle Energy Shift', 'The Two Week Signal'],
   },
   mood: {
     narrative:
-      'Your mood tends to dip in the same days your resting heart rate rises — usually in the two weeks before your period.',
+      'Your mood tends to dip in the same days your resting heart rate rises, usually in the two weeks before your period.',
     label: 'mood',
-    suggestedNames: ['The Pre-Period Mood Shift', 'Cycle Mood Signal', 'The Luteal Dip'],
+    suggestedNames: ['The Pre Period Mood Shift', 'Cycle Mood Signal', 'The Luteal Dip'],
   },
 };
 
@@ -224,7 +224,7 @@ export function buildCycleDiscovery(
 
   return {
     narrative: copy.narrative,
-    detail: `Across ${result.cyclesWithBothSignals} cycles I had both signals for, your ${copy.label} dropped by about ${ratingDrop} points (on a 4-point scale) in the same window your resting heart rate rose by about ${rhrRise} bpm, together in ${result.cyclesCoOccurring} of them.`,
+    detail: `Across ${result.cyclesWithBothSignals} cycles with both signals, your ${copy.label} dropped by about ${ratingDrop} points (on a 4 point scale) in the same window your resting heart rate rose by about ${rhrRise} bpm, together in ${result.cyclesCoOccurring} of them.`,
     confidence: result.confidence,
     confidenceLabel: RELATIONSHIP_LABEL[strength],
     suggestedNames: copy.suggestedNames,

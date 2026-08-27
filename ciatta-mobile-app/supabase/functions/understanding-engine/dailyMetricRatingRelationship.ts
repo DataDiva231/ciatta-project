@@ -177,7 +177,7 @@ export function buildDailyMetricRatingDiscovery(
 
   return {
     narrative: copy.narrative[toDomain],
-    detail: `Comparing ${result.lowDayCount} ${copy.lowDayLabelPlural} against ${result.normalDayCount} more typical ones, your next-day ${label} ran about ${drop} points lower (on a 4-point scale) after those days.`,
+    detail: `Comparing ${result.lowDayCount} ${copy.lowDayLabelPlural} against ${result.normalDayCount} more typical ones, your next day ${label} ran about ${drop} points lower (on a 4 point scale) after those days.`,
     confidence: result.confidence,
     confidenceLabel: CONFIDENCE_LABEL[strength],
     suggestedNames: copy.suggestedNames[toDomain],

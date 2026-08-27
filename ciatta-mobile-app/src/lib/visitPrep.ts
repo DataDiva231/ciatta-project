@@ -12,6 +12,8 @@
 // Observation — rather than a bespoke "visit prep" table. See
 // UnderstandingSheet's use of insertObservation after a successful share.
 
+import { displayCopy, displayCopyList } from './displayCopy';
+
 export interface VisitBriefProvider {
   name: string;
   specialty: string | null;
@@ -37,54 +39,56 @@ export interface VisitBriefInput {
 
 export function buildVisitBrief(input: VisitBriefInput): string {
   const lines: string[] = [];
-  lines.push(`Ciatta summary — ${input.domainLabel}`);
+  lines.push(`Visit summary: ${displayCopy(input.domainLabel)}`);
   lines.push('');
 
   if (input.provider) {
-    lines.push('WHO YOU\'RE SEEING');
+    lines.push("WHO YOU'RE SEEING");
     lines.push(
-      input.provider.specialty ? `${input.provider.name} — ${input.provider.specialty}` : input.provider.name
+      input.provider.specialty
+        ? `${displayCopy(input.provider.name)}, ${displayCopy(input.provider.specialty)}`
+        : displayCopy(input.provider.name)
     );
-    if (input.provider.address) lines.push(input.provider.address);
-    if (input.provider.phone) lines.push(input.provider.phone);
+    if (input.provider.address) lines.push(displayCopy(input.provider.address));
+    if (input.provider.phone) lines.push(displayCopy(input.provider.phone.replace(/-/g, ' ')));
     lines.push('');
   }
 
-  lines.push('WHAT CIATTA UNDERSTANDS');
-  lines.push(input.narrative);
+  lines.push("WHAT YOU'VE LEARNED");
+  lines.push(displayCopy(input.narrative));
   lines.push('');
 
   lines.push('EVIDENCE');
   lines.push(
     `${input.observationsCount} reading${input.observationsCount === 1 ? '' : 's'}` +
-      (input.learningSpan ? `, over ${input.learningSpan}` : '') +
-      `. Confidence: ${input.confidenceLabel}.`
+      (input.learningSpan ? `, over ${displayCopy(input.learningSpan)}` : '') +
+      `. Confidence: ${displayCopy(input.confidenceLabel)}.`
   );
   lines.push('');
 
   if (input.timelineSteps.length > 0) {
     lines.push('WHEN THIS CHANGED');
     for (const step of input.timelineSteps) {
-      lines.push(`${step.label} — ${step.detail}`);
+      lines.push(`${displayCopy(step.label)}: ${displayCopy(step.detail)}`);
     }
     lines.push('');
   }
 
-  const questions = [...input.stillLearning];
+  const questions = displayCopyList(input.stillLearning);
   if (questions.length > 0) {
     lines.push('QUESTIONS TO CONSIDER');
-    for (const q of questions) lines.push(`- ${q}`);
+    for (const q of questions) lines.push(`• ${q}`);
     lines.push('');
   }
 
   if (input.guidance) {
     lines.push('WORTH DISCUSSING');
-    lines.push(input.guidance);
+    lines.push(displayCopy(input.guidance));
     lines.push('');
   }
 
   lines.push(
-    'Prepared by Ciatta from this user’s own recorded observations. This is not a diagnosis.'
+    'Prepared from your own recorded observations. This is not a diagnosis.'
   );
 
   return lines.join('\n');

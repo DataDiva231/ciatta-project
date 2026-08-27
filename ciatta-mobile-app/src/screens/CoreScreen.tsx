@@ -4,7 +4,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../theme/tokens';
 import { domainLabel, domains } from '../lib/mockData';
 import type { Domain, Strength } from '../lib/types';
-import type { DiscoveryRow } from '../lib/queries';
+import type { DiscoveryRow, RelationshipRow, UnderstandingRow } from '../lib/queries';
+import { eligibleCareUnderstandings } from '../lib/careConnection';
 import ScreenContainer from '../components/ScreenContainer';
 import EditorialHeader from '../components/EditorialHeader';
 import BodySilhouette, {
@@ -12,6 +13,7 @@ import BodySilhouette, {
   CORE_FIGURE_BASE_WIDTH,
 } from '../components/BodySilhouette';
 import Card from '../components/Card';
+import { domainUnderstandingTitle } from '../lib/voice';
 
 // Single-line empty-state/tap-hint text plus its own marginTop, and the
 // `model` wrapper's marginVertical on both ends — the fixed cost around the
@@ -32,11 +34,15 @@ export default function CoreScreen({
   onOpenDiscovery,
   strengths,
   discoveries,
+  understandings = [],
+  relationships = [],
 }: {
   onOpenUnderstanding: (domain: Domain) => void;
   onOpenDiscovery: (id: string) => void;
   strengths: Partial<Record<Domain, Strength>>;
   discoveries: DiscoveryRow[];
+  understandings?: UnderstandingRow[];
+  relationships?: RelationshipRow[];
 }) {
   const [tab, setTab] = useState<Tab>('discoveries');
   const understoodDomains = domains.filter((d) => strengths[d]);
@@ -84,29 +90,56 @@ export default function CoreScreen({
   // of an oversized figure before the first layout pass measures it.
   const silhouetteScale = headerHeight > 0 ? Math.min(scaleForHeight, MAX_SCALE) : 1;
 
+  const careRows = eligibleCareUnderstandings(understandings);
+
   return (
     <ScreenContainer>
       <View style={{ minHeight: introMinHeight }}>
         <View onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
-          <EditorialHeader title="Core" subtitle="Ciatta's understanding of you." />
+          <EditorialHeader title="Core" subtitle="Your understanding." />
         </View>
 
         <View style={styles.model}>
           <BodySilhouette
             variant="core"
             labeled
-            marker="dot"
             strengths={strengths}
+            links={relationships.map((r) => ({
+              from: r.from_domain,
+              to: r.to_domain,
+              strength: r.strength,
+            }))}
             onDomainPress={onOpenUnderstanding}
             scale={silhouetteScale}
           />
           <Text style={styles.tapHint}>
             {understoodDomains.length > 0
               ? 'Tap a point to explore your understandings'
-              : "I don't have anything to show here yet."}
+              : 'Nothing to show here yet.'}
           </Text>
         </View>
       </View>
+
+      {careRows.length > 0 ? (
+        <View style={styles.careBlock}>
+          <Text style={styles.careLabel}>CARE CONNECTION</Text>
+          {careRows.map((u) => (
+            <Card key={u.id} onPress={() => onOpenUnderstanding(u.domain)}>
+              <Text style={styles.rowTitle}>
+                {domainUnderstandingTitle(domainLabel[u.domain])}
+              </Text>
+              <Text style={styles.rowSub} numberOfLines={3}>
+                {u.narrative}
+              </Text>
+              {u.care_recommendation_reason ? (
+                <Text style={styles.careReason}>{u.care_recommendation_reason}</Text>
+              ) : u.guidance ? (
+                <Text style={styles.careReason}>{u.guidance}</Text>
+              ) : null}
+            </Card>
+          ))}
+        </View>
+      ) : null}
 
       <View style={styles.tabs}>
         {(
@@ -138,8 +171,8 @@ export default function CoreScreen({
         ) : (
           <Card style={styles.list}>
             <Text style={styles.emptyText}>
-              Nothing here yet. Discoveries appear once I've noticed a pattern
-              strong enough to become part of your story.
+              Nothing here yet. Discoveries appear once a pattern is strong
+              enough to become part of your story.
             </Text>
           </Card>
         ))}
@@ -151,15 +184,15 @@ export default function CoreScreen({
               <Card key={d} style={styles.row}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.rowTitle}>{domainLabel[d]}</Text>
-                  <Text style={styles.rowSub}>Not yet understood.</Text>
+                  <Text style={styles.rowSub}>Not yet part of your picture.</Text>
                 </View>
               </Card>
             ))
           ) : (
             <Card>
               <Text style={styles.emptyText}>
-                Everything I understand so far has a starting point. Nothing
-                left unwritten.
+                Everything with a starting point is here. Nothing left
+                unwritten.
               </Text>
             </Card>
           )}
@@ -176,9 +209,26 @@ const styles = StyleSheet.create({
     marginVertical: 12,
   },
   tapHint: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 12,
     color: colors.ink3,
+    marginTop: 8,
+  },
+  careBlock: {
+    marginTop: 8,
+    gap: 12,
+  },
+  careLabel: {
+    ...fonts.sansMedium,
+    fontSize: 11,
+    letterSpacing: 1.1,
+    color: colors.ink3,
+  },
+  careReason: {
+    ...fonts.sans,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.ink2,
     marginTop: 8,
   },
   tabs: {
@@ -190,7 +240,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   tab: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 14,
     color: colors.ink3,
   },
@@ -207,18 +257,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   rowTitle: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 15,
     color: colors.ink,
   },
   rowSub: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.ink2,
     marginTop: 3,
   },
   emptyText: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 14,
     lineHeight: 21,
     color: colors.ink2,

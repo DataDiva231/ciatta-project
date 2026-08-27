@@ -10,14 +10,15 @@
 //   1. An action, when the understanding is well enough evidenced to support
 //      one and a measured value exists to anchor it. The number in the
 //      sentence is the user's own, never a default.
-//   2. An open question, when it isn't. "Help me learn X" is a real ask
-//      drawn from the engine's own `still_learning` list.
+//   2. An open question, when it isn't. "We're still learning X" is a real
+//      ask drawn from the engine's own `still_learning` list.
 //
 // If neither applies the function returns null and the section does not
 // render, the same way empty sections are dropped elsewhere in the app.
 import type { Domain, Strength } from './types';
 import type { UnderstandingRow } from './queries';
 import { formatSleepMinutes, type RecentSyncSummary } from './observations';
+import { displayCopy } from './displayCopy';
 
 export interface TodayPriority {
   text: string;
@@ -54,7 +55,7 @@ export function derivePriority(
   const measured = measuredPriority(featured, sync);
   if (measured) {
     return {
-      text: measured.text,
+      text: displayCopy(measured.text),
       domain: featured.domain,
       measured: true,
       // Straight off the row the Understanding Engine wrote — not
@@ -63,13 +64,13 @@ export function derivePriority(
       // your sleep") even though the row has Guidance too — "this is
       // worth discussing with a provider" has no business sitting under a
       // sentence telling her she's doing fine.
-      consider: measured.concerning ? featured.guidance ?? undefined : undefined,
+      consider: measured.concerning ? displayCopy(featured.guidance ?? '') || undefined : undefined,
     };
   }
 
   const open = featured.still_learning?.[0];
   if (open) {
-    return { text: `Help me learn ${lowerFirst(open)}.`, domain: featured.domain, measured: false };
+    return { text: displayCopy(`We're still learning ${lowerFirst(open)}.`), domain: featured.domain, measured: false };
   }
 
   return null;
@@ -89,12 +90,12 @@ function measuredPriority(
       if (slept < SLEEP_TARGET_MINUTES) {
         const short = SLEEP_TARGET_MINUTES - slept;
         return {
-          text: `Prioritize eight hours of sleep — you were ${formatSleepMinutes(short)} short last night.`,
+          text: `Prioritize eight hours of sleep. You were ${formatSleepMinutes(short)} short last night.`,
           concerning: true,
         };
       }
       return {
-        text: `Keep protecting your sleep — you got ${formatSleepMinutes(slept)} last night.`,
+        text: `Keep protecting your sleep. You got ${formatSleepMinutes(slept)} last night.`,
         concerning: false,
       };
     }

@@ -5,6 +5,8 @@ import {
   analyzeHrvRatingRelationship,
   buildHrvRatingDiscovery,
   filterToConsistentMetric,
+  latestDayIsLowVsPersonalBaseline,
+  LOW_HRV_RATIO,
   type HrvObservation,
 } from './hrvAnalysis.ts';
 import type { EnergyObservation } from './energyRelationship.ts';
@@ -210,4 +212,66 @@ Deno.test('hrvAnalysis: low-HRV days happen but rating is uncorrelated -> no dis
   const relResult = analyzeHrvRatingRelationship(hrv, rating);
   assertEquals(relResult.eligible, false);
   assertEquals(buildHrvRatingDiscovery(relResult, 'energy'), null);
+});
+
+Deno.test('latestDayIsLowVsPersonalBaseline: uses the same 14-day personal median and 30% band as analyzeHrv — not a pairwise sample delta', () => {
+  nextId = 1;
+  const start = new Date('2025-06-01T12:00:00Z');
+  const hrv: HrvObservation[] = [];
+  for (let i = 0; i < 14; i++) {
+    hrv.push({
+      id: id(),
+      recordedAt: addDays(start, i).toISOString(),
+      ms: 50,
+    });
+  }
+  assertEquals(latestDayIsLowVsPersonalBaseline(hrv), false);
+
+  hrv.push({
+    id: id(),
+    recordedAt: addDays(start, 14).toISOString(),
+    ms: 50 * LOW_HRV_RATIO - 1,
+  });
+  assertEquals(latestDayIsLowVsPersonalBaseline(hrv), true);
+});
+
+Deno.test('latestDayIsLowVsPersonalBaseline: a 10% sample-to-sample dip is not a real swing against the personal baseline', () => {
+  nextId = 1;
+  const start = new Date('2025-06-01T12:00:00Z');
+  const hrv: HrvObservation[] = [];
+  for (let i = 0; i < 14; i++) {
+    hrv.push({ id: id(), recordedAt: addDays(start, i).toISOString(), ms: 50 });
+  }
+  hrv.push({ id: id(), recordedAt: addDays(start, 14).toISOString(), ms: 45 });
+  assertEquals(latestDayIsLowVsPersonalBaseline(hrv), false);
+});
+
+Deno.test('latestDayIsLowVsPersonalBaseline: cold start (under 14 days) cannot declare a swing, even if the last reading is very low', () => {
+  nextId = 1;
+  const start = new Date('2025-06-01T12:00:00Z');
+  const hrv: HrvObservation[] = [];
+  for (let i = 0; i < 12; i++) {
+    hrv.push({ id: id(), recordedAt: addDays(start, i).toISOString(), ms: 50 });
+  }
+  hrv.push({ id: id(), recordedAt: addDays(start, 12).toISOString(), ms: 20 });
+  assertEquals(latestDayIsLowVsPersonalBaseline(hrv), false);
+});
+
+Deno.test('latestDayIsLowVsPersonalBaseline: sustained means the day average, so one noisy sample on an otherwise normal day is not a swing', () => {
+  nextId = 1;
+  const start = new Date('2025-06-01T12:00:00Z');
+  const hrv: HrvObservation[] = [];
+  for (let i = 0; i < 14; i++) {
+    hrv.push({ id: id(), recordedAt: addDays(start, i).toISOString(), ms: 50 });
+  }
+  const lastDay = addDays(start, 14);
+  hrv.push({ id: id(), recordedAt: lastDay.toISOString(), ms: 50 });
+  hrv.push({
+    id: id(),
+    recordedAt: new Date(lastDay.getTime() + 60 * 60 * 1000).toISOString(),
+    ms: 20,
+  });
+  // Day average (50+20)/2 = 35, which is exactly at the 30% band (35 === 50*0.7).
+  // Low days are strictly below the band, same as analyzeHrv.
+  assertEquals(latestDayIsLowVsPersonalBaseline(hrv), false);
 });

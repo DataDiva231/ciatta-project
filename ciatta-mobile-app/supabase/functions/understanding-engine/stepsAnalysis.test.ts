@@ -165,7 +165,7 @@ Deno.test('stepsAnalysis: real low-activity -> low-rating pattern is confirmed',
   const discovery = buildStepsRatingDiscovery(relResult, 'energy');
   assertEquals(relResult.eligible, true);
   assert(discovery !== null);
-  assert(discovery!.narrative.includes('low-activity day'));
+  assert(discovery!.narrative.includes('low activity day'));
 });
 
 Deno.test('stepsAnalysis: low-activity days happen but rating is uncorrelated -> no discovery', () => {

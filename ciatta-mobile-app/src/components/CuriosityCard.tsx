@@ -1,6 +1,8 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, fonts, radii } from '../theme/tokens';
+import { StyleSheet, Text } from 'react-native';
+import { colors, glass, type } from '../theme/tokens';
+import GlassSurface, { GlassGroup } from './GlassSurface';
+import GlassChip from './GlassChip';
 
 export default function CuriosityCard({
   question,
@@ -16,8 +18,15 @@ export default function CuriosityCard({
   variant?: 'dark' | 'light';
 }) {
   const dark = variant === 'dark';
+
   return (
-    <View style={[styles.card, dark ? styles.dark : styles.light]}>
+    <GlassSurface
+      kind="regular"
+      tintColor={dark ? colors.dark : glass.tint}
+      colorScheme={dark ? 'dark' : 'auto'}
+      style={[styles.card, dark && styles.cardDark]}
+      fallbackStyle={[styles.fallback, dark && styles.fallbackDark]}
+    >
       <Text style={[styles.eyebrow, dark && styles.eyebrowDark]}>
         ONE QUESTION FOR YOU
       </Text>
@@ -25,62 +34,51 @@ export default function CuriosityCard({
       {purpose ? (
         <Text style={[styles.purpose, dark && styles.purposeDark]}>{purpose}</Text>
       ) : null}
-      <View style={styles.options}>
+      <GlassGroup spacing={8} style={styles.options}>
         {options.map((opt) => (
-          <Pressable
-            key={opt}
-            onPress={() => onAnswer?.(opt)}
-            style={({ pressed }) => [
-              styles.option,
-              dark ? styles.optionDark : styles.optionLight,
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Text style={[styles.optionText, dark && styles.optionTextDark]}>
-              {opt}
-            </Text>
-          </Pressable>
+          <GlassChip key={opt} label={opt} onPress={() => onAnswer?.(opt)} />
         ))}
-      </View>
-    </View>
+      </GlassGroup>
+    </GlassSurface>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: radii.md,
-    padding: 20,
+    borderRadius: glass.radiusCard,
+    padding: 16,
   },
-  dark: {
-    backgroundColor: colors.dark,
+  cardDark: {
+    backgroundColor: 'transparent',
   },
-  light: {
+  fallback: {
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: glass.border,
+    borderRadius: glass.radiusCard,
+  },
+  fallbackDark: {
+    backgroundColor: colors.dark,
+    borderColor: 'rgba(255,255,255,0.18)',
   },
   eyebrow: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 11,
+    ...type.label,
     letterSpacing: 1,
-    color: colors.accent,
+    color: colors.ink3,
     marginBottom: 10,
   },
   eyebrowDark: {
-    color: colors.accent,
+    color: 'rgba(255,255,255,0.55)',
   },
   question: {
-    fontFamily: fonts.serif,
-    fontSize: 21,
-    lineHeight: 27,
+    ...type.title2,
     color: colors.ink,
   },
   questionDark: {
     color: colors.white,
   },
   purpose: {
-    fontFamily: fonts.sans,
-    fontSize: 13,
+    ...type.footnote,
     color: colors.ink2,
     marginTop: 8,
   },
@@ -92,28 +90,5 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     marginTop: 18,
-  },
-  option: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: radii.pill,
-  },
-  optionLight: {
-    backgroundColor: colors.canvas,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  optionDark: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-  },
-  optionText: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 14,
-    color: colors.ink,
-  },
-  optionTextDark: {
-    color: colors.white,
   },
 });

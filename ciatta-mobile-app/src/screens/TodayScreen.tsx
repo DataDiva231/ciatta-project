@@ -1,17 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, fonts } from '../theme/tokens';
+import { colors, fonts, glass, type } from '../theme/tokens';
+import GlassSurface from '../components/GlassSurface';
 import type { ActiveCuriosity } from '../lib/curiosity';
-import type { UnderstandingRow } from '../lib/queries';
+import type { RelationshipRow, UnderstandingRow } from '../lib/queries';
 import type { Domain } from '../lib/types';
 import { domainLabel } from '../lib/mockData';
 import { formatSleepMinutes, type RecentSyncSummary } from '../lib/observations';
 import { derivePriority } from '../lib/priority';
+import { domainUnderstandingTitle } from '../lib/voice';
+import { displayCopy } from '../lib/displayCopy';
+import { selectCareNotice } from '../lib/careConnection';
 import ScreenContainer from '../components/ScreenContainer';
 import BodySilhouette from '../components/BodySilhouette';
 import CuriosityCard from '../components/CuriosityCard';
 import Card from '../components/Card';
+import TamponWearCard from '../components/TamponWearCard';
 import { ArrowRightIcon, InfoIcon } from '../components/icons';
+import {
+  confirmTamponInserted,
+  confirmTamponRemoved,
+  loadTamponWearUnderstanding,
+} from '../lib/tamponWearData';
+import { clearTamponWearNotifications, syncTamponWearNotifications } from '../lib/tamponWearNotify';
+import type { TamponAbsorbency, TamponWearUnderstanding } from '../lib/tamponWear';
 
 const THANKS_VISIBLE_MS = 3000;
 
@@ -47,10 +59,11 @@ function syncSummaryLine(summary: RecentSyncSummary): string {
     parts.push(`${Math.round(summary.reflection.restingHeartRateBpm)} bpm resting`);
   }
   const prefix = `Synced ${formatSyncedAgo(summary.syncedAt)}`;
-  return parts.length > 0 ? `${prefix} — ${parts.join(' · ')}` : prefix;
+  return displayCopy(parts.length > 0 ? `${prefix}: ${parts.join(' · ')}` : prefix);
 }
 
 export default function TodayScreen({
+  userId,
   onOpenDiscoveryNudge,
   onOpenUnderstanding,
   onOpenInfo,
@@ -58,9 +71,11 @@ export default function TodayScreen({
   onAnswerCuriosity,
   hasPendingDiscovery,
   understandings,
+  relationships = [],
   preferredName,
   recentSyncSummary,
 }: {
+  userId?: string | null;
   onOpenDiscoveryNudge: () => void;
   onOpenUnderstanding: (domain: Domain) => void;
   onOpenInfo: () => void;
@@ -68,11 +83,16 @@ export default function TodayScreen({
   onAnswerCuriosity: (answer: string) => Promise<void>;
   hasPendingDiscovery: boolean;
   understandings: UnderstandingRow[];
+  relationships?: RelationshipRow[];
   preferredName: string;
   recentSyncSummary: RecentSyncSummary | null;
 }) {
   const [answered, setAnswered] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [tamponWear, setTamponWear] = useState<TamponWearUnderstanding | null>(null);
+  const [tamponBleeding, setTamponBleeding] = useState(false);
+  const [tamponBusy, setTamponBusy] = useState(false);
+  const [tamponTick, setTamponTick] = useState(0);
 
   // The thank-you is an acknowledgement, not a resting state — let it sit
   // long enough to read, then clear so the section collapses away rather
@@ -83,15 +103,44 @@ export default function TodayScreen({
     return () => clearTimeout(t);
   }, [answered]);
 
+  useEffect(() => {
+    const t = setInterval(() => setTamponTick((n) => n + 1), 30000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    let alive = true;
+    loadTamponWearUnderstanding(userId)
+      .then(async ({ understanding, bleedingNow }) => {
+        if (!alive) return;
+        setTamponWear(understanding);
+        setTamponBleeding(bleedingNow);
+        const active =
+          understanding.activeTimerState !== 'insufficient' &&
+          understanding.activeTimerState !== 'idle';
+        if (active) await syncTamponWearNotifications(understanding);
+        else await clearTamponWearNotifications();
+      })
+      .catch(() => {
+        if (alive) setTamponWear(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [userId, tamponTick]);
+
   // Computed per render, not at module load: the app survives midnight in the
   // background, and a header reading yesterday's date is a small betrayal on
   // a screen whose whole claim is that it is up to date.
   const now = new Date();
-  const dateLabel = now.toLocaleDateString(undefined, {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  });
+  const dateLabel = displayCopy(
+    now.toLocaleDateString(undefined, {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+    })
+  );
 
   // The most recently updated Understanding is "today's" — whatever the
   // engine last touched is the freshest thing to feature.
@@ -102,7 +151,38 @@ export default function TodayScreen({
         )[0]
       : null;
 
+  const strengths = Object.fromEntries(
+    understandings.map((u) => [u.domain, u.strength])
+  ) as Partial<Record<Domain, (typeof understandings)[number]['strength']>>;
+
   const priority = derivePriority(featured, recentSyncSummary);
+  const tamponActive =
+    tamponWear != null &&
+    tamponWear.activeTimerState !== 'insufficient' &&
+    tamponWear.activeTimerState !== 'idle';
+  const showTampon = tamponWear != null && (tamponActive || tamponBleeding);
+
+  async function handleTamponInserted(absorbency: TamponAbsorbency) {
+    if (!userId) return;
+    setTamponBusy(true);
+    try {
+      await confirmTamponInserted(userId, absorbency);
+      setTamponTick((n) => n + 1);
+    } finally {
+      setTamponBusy(false);
+    }
+  }
+
+  async function handleTamponRemoved() {
+    if (!userId) return;
+    setTamponBusy(true);
+    try {
+      await confirmTamponRemoved(userId);
+      setTamponTick((n) => n + 1);
+    } finally {
+      setTamponBusy(false);
+    }
+  }
 
   async function handleAnswer(answer: string) {
     setSubmitError(null);
@@ -111,7 +191,7 @@ export default function TodayScreen({
       setAnswered(true);
     } catch (e) {
       setSubmitError(
-        e instanceof Error ? e.message : "That didn't save — try again."
+        e instanceof Error ? e.message : "That didn't save. Try again."
       );
     }
   }
@@ -144,9 +224,16 @@ export default function TodayScreen({
           accessibilityLabel="About the Today screen"
           onPress={onOpenInfo}
           hitSlop={10}
-          style={({ pressed }) => [styles.infoButton, pressed && styles.pressedSoft]}
         >
-          <InfoIcon size={18} color={colors.ink2} />
+          <GlassSurface
+            kind="clear"
+            interactive
+            tintColor={glass.tint}
+            style={styles.infoButton}
+            fallbackStyle={styles.infoFallback}
+          >
+            <InfoIcon size={18} color={colors.ink2} />
+          </GlassSurface>
         </Pressable>
       </View>
 
@@ -155,54 +242,94 @@ export default function TodayScreen({
           variant="today"
           crop={0.78}
           scale={1.48}
-          marker="sun"
           activeDomain={featured?.domain}
+          strengths={strengths}
+          links={relationships.map((r) => ({
+            from: r.from_domain,
+            to: r.to_domain,
+            strength: r.strength,
+          }))}
           onDomainPress={featured ? onOpenUnderstanding : undefined}
         />
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.label}>TODAY'S UNDERSTANDING</Text>
-        {featured ? (
-          <>
-            <Text style={styles.headline}>
-              What I'm noticing about your {domainLabel[featured.domain].toLowerCase()}.
-            </Text>
-            <Text style={styles.body}>{featured.narrative}</Text>
-          </>
-        ) : (
-          <>
-            <Text style={styles.headline}>I'm just getting to know you.</Text>
-            <Text style={styles.body}>
-              I haven't observed enough yet to notice a pattern. As you share
-              more and connect your data, I'll start sharing what I understand
-              here.
-            </Text>
-          </>
-        )}
-      </View>
+      {featured ? (
+        <View style={styles.section}>
+          <Text style={styles.label}>TODAY'S UNDERSTANDING</Text>
+          <Text style={styles.headline}>
+            {domainUnderstandingTitle(domainLabel[featured.domain])}.
+          </Text>
+          <Text style={styles.body}>{featured.narrative}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Why this holds"
+            onPress={() => onOpenUnderstanding(featured.domain)}
+            style={({ pressed }) => [styles.whyRow, pressed && styles.pressedSoft]}
+          >
+            <Text style={styles.whyLabel}>Why</Text>
+            <ArrowRightIcon size={16} color={colors.accent} />
+          </Pressable>
+        </View>
+      ) : (
+        <View style={styles.section}>
+          <Text style={styles.label}>TODAY'S UNDERSTANDING</Text>
+          <Text style={styles.headline}>Your understanding is still taking shape.</Text>
+          <Text style={styles.body}>
+            There isn't enough evidence yet to notice a pattern. As you share
+            more and connect your data, what you've learned will appear here.
+          </Text>
+        </View>
+      )}
 
       {priority ? (
         <>
           <View style={styles.divider} />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Today's priority: ${priority.text}`}
-            onPress={() => onOpenUnderstanding(priority.domain)}
-            style={({ pressed }) => [styles.priorityRow, pressed && styles.pressedSoft]}
-          >
-            <View style={styles.priorityText}>
-              <Text style={styles.label}>TODAY'S PRIORITY</Text>
-              <Text style={styles.priorityHeadline}>{priority.text}</Text>
-              {priority.consider ? (
-                <Text style={styles.considerText}>{priority.consider}</Text>
-              ) : null}
-            </View>
-            <View style={styles.arrowButton}>
-              <ArrowRightIcon size={18} color={colors.accent} />
-            </View>
-          </Pressable>
+          <View>
+            <Text style={styles.label}>TODAY'S PRIORITY</Text>
+            <Text
+              style={[
+                styles.priorityHeadline,
+                !priority.measured && styles.priorityOpen,
+              ]}
+            >
+              {priority.text}
+            </Text>
+            {priority.consider ? (
+              <Text style={styles.considerText}>{priority.consider}</Text>
+            ) : null}
+          </View>
         </>
+      ) : null}
+
+      {careNotice ? (
+        <>
+          <View style={styles.divider} />
+          <View>
+            <Text style={styles.label}>SOMETHING WORTH DISCUSSING</Text>
+            <Text style={styles.body}>{careNotice.noticed}</Text>
+            <Text style={styles.considerText}>{careNotice.reason}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Prepare for a provider conversation"
+              onPress={() => onOpenUnderstanding(careNotice.domain)}
+              style={({ pressed }) => [styles.careCta, pressed && styles.pressedSoft]}
+            >
+              <Text style={styles.careCtaText}>Prepare for a provider conversation</Text>
+            </Pressable>
+          </View>
+        </>
+      ) : null}
+
+      {showTampon && tamponWear ? (
+        <View style={styles.block}>
+          <TamponWearCard
+            understanding={tamponWear}
+            bleedingNow={tamponBleeding}
+            busy={tamponBusy}
+            onConfirmInserted={handleTamponInserted}
+            onConfirmRemoved={handleTamponRemoved}
+          />
+        </View>
       ) : null}
 
       {answered || activeCuriosity ? (
@@ -210,7 +337,7 @@ export default function TodayScreen({
           {answered ? (
             <Card>
               <Text style={styles.thanks}>
-                Thank you. Every observation helps me understand you better.
+                Thank you. This is becoming part of your understanding.
               </Text>
             </Card>
           ) : activeCuriosity ? (
@@ -231,7 +358,7 @@ export default function TodayScreen({
         <Card onPress={onOpenDiscoveryNudge} style={styles.nudgeFooter}>
           <Text style={styles.nudgeEyebrow}>NEW DISCOVERY</Text>
           <Text style={styles.nudgeText}>
-            I've found something worth sharing about your story.
+            Something new is becoming part of your story.
           </Text>
         </Card>
       ) : null}
@@ -255,20 +382,20 @@ const styles = StyleSheet.create({
     tintColor: colors.ink,
   },
   greeting: {
-    fontFamily: fonts.serif,
+    ...fonts.serif,
     fontSize: 15,
     lineHeight: 21,
     color: colors.ink,
     marginTop: 8,
   },
   date: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.ink3,
     marginTop: 6,
   },
   syncLine: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 12.5,
     color: colors.ink3,
     marginTop: 4,
@@ -277,11 +404,15 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    borderWidth: 1,
-    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 6,
+    overflow: 'hidden',
+  },
+  infoFallback: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   pressedSoft: {
     opacity: 0.6,
@@ -300,89 +431,90 @@ const styles = StyleSheet.create({
     marginVertical: 24,
   },
   label: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 11,
     letterSpacing: 1.1,
     color: colors.ink3,
     marginBottom: 10,
   },
   headline: {
-    fontFamily: fonts.serif,
-    fontSize: 26,
-    lineHeight: 33,
+    ...type.title2,
     color: colors.ink,
     marginBottom: 12,
   },
   body: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 14.5,
     lineHeight: 22,
     color: colors.ink2,
   },
-  priorityRow: {
+  whyRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginTop: 12,
   },
-  priorityText: {
-    flex: 1,
+  whyLabel: {
+    ...fonts.sansMedium,
+    fontSize: 14,
+    color: colors.accent,
   },
   priorityHeadline: {
-    fontFamily: fonts.serif,
-    fontSize: 26,
-    lineHeight: 33,
+    ...type.title2,
     color: colors.ink,
   },
+  // Open questions sit at body size so they don't shout louder than the
+  // understanding above; Halbfett still marks them as the action to take.
+  priorityOpen: {
+    ...fonts.sansSemiBold,
+    fontSize: 14.5,
+    lineHeight: 22,
+  },
   considerText: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     lineHeight: 19,
     color: colors.ink3,
     marginTop: 8,
   },
-  arrowButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
+  careCta: {
+    marginTop: 14,
+    alignSelf: 'flex-start',
+  },
+  careCtaText: {
+    ...fonts.sansMedium,
+    fontSize: 14,
+    color: colors.accent,
   },
   block: {
     marginTop: 28,
   },
   thanks: {
-    fontFamily: fonts.serif,
+    ...fonts.serif,
     fontSize: 17,
     lineHeight: 23,
     color: colors.ink,
   },
   submitError: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.accent,
     marginTop: 10,
   },
   nudgeFooter: {
-    backgroundColor: colors.accentSoft,
-    borderWidth: 1,
-    borderColor: colors.accent,
     marginTop: 28,
     marginBottom: 12,
   },
   nudgeEyebrow: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 11,
     letterSpacing: 1,
-    color: colors.accent,
+    color: colors.ink3,
     marginBottom: 6,
   },
   nudgeText: {
-    fontFamily: fonts.serif,
-    fontSize: 18,
+    ...type.headline,
     color: colors.ink,
-    lineHeight: 24,
   },
 });
