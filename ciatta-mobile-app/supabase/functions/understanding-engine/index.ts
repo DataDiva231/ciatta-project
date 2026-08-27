@@ -1,9 +1,18 @@
 // Understanding Engine — computes real Understandings from Observations.
 // Runs server-side only, using the service_role key (bypasses RLS by
 // design — see the comment at the top of the init migration). Never called
-// from the mobile client; invoked nightly by pg_cron (see the
-// schedule_understanding_engine migration) or manually for a single user
-// via `supabase functions invoke understanding-engine --body '{"user_id":"..."}'`.
+// from the mobile client.
+//
+// Invoked as a hybrid:
+//   - nightly (default, body `{}`) by pg_cron — full reconciliation, decay,
+//     cross-domain synthesis, then a lightweight morning-state bump
+//   - continuous (`{"mode":"continuous"}`) — only the processors implied by
+//     newly arrived observations, after debounce/batching
+//   - morning (`{"mode":"morning"}`) — sleep processor + morning-state only
+//   - or for a single user via `{"user_id":"..."}`
+//
+// Cadence and processor selection live in continuousIntelligence.ts; this
+// file still owns every write. Processors and schemas are unchanged.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
   detectCycles,
@@ -40,6 +49,7 @@ import {
   buildHrvUnderstanding,
   analyzeHrvRatingRelationship,
   buildHrvRatingDiscovery,
+  latestDayIsLowVsPersonalBaseline,
   type HrvObservation,
 } from './hrvAnalysis.ts';
 import { analyzeMood, buildMoodUnderstanding } from './moodAnalysis.ts';
@@ -51,6 +61,17 @@ import {
   selectNewProviderFeedbackDrafts,
   type ProviderFeedbackObservation,
 } from './providerFeedbackEvidence.ts';
+import {
+  isMeaningfulChange,
+  isRedundantUnderstandingWrite,
+  planForMode,
+  processorsForObservationTypes,
+  runFingerprint,
+  decideContinuousDrain,
+  retryNotBeforeMs,
+  type ProcessorName,
+} from './continuousIntelligence.ts';
+import { selectMorningDomain, type MorningWrite } from './morningState.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -283,8 +304,40 @@ async function upsertUnderstanding(
   confidence: number,
   firstObserved: string | null,
   historyLabel: { first: string; changed: string },
-  evidenceType: 'health_data' | 'user_reported'
+  evidenceType: 'health_data' | 'user_reported',
+  skipIfUnchanged = false
 ): Promise<string> {
+  const { data: existing, error: fetchError } = await supabase
+    .from('understandings')
+    .select('id, strength, learning_since, narrative, confidence_label, observations_count, still_learning')
+    .eq('user_id', userId)
+    .eq('domain', domain)
+    .maybeSingle();
+  if (fetchError) throw fetchError;
+
+  if (
+    skipIfUnchanged &&
+    existing &&
+    isRedundantUnderstandingWrite(
+      {
+        strength: existing.strength as string,
+        narrative: (existing.narrative as string) ?? '',
+        confidenceLabel: (existing.confidence_label as string) ?? '',
+        observationsCount: (existing.observations_count as number) ?? 0,
+        stillLearning: (existing.still_learning as string[]) ?? [],
+      },
+      {
+        strength: draft.strength,
+        narrative: draft.narrative,
+        confidenceLabel: draft.confidenceLabel,
+        observationsCount: observationIds.length,
+        stillLearning: draft.stillLearning ?? [],
+      }
+    )
+  ) {
+    return existing.id as string;
+  }
+
   const { error: evidenceError } = await supabase.from('evidence').insert({
     user_id: userId,
     domain,
@@ -293,14 +346,6 @@ async function upsertUnderstanding(
     confidence,
   });
   if (evidenceError) throw evidenceError;
-
-  const { data: existing, error: fetchError } = await supabase
-    .from('understandings')
-    .select('id, strength, learning_since')
-    .eq('user_id', userId)
-    .eq('domain', domain)
-    .maybeSingle();
-  if (fetchError) throw fetchError;
 
   // The strongest Relationship this domain already has in the model, if
   // any — read before Guidance is derived so Guidance can name a real,
@@ -444,7 +489,8 @@ async function upsertRelationshipAndDiscovery(
 async function processCycleDomain(
   supabase: ReturnType<typeof createClient>,
   userId: string,
-  obs: LoadedObservations
+  obs: LoadedObservations,
+  skipIfUnchanged = false
 ) {
   const cycles = detectCycles(obs.flow);
   const result = analyzeCycles(cycles, obs.rhr);
@@ -461,10 +507,11 @@ async function processCycleDomain(
     result.confidence,
     result.firstCycleStart ? result.firstCycleStart.toISOString().slice(0, 10) : null,
     {
-      first: 'Noticed a possible heart-rate pattern tied to your cycle.',
+      first: 'A possible heart rate pattern tied to your cycle started to show.',
       changed: `This pattern has held for ${result.cyclesWithSufficientData} cycles now.`,
     },
-    'health_data'
+    'health_data',
+    skipIfUnchanged
   );
 
   // Same rationale as the sleep domain: energy and mood are collected
@@ -511,7 +558,8 @@ async function processCycleDomain(
 async function processSleepDomain(
   supabase: ReturnType<typeof createClient>,
   userId: string,
-  obs: LoadedObservations
+  obs: LoadedObservations,
+  skipIfUnchanged = false
 ) {
   const result = analyzeSleep(obs.sleep);
   const draft = buildSleepUnderstanding(result);
@@ -532,10 +580,11 @@ async function processSleepDomain(
     result.confidence,
     firstNight ? firstNight.slice(0, 10) : null,
     {
-      first: 'Noticed a pattern in how much you sleep.',
+      first: 'A pattern in how much you sleep started to show.',
       changed: `This pattern has held across ${result.totalNights} nights now.`,
     },
-    'health_data'
+    'health_data',
+    skipIfUnchanged
   );
 
   // Energy and mood are collected identically (same 1-4 curiosity scale),
@@ -589,7 +638,8 @@ async function processSleepDomain(
 async function processRecoveryDomain(
   supabase: ReturnType<typeof createClient>,
   userId: string,
-  obs: LoadedObservations
+  obs: LoadedObservations,
+  skipIfUnchanged = false
 ) {
   const hrvResult = analyzeHrv(obs.hrv);
   const hrvDraft = buildHrvUnderstanding(hrvResult);
@@ -627,11 +677,12 @@ async function processRecoveryDomain(
     firstDay ? firstDay.slice(0, 10) : null,
     {
       first: usingHrv
-        ? 'Noticed a pattern in your heart rate variability.'
-        : 'Noticed a pattern in how much you move day to day.',
+        ? 'A pattern in your heart rate variability started to show.'
+        : 'A pattern in how much you move day to day started to show.',
       changed: `This pattern has held across ${weight} days now.`,
     },
-    'health_data'
+    'health_data',
+    skipIfUnchanged
   );
 
   // Same rationale as cycle and sleep: energy and mood are collected
@@ -686,7 +737,8 @@ async function processRecoveryDomain(
 async function processMoodDomain(
   supabase: ReturnType<typeof createClient>,
   userId: string,
-  obs: LoadedObservations
+  obs: LoadedObservations,
+  skipIfUnchanged = false
 ) {
   const result = analyzeMood(obs.mood);
   const draft = buildMoodUnderstanding(result);
@@ -707,10 +759,11 @@ async function processMoodDomain(
     result.confidence,
     firstAnswer ? firstAnswer.slice(0, 10) : null,
     {
-      first: 'Noticed a pattern in how you report your mood.',
-      changed: `This pattern has held across ${result.totalAnswers} check-ins now.`,
+      first: 'A pattern in how you report your mood started to show.',
+      changed: `This pattern has held across ${result.totalAnswers} check ins now.`,
     },
-    'health_data'
+    'health_data',
+    skipIfUnchanged
   );
 
   return { wrote: true, strength: draft.strength, confidence: result.confidence };
@@ -733,7 +786,8 @@ async function processMoodDomain(
 async function processContextualDomain(
   supabase: ReturnType<typeof createClient>,
   userId: string,
-  obs: LoadedObservations
+  obs: LoadedObservations,
+  skipIfUnchanged = false
 ) {
   if (!obs.concern) return { wrote: false, reason: 'no-data' };
 
@@ -784,7 +838,8 @@ async function processContextualDomain(
       first: 'Noted what you shared about this during onboarding.',
       changed: 'Updated based on what you shared during onboarding.',
     },
-    'user_reported'
+    'user_reported',
+    skipIfUnchanged
   );
 
   return { wrote: true, domain, strength: draft.strength };
@@ -1041,7 +1096,7 @@ async function decayStaleUnderstandings(
       understanding_id: u.id,
       user_id: userId,
       event_date: new Date().toISOString().slice(0, 10),
-      label: "I haven't seen enough recently to stay as confident about this.",
+      label: "There hasn't been enough recent evidence to stay as confident about this.",
     });
     if (historyError) throw historyError;
 
@@ -1050,46 +1105,316 @@ async function decayStaleUnderstandings(
   return decayed;
 }
 
-async function processUser(supabase: ReturnType<typeof createClient>, userId: string) {
+const skipped = { wrote: false as const, reason: 'not-in-plan' };
+
+async function applyMorningState(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  writes: MorningWrite[]
+) {
+  const domain = selectMorningDomain(writes);
+  if (!domain) return { featured: null as string | null };
+  const { error } = await supabase
+    .from('understandings')
+    .update({ last_updated: new Date().toISOString() })
+    .eq('user_id', userId)
+    .eq('domain', domain);
+  if (error) throw error;
+  return { featured: domain };
+}
+
+function discoveryMinted(result: {
+  energy?: { discoveryWritten?: boolean };
+  mood?: { discoveryWritten?: boolean };
+}): boolean {
+  return !!(result.energy?.discoveryWritten || result.mood?.discoveryWritten);
+}
+
+async function announceDiscoveries(userId: string) {
+  await fetch(`${supabaseUrl}/functions/v1/notify-discoveries`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${serviceRoleKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ user_id: userId }),
+  });
+}
+
+async function processUser(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  plan: RunPlan = planForMode('nightly'),
+  skipIfUnchanged = false
+) {
+  const want = new Set<ProcessorName>(plan.processors);
   const obs = await loadObservations(supabase, userId);
   const [cycle, sleep, recovery, mood] = await Promise.all([
-    processCycleDomain(supabase, userId, obs),
-    processSleepDomain(supabase, userId, obs),
-    processRecoveryDomain(supabase, userId, obs),
-    processMoodDomain(supabase, userId, obs),
+    want.has('cycle') ? processCycleDomain(supabase, userId, obs, skipIfUnchanged) : skipped,
+    want.has('sleep') ? processSleepDomain(supabase, userId, obs, skipIfUnchanged) : skipped,
+    want.has('recovery') ? processRecoveryDomain(supabase, userId, obs, skipIfUnchanged) : skipped,
+    want.has('mood') ? processMoodDomain(supabase, userId, obs, skipIfUnchanged) : skipped,
   ]);
 
   // Runs after, not alongside, the four physiological processors above —
   // its "don't overwrite a real physiological Understanding" guard reads
   // current DB state, which needs to reflect whatever this run's own
   // physiological writes just did.
-  const contextual = await processContextualDomain(supabase, userId, obs);
+  const contextual = want.has('contextual')
+    ? await processContextualDomain(supabase, userId, obs, skipIfUnchanged)
+    : skipped;
 
-  // Runs after the four physiological processors AND processContextualDomain
-  // — it reads `understandings` and `relationships` fresh off whatever this
-  // run itself just wrote (including the relationship rows the four
-  // processors above write as part of their own Promise.all), never raw
-  // Observations or Evidence directly. See crossDomainSynthesis.ts for the
-  // actual eligibility rule.
-  const crossDomain = await processCrossDomainSynthesis(supabase, userId);
+  // Nightly only: deeper cross-domain synthesis. Continuous runs skip this
+  // so a single HR sample cannot fire the entire engine.
+  const crossDomain = plan.runCrossDomain
+    ? await processCrossDomainSynthesis(supabase, userId)
+    : [];
 
   // Independent of cross-domain synthesis — order between the two doesn't
   // matter, since neither reads the other's output — but both need this
   // run's own `understandings` state, so both run after the physiological
   // processors and processContextualDomain() above.
-  const providerFeedback = await processProviderFeedbackEvidence(supabase, userId, obs);
+  const providerFeedback = want.has('provider_feedback')
+    ? await processProviderFeedbackEvidence(supabase, userId, obs)
+    : { wrote: 0 };
 
   const refreshed = [
     cycle?.wrote ? 'cycle' : null,
     sleep?.wrote ? 'sleep' : null,
     recovery?.wrote ? 'recovery' : null,
     mood?.wrote ? 'mood' : null,
-    contextual?.wrote ? contextual.domain : null,
+    contextual && 'domain' in contextual && contextual.wrote ? contextual.domain : null,
   ].filter((d): d is string => d !== null);
 
-  const decayed = await decayStaleUnderstandings(supabase, userId, refreshed);
+  const decayed = plan.runDecay
+    ? await decayStaleUnderstandings(supabase, userId, refreshed)
+    : [];
 
-  return { userId, cycle, sleep, recovery, mood, contextual, crossDomain, providerFeedback, decayed };
+  const morningWrites: MorningWrite[] = [
+    { domain: 'cycle', wroteThisRun: !!cycle?.wrote },
+    { domain: 'sleep', wroteThisRun: !!sleep?.wrote },
+    { domain: 'recovery', wroteThisRun: !!recovery?.wrote },
+    { domain: 'mood', wroteThisRun: !!mood?.wrote },
+    {
+      domain:
+        contextual && 'domain' in contextual && typeof contextual.domain === 'string'
+          ? contextual.domain
+          : 'contextual',
+      wroteThisRun: !!contextual?.wrote,
+    },
+  ];
+  const morning = plan.runMorningState
+    ? await applyMorningState(supabase, userId, morningWrites)
+    : { featured: null };
+
+  const minted =
+    discoveryMinted(cycle) || discoveryMinted(sleep) || discoveryMinted(recovery);
+  if (minted) {
+    try {
+      await announceDiscoveries(userId);
+    } catch {
+      // Nightly notify-discoveries cron is the fallback; a failed
+      // same-run announce must not fail intelligence writes.
+    }
+  }
+
+  return {
+    userId,
+    cycle,
+    sleep,
+    recovery,
+    mood,
+    contextual,
+    crossDomain,
+    providerFeedback,
+    decayed,
+    morning,
+  };
+}
+
+interface IntelligenceWorkRow {
+  user_id: string;
+  processors: string[];
+  observation_types: string[];
+  latest_observation_id: string | null;
+  not_before: string;
+  last_run_at: string | null;
+  last_fingerprint: string | null;
+  force_run: boolean;
+}
+
+function numericFromValue(type: string, value: Record<string, unknown> | null): number | null {
+  if (!value) return null;
+  if (type === 'hrv' && typeof value.ms === 'number') return value.ms;
+  if ((type === 'heart_rate' || type === 'resting_heart_rate') && typeof value.bpm === 'number') {
+    return value.bpm;
+  }
+  if (type === 'steps' && typeof value.count === 'number') return value.count;
+  if (type === 'body_temperature' || type === 'wrist_temperature' || type === 'temperature') {
+    if (typeof value.celsius === 'number') return value.celsius;
+    if (typeof value.fahrenheit === 'number') return value.fahrenheit;
+  }
+  return null;
+}
+
+async function meaningfulChangeForTypes(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  types: string[]
+): Promise<boolean> {
+  for (const type of types) {
+    if (type === 'hrv') {
+      const { data, error } = await supabase
+        .from('observations')
+        .select('id, recorded_at, value, context')
+        .eq('user_id', userId)
+        .eq('type', 'hrv')
+        .order('recorded_at', { ascending: true });
+      if (error) throw error;
+      const hrv: HrvObservation[] = [];
+      for (const row of data ?? []) {
+        const ms = (row.value as { ms?: number } | null)?.ms;
+        if (typeof ms !== 'number') continue;
+        const metric = (row.context as { metric?: string } | null)?.metric;
+        hrv.push({
+          id: row.id as string,
+          recordedAt: row.recorded_at as string,
+          ms,
+          metric: typeof metric === 'string' ? metric : null,
+        });
+      }
+      if (latestDayIsLowVsPersonalBaseline(hrv)) return true;
+      continue;
+    }
+
+    // Instantaneous heart_rate has no personal-baseline processor of its
+    // own — recovery is HRV/steps. Do not invent a pairwise HR swing.
+    if (type === 'heart_rate') continue;
+
+    const { data, error } = await supabase
+      .from('observations')
+      .select('value, context')
+      .eq('user_id', userId)
+      .eq('type', type)
+      .order('recorded_at', { ascending: false })
+      .limit(2);
+    if (error) throw error;
+    const rows = data ?? [];
+    const latest = rows[0];
+    const previous = rows[1];
+    if (
+      isMeaningfulChange({
+        type,
+        previousValue: numericFromValue(type, (previous?.value as Record<string, unknown>) ?? null),
+        nextValue: numericFromValue(type, (latest?.value as Record<string, unknown>) ?? null),
+        cycleStart: latest?.context?.cycleStart === true,
+      })
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function clearWork(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  fingerprint: string
+) {
+  const { error } = await supabase
+    .from('intelligence_work')
+    .update({
+      processors: [],
+      observation_types: [],
+      latest_observation_id: null,
+      force_run: false,
+      last_fingerprint: fingerprint,
+      last_run_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
+async function deferWork(supabase: ReturnType<typeof createClient>, userId: string, notBeforeMs: number) {
+  const { error } = await supabase
+    .from('intelligence_work')
+    .update({
+      not_before: new Date(notBeforeMs).toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
+async function runContinuous(supabase: ReturnType<typeof createClient>, explicitUserId?: string) {
+  let query = supabase
+    .from('intelligence_work')
+    .select(
+      'user_id, processors, observation_types, latest_observation_id, not_before, last_run_at, last_fingerprint, force_run'
+    )
+    .lte('not_before', new Date().toISOString())
+    .not('observation_types', 'eq', '{}');
+  if (explicitUserId) query = query.eq('user_id', explicitUserId);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const results = [];
+  for (const row of (data ?? []) as IntelligenceWorkRow[]) {
+    const types = row.observation_types ?? [];
+    const nowMs = Date.now();
+    const meaningful = row.force_run
+      ? true
+      : await meaningfulChangeForTypes(supabase, row.user_id, types);
+    const decision = decideContinuousDrain({
+      userId: row.user_id,
+      observationTypes: types,
+      latestObservationId: row.latest_observation_id,
+      lastFingerprint: row.last_fingerprint,
+      lastRunAt: row.last_run_at,
+      forceRun: row.force_run,
+      nowMs,
+      meaningfulChange: meaningful,
+    });
+
+    if (decision.action === 'skip-empty') continue;
+    if (decision.action === 'skip-idempotent') {
+      await clearWork(
+        supabase,
+        row.user_id,
+        runFingerprint(row.user_id, processorsForObservationTypes(types), row.latest_observation_id)
+      );
+      results.push({ userId: row.user_id, skipped: 'idempotent' });
+      continue;
+    }
+    if (decision.action === 'skip-debounced') {
+      await deferWork(supabase, row.user_id, decision.nextNotBeforeMs);
+      results.push({ userId: row.user_id, skipped: 'debounced' });
+      continue;
+    }
+
+    try {
+      const planned = planForMode('continuous', types);
+      const processed = await processUser(
+        supabase,
+        row.user_id,
+        { ...planned, processors: decision.processors },
+        true
+      );
+      await clearWork(
+        supabase,
+        row.user_id,
+        runFingerprint(row.user_id, processorsForObservationTypes(types), row.latest_observation_id)
+      );
+      results.push(processed);
+    } catch (e) {
+      await deferWork(supabase, row.user_id, retryNotBeforeMs(nowMs));
+      results.push({ userId: row.user_id, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  return results;
 }
 
 Deno.serve(async (req) => {
@@ -1097,6 +1422,15 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey);
     const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
     const explicitUserId = body?.user_id as string | undefined;
+    const mode: EngineMode =
+      body?.mode === 'continuous' || body?.mode === 'morning' ? body.mode : 'nightly';
+
+    if (mode === 'continuous') {
+      const results = await runContinuous(supabase, explicitUserId);
+      return new Response(JSON.stringify({ processed: results.length, mode, results }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     let userIds: string[];
     if (explicitUserId) {
@@ -1132,16 +1466,17 @@ Deno.serve(async (req) => {
       userIds = [...new Set((data ?? []).map((r) => r.user_id as string))];
     }
 
+    const plan = planForMode(mode);
     const results = [];
     for (const userId of userIds) {
       try {
-        results.push(await processUser(supabase, userId));
+        results.push(await processUser(supabase, userId, plan, mode !== 'nightly'));
       } catch (e) {
         results.push({ userId, error: e instanceof Error ? e.message : String(e) });
       }
     }
 
-    return new Response(JSON.stringify({ processed: results.length, results }), {
+    return new Response(JSON.stringify({ processed: results.length, mode, results }), {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (e) {

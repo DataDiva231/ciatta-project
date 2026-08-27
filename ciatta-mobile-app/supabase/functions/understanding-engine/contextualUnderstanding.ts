@@ -104,7 +104,7 @@ export function buildContextualUnderstanding(
   const recencyPhrase = input.recency ? RECENCY_PHRASE[input.recency] : null;
 
   const concernClause = concernAsClause(concern);
-  let narrative = `You told Ciatta ${concernClause}${recencyPhrase ? `, ${recencyPhrase}` : ''}. Understanding what may be contributing to this — starting with your ${domainWord} — matters to you.`;
+  let narrative = `You shared ${concernClause}${recencyPhrase ? `, ${recencyPhrase}` : ''}. Understanding what may be contributing to this, starting with your ${domainWord}, matters to you.`;
   // (concernClause and everything else here is phrased in second person —
   // "you"/"your" — matching every other narrative in this codebase, e.g.
   // sleepAnalysis.ts's "You average about...".)
@@ -118,7 +118,7 @@ export function buildContextualUnderstanding(
     narrative,
     confidenceLabel: 'still learning',
     stillLearning: [
-      `I don't yet have enough health data to understand what may be contributing to this.`,
+      `There isn't enough health data yet to understand what may be contributing to this.`,
     ],
   };
 }

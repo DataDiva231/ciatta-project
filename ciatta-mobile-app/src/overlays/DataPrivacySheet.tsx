@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { colors, fonts } from '../theme/tokens';
+import { colors, fonts, type } from '../theme/tokens';
 import BottomSheet from '../components/BottomSheet';
 import PrimaryButton from '../components/PrimaryButton';
 import GhostButton from '../components/GhostButton';
@@ -35,7 +35,7 @@ export default function DataPrivacySheet({
     try {
       await exportAndShareUserData(userId);
     } catch (e) {
-      setExportError(e instanceof Error ? e.message : "That didn't work — try again.");
+      setExportError(e instanceof Error ? e.message : "That didn't work. Try again.");
     } finally {
       setExporting(false);
     }
@@ -50,7 +50,7 @@ export default function DataPrivacySheet({
       // deleteAccount() flips the session to null, which unmounts this
       // entire screen tree from App.tsx's session check.
     } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : "That didn't work — try again.");
+      setDeleteError(e instanceof Error ? e.message : "That didn't work. Try again.");
       setDeleting(false);
     }
   }
@@ -60,7 +60,7 @@ export default function DataPrivacySheet({
       <View>
         <Text style={styles.title}>Export or delete data</Text>
         <Text style={styles.intro}>
-          Everything I've learned about you is yours. Take a full copy with you, or delete it
+          Everything in your understanding is yours. Take a full copy with you, or delete it
           completely.
         </Text>
 
@@ -77,7 +77,7 @@ export default function DataPrivacySheet({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Delete your account</Text>
           <Text style={styles.sectionBody}>
-            This permanently deletes your account and everything I've learned about you.{' '}
+            This permanently deletes your account and everything in it.{' '}
             This can't be undone.
           </Text>
           {confirmingDelete ? (
@@ -114,12 +114,11 @@ export default function DataPrivacySheet({
 
 const styles = StyleSheet.create({
   title: {
-    fontFamily: fonts.serif,
-    fontSize: 26,
+    ...type.title2,
     color: colors.ink,
   },
   intro: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 14,
     lineHeight: 21,
     color: colors.ink2,
@@ -129,32 +128,32 @@ const styles = StyleSheet.create({
     marginTop: 26,
   },
   sectionTitle: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 15,
     color: colors.ink,
     marginBottom: 4,
   },
   sectionBody: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13.5,
     lineHeight: 19,
     color: colors.ink2,
     marginBottom: 14,
   },
   confirmBox: {
-    backgroundColor: colors.canvas,
+    backgroundColor: colors.wash,
     borderRadius: 14,
     padding: 16,
   },
   confirmText: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 14,
     lineHeight: 20,
     color: colors.ink,
     marginBottom: 14,
   },
   error: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.accent,
     marginTop: 10,

@@ -7,18 +7,19 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { colors, fonts, radii } from '../../theme/tokens';
-import { answerCuriosity, fetchNextOnboardingQuestion, type ActiveCuriosity } from '../../lib/curiosity';
-import { classifyHealthIntent } from '../../lib/healthIntent';
+import { colors, fonts, glass, radii, type } from '../../theme/tokens';
+import GlassChip from '../../components/GlassChip';
+import GlassSurface, { GlassGroup, useLiquidGlass } from '../../components/GlassSurface';
+import { answerCuriosity, fetchNextOnboardingQuestion, fetchOnboardingQuestionBank, type ActiveCuriosity } from '../../lib/curiosity';
 import { withClockSkewRetry } from '../../lib/sessionGuard';
+import {
+  bankRowToCuriosity,
+  pickNextOnboardingQuestion,
+  recordOnboardingAnswer,
+  type OnboardingAnswer,
+  type OnboardingBankRow,
+} from '../../lib/onboardingConversation';
 import { ArrowUpIcon, MicIcon } from '../../components/icons';
-
-// Tags whose answers get run through the health-domain classifier — the
-// open "what would you like me to understand" question and its free-text
-// elaboration, the two places language actually varies enough to be worth
-// classifying. Chip-only backbone questions (medications, life stage, ...)
-// don't need it; their structure already says what they mean.
-const CLASSIFIED_TAGS = new Set(['concern', 'concern_elaborate']);
 
 const LIFE_STAGES = ['Reproductive Years', 'Perimenopause', 'Menopause', 'Postmenopause'];
 
@@ -40,7 +41,7 @@ interface IdentityQuestion {
 }
 
 const IDENTITY_QUESTIONS: IdentityQuestion[] = [
-  { field: 'name', prompt: 'What should I call you?', placeholder: 'Jennifer' },
+  { field: 'name', prompt: 'What should we call you?', placeholder: 'Jennifer' },
   { field: 'dob', prompt: 'When were you born?', placeholder: 'mm/dd/yyyy' },
   {
     field: 'lifeStage',
@@ -62,6 +63,8 @@ export interface ConversationSummary {
   // reflection screen quotes back as "what you told me."
   intent: string | null;
   concern: string | null;
+  answers: OnboardingAnswer[];
+  needsCommit: boolean;
 }
 
 // One question lives on screen at a time — no scrolling transcript. Keying
@@ -122,9 +125,16 @@ function Composer({
 }) {
   const inputRef = useRef<TextInput>(null);
   const hasText = value.trim().length > 0;
+  const native = useLiquidGlass();
 
   return (
-    <View style={styles.composer}>
+    <GlassSurface
+      kind="regular"
+      interactive
+      tintColor={glass.tint}
+      style={[styles.composer, native && styles.clearFill]}
+      fallbackStyle={styles.composerFallback}
+    >
       <TextInput
         ref={inputRef}
         value={value}
@@ -146,7 +156,7 @@ function Composer({
       >
         {hasText ? <ArrowUpIcon size={16} color={colors.white} /> : <MicIcon size={16} color={colors.ink3} />}
       </Pressable>
-    </View>
+    </GlassSurface>
   );
 }
 
@@ -154,7 +164,7 @@ export default function ConversationOnboarding({
   userId,
   onDone,
 }: {
-  userId: string;
+  userId?: string;
   onDone: (summary: ConversationSummary) => void;
 }) {
   const [identityIndex, setIdentityIndex] = useState(0);
@@ -166,6 +176,8 @@ export default function ConversationOnboarding({
   // What loadNextAdaptiveQuestion was called with, so "Try again" can
   // re-issue the exact same call after a failure instead of losing it.
   const lastCallRef = useRef<{ tag?: string; answer?: string }>({});
+  const bankRef = useRef<OnboardingBankRow[] | null>(null);
+  const answersRef = useRef<OnboardingAnswer[]>([]);
 
   const draft = useRef<ConversationSummary>({
     name: '',
@@ -175,10 +187,22 @@ export default function ConversationOnboarding({
     weight: '',
     intent: null,
     concern: null,
+    answers: [],
+    needsCommit: !userId,
   });
 
   const currentIdentityQuestion =
     phase === 'identity' ? IDENTITY_QUESTIONS[identityIndex] : null;
+
+  function finishConversation() {
+    draft.current = {
+      ...draft.current,
+      answers: answersRef.current,
+      needsCommit: !userId,
+    };
+    setPhase('done');
+    onDone(draft.current);
+  }
 
   async function loadNextAdaptiveQuestion(lastTag?: string, lastAnswer?: string) {
     lastCallRef.current = { tag: lastTag, answer: lastAnswer };
@@ -189,13 +213,32 @@ export default function ConversationOnboarding({
     // sessionGuard.ts. Anything else, including a failed retry, falls
     // through to the catch below instead of crashing the conversation.
     try {
+      if (!userId) {
+        if (!bankRef.current) {
+          bankRef.current = await fetchOnboardingQuestionBank();
+        }
+        const nextRow = pickNextOnboardingQuestion(
+          bankRef.current,
+          answersRef.current.map((a) => a.tag),
+          lastTag,
+          lastAnswer
+        );
+        if (!nextRow) {
+          finishConversation();
+          return;
+        }
+        setActiveCuriosity(bankRowToCuriosity(nextRow));
+        setPreferTyping(false);
+        setPhase('adaptive');
+        return;
+      }
+
       const next = await withClockSkewRetry(
         () => fetchNextOnboardingQuestion(userId, lastTag, lastAnswer),
         'onboarding conversation'
       );
       if (!next) {
-        setPhase('done');
-        onDone(draft.current);
+        finishConversation();
         return;
       }
       setActiveCuriosity(next);
@@ -203,7 +246,7 @@ export default function ConversationOnboarding({
       setPhase('adaptive');
     } catch (e) {
       console.error('Could not load the next onboarding question:', e);
-      setLoadError("I couldn't quite catch that — check your connection and try again.");
+      setLoadError("That didn't come through. Check your connection and try again.");
       setPhase('adaptive');
     }
   }
@@ -233,21 +276,23 @@ export default function ConversationOnboarding({
     setActiveCuriosity(null);
     // The health-domain taxonomy never reaches the UI — it's computed here,
     // behind the scenes, purely as provenance on the Observation.
-    const extraContext =
-      tag && CLASSIFIED_TAGS.has(tag) ? { health_domains: classifyHealthIntent(value) } : {};
-    try {
-      await withClockSkewRetry(
-        () => answerCuriosity(userId, answeredCuriosity, value, extraContext),
-        'onboarding answer'
-      );
-    } catch (e) {
-      console.error('Could not save that answer:', e);
-      // Restore the question so the same chips/text box reappear — nothing
-      // was actually saved, so nothing else should move forward either.
-      setActiveCuriosity(answeredCuriosity);
-      setLoadError("That didn't save — check your connection and try again.");
-      return;
+    const recorded = recordOnboardingAnswer(tag ?? '', value);
+    if (userId) {
+      try {
+        await withClockSkewRetry(
+          () => answerCuriosity(userId, answeredCuriosity, value, recorded.extraContext),
+          'onboarding answer'
+        );
+      } catch (e) {
+        console.error('Could not save that answer:', e);
+        // Restore the question so the same chips/text box reappear — nothing
+        // was actually saved, so nothing else should move forward either.
+        setActiveCuriosity(answeredCuriosity);
+        setLoadError("That didn't save. Check your connection and try again.");
+        return;
+      }
     }
+    answersRef.current = [...answersRef.current, recorded];
     await loadNextAdaptiveQuestion(tag, value);
   }
 
@@ -316,19 +361,17 @@ export default function ConversationOnboarding({
         )}
         {showChips && (
           <>
-            <View style={styles.chipGrid}>
+            <GlassGroup spacing={8} style={styles.chipGrid}>
               {chips.map((opt) => (
-                <Pressable
+                <GlassChip
                   key={opt}
+                  label={opt}
                   onPress={() =>
                     phase === 'identity' ? submitIdentityAnswer(opt) : submitAdaptiveAnswer(opt)
                   }
-                  style={({ pressed }) => [styles.chip, pressed && { opacity: 0.7 }]}
-                >
-                  <Text style={styles.chipText}>{opt}</Text>
-                </Pressable>
+                />
               ))}
-            </View>
+            </GlassGroup>
             <Pressable onPress={() => setPreferTyping(true)} hitSlop={8}>
               <Text style={styles.typeInsteadLink}>Prefer to type your own answer?</Text>
             </Pressable>
@@ -372,21 +415,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   ciattaText: {
-    fontFamily: fonts.serif,
-    fontSize: 20,
-    lineHeight: 26,
+    ...type.title3,
     color: colors.ink,
   },
   ciattaPurpose: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     lineHeight: 18,
     color: colors.ink3,
     marginTop: 6,
   },
   thinking: {
-    fontFamily: fonts.serif,
-    fontSize: 20,
+    ...type.title3,
     color: colors.ink3,
   },
   inputArea: {
@@ -398,36 +438,23 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
-  chip: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: radii.pill,
-    backgroundColor: colors.canvas,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  chipText: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 14,
-    color: colors.ink,
-  },
   errorBox: {
     marginBottom: 12,
   },
   errorText: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.accent,
   },
   retryLink: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 13,
     color: colors.accent,
     marginTop: 6,
     textDecorationLine: 'underline',
   },
   typeInsteadLink: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 12.5,
     color: colors.ink3,
     marginTop: 10,
@@ -436,17 +463,23 @@ const styles = StyleSheet.create({
   composer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.canvas,
-    borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radii.pill,
     paddingLeft: 18,
     paddingRight: 6,
     paddingVertical: 6,
   },
+  composerFallback: {
+    backgroundColor: colors.wash,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  clearFill: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+  },
   composerInput: {
     flex: 1,
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 16,
     color: colors.ink,
     paddingVertical: 8,
@@ -459,6 +492,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   composerActionActive: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.ink,
   },
 });

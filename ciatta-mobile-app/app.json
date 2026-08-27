@@ -17,7 +17,7 @@
     "android": {
       "package": "com.ciatta.mobileapp",
       "adaptiveIcon": {
-        "backgroundColor": "#8C3A44",
+        "backgroundColor": "#1C1C1E",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -45,8 +45,8 @@
       [
         "@kingstinct/react-native-healthkit",
         {
-          "NSHealthShareUsageDescription": "Ciatta reads your steps, heart rate, and sleep from Health so it can understand your body without asking the same questions twice.",
-          "NSHealthUpdateUsageDescription": "Ciatta reads your steps, heart rate, and sleep from Health so it can understand your body without asking the same questions twice.",
+          "NSHealthShareUsageDescription": "Your steps, heart rate, and sleep from Health complete your picture, so you aren't asked the same questions twice.",
+          "NSHealthUpdateUsageDescription": "Your steps, heart rate, and sleep from Health complete your picture, so you aren't asked the same questions twice.",
           "background": false
         }
       ],
@@ -66,7 +66,7 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 220,
           "resizeMode": "contain",
-          "backgroundColor": "#F6F8FA"
+          "backgroundColor": "#FFFCF7"
         }
       ],
       [
@@ -78,9 +78,22 @@
       [
         "expo-notifications",
         {
-          "color": "#8C3A44"
+          "color": "#F27D72"
         }
       ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Calendar access helps relate your days to how you sleep and feel. Event titles stay on this device."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Photos of lab results and health documents can be added to your picture."
+        }
+      ],
+      "expo-document-picker",
       "expo-video"
     ],
     "extra": {

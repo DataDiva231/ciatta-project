@@ -253,11 +253,11 @@ export function buildUnderstanding(result: CycleAnalysisResult): UnderstandingDr
 
   return {
     strength,
-    narrative: `Your resting heart rate tends to run about ${delta} bpm higher in the days before your period. I've noticed this in ${result.cyclesConfirming} of the ${result.cyclesWithSufficientData} cycles I've tracked so far.`,
+    narrative: `Your resting heart rate tends to run about ${delta} bpm higher in the days before your period. This has shown up in ${result.cyclesConfirming} of the ${result.cyclesWithSufficientData} cycles with enough data so far.`,
     confidenceLabel: CONFIDENCE_LABEL[strength],
     stillLearning: [
       'exactly how many days before your period this shift starts',
-      'how this connects to your energy day-to-day',
+      'how this connects to your energy day to day',
     ],
   };
 }

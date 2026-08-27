@@ -145,7 +145,7 @@ export function buildCrossDomainDraft(
     primaryDomain: primary,
     otherDomain: other,
     label: `${DOMAIN_WORD[primary]}-related`,
-    narrative: `Ciatta has noticed a connected pattern across your ${DOMAIN_WORD[from.domain]} and ${DOMAIN_WORD[to.domain]}.`,
+    narrative: `These changes have been occurring together across your ${DOMAIN_WORD[from.domain]} and ${DOMAIN_WORD[to.domain]}.`,
     strength,
     confidenceLabel: CONFIDENCE_LABEL[strength],
     contributingUnderstandingIds: [from.id, to.id],

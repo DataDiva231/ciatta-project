@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { insertObservation } from './observations';
+import { displayCopy, displayCopyList } from './displayCopy';
 import type { Domain } from './types';
 
 export interface ActiveCuriosity {
@@ -44,10 +45,10 @@ export async function fetchActiveCuriosity(userId: string): Promise<ActiveCurios
   const row = data as CuriosityRow;
   return {
     id: row.id,
-    question: row.question,
-    purpose: row.purpose,
+    question: displayCopy(row.question),
+    purpose: displayCopy(row.purpose),
     domain: row.domain,
-    answerOptions: row.answer_options,
+    answerOptions: displayCopyList(row.answer_options),
     observationType: row.observation_type,
   };
 }
@@ -88,13 +89,45 @@ export async function fetchNextOnboardingQuestion(
 
   return {
     id: row.curiosity_id,
-    question: row.question,
-    purpose: row.purpose,
+    question: displayCopy(row.question),
+    purpose: displayCopy(row.purpose),
     domain: row.domain,
-    answerOptions: row.answer_options,
+    answerOptions: displayCopyList(row.answer_options),
     observationType: row.observation_type,
     tag: row.tag,
     inputKind: row.input_kind,
+  };
+}
+
+/**
+ * Onboarding bank rows only — used to run the conversation before the user
+ * has an account. RLS hides daily-rotation questions (see
+ * 20260832000000_guest_onboarding_bank_read.sql).
+ */
+export async function fetchOnboardingQuestionBank(): Promise<
+  import('./onboardingConversation').OnboardingBankRow[]
+> {
+  const { data, error } = await supabase
+    .from('curiosity_bank')
+    .select(
+      'tag, question, purpose, domain, answer_options, observation_type, input_kind, depends_on_tag, depends_on_answer_contains, depends_on_answer_not_contains, active, is_onboarding'
+    )
+    .eq('is_onboarding', true)
+    .eq('active', true);
+  if (error) throw error;
+  return ((data ?? []) as import('./onboardingConversation').OnboardingBankRow[]).map(
+    sanitizeBankRow
+  );
+}
+
+function sanitizeBankRow(
+  row: import('./onboardingConversation').OnboardingBankRow
+): import('./onboardingConversation').OnboardingBankRow {
+  return {
+    ...row,
+    question: displayCopy(row.question),
+    purpose: displayCopy(row.purpose),
+    answer_options: displayCopyList(row.answer_options),
   };
 }
 

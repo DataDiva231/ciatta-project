@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, radii } from '../theme/tokens';
+import { colors, fonts, type } from '../theme/tokens';
+import CuriosityCard from '../components/CuriosityCard';
 import type { ActiveCuriosity } from '../lib/curiosity';
 import { insertObservation } from '../lib/observations';
 import TextField from '../components/TextField';
@@ -43,7 +44,7 @@ export default function CuriosityOverlay({
       await onAnswerCuriosity(answer);
       setAnswered(true);
     } catch (e) {
-      setSubmitError(e instanceof Error ? e.message : "That didn't save — try again.");
+      setSubmitError(e instanceof Error ? e.message : "That didn't save. Try again.");
     }
   }
 
@@ -67,7 +68,7 @@ export default function CuriosityOverlay({
       setText('');
       setNoteSaved(true);
     } catch (e) {
-      setSubmitError(e instanceof Error ? e.message : "That didn't save — try again.");
+      setSubmitError(e instanceof Error ? e.message : "That didn't save. Try again.");
     } finally {
       setSavingNote(false);
     }
@@ -77,7 +78,7 @@ export default function CuriosityOverlay({
     <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
       <KeyboardAvoidingScreen style={[styles.flex, { paddingTop: insets.top + 12 }]}>
         <View style={styles.header}>
-          <Text style={styles.title}>Tell me anything.</Text>
+          <Text style={styles.title}>Share anything.</Text>
           <Pressable onPress={handleClose} hitSlop={10}>
             <CloseIcon />
           </Pressable>
@@ -90,23 +91,13 @@ export default function CuriosityOverlay({
           showsVerticalScrollIndicator={false}
         >
           {activeCuriosity && !answered ? (
-            <View style={styles.questionBlock}>
-              <Text style={styles.sectionLabel}>ONE QUESTION FOR YOU</Text>
-              <Text style={styles.question}>{activeCuriosity.question}</Text>
-              {activeCuriosity.purpose ? (
-                <Text style={styles.purpose}>{activeCuriosity.purpose}</Text>
-              ) : null}
-              <View style={styles.options}>
-                {activeCuriosity.answerOptions.map((opt) => (
-                  <Pressable
-                    key={opt}
-                    onPress={() => handleAnswer(opt)}
-                    style={({ pressed }) => [styles.option, pressed && styles.optionPressed]}
-                  >
-                    <Text style={styles.optionText}>{opt}</Text>
-                  </Pressable>
-                ))}
-              </View>
+            <View style={styles.questionCardWrap}>
+              <CuriosityCard
+                question={activeCuriosity.question}
+                purpose={activeCuriosity.purpose}
+                options={activeCuriosity.answerOptions}
+                onAnswer={handleAnswer}
+              />
             </View>
           ) : null}
 
@@ -129,14 +120,14 @@ export default function CuriosityOverlay({
                   setText(t);
                   if (noteSaved) setNoteSaved(false);
                 }}
-                placeholder="Tell me anything…"
+                placeholder="What's on your mind…"
                 multiline
               />
             </View>
             {text.trim().length > 0 ? (
               <View style={{ marginTop: 12 }}>
                 <PrimaryButton
-                  label="Share this with me"
+                  label="Add this to your understanding"
                   onPress={handleShareNote}
                   loading={savingNote}
                 />
@@ -152,7 +143,7 @@ export default function CuriosityOverlay({
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + 14 }]}>
           <Text style={styles.securityText}>
-            Private to you, and used only to understand you better.
+            Private to you, and used only to complete your picture.
           </Text>
         </View>
       </KeyboardAvoidingScreen>
@@ -163,8 +154,8 @@ export default function CuriosityOverlay({
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
-    backgroundColor: colors.canvas,
-    paddingHorizontal: 24,
+    backgroundColor: colors.grouped,
+    paddingHorizontal: 16,
   },
   header: {
     flexDirection: 'row',
@@ -173,68 +164,29 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   title: {
-    fontFamily: fonts.serif,
-    fontSize: 32,
+    ...type.title1,
     color: colors.ink,
   },
   scroll: {
     flex: 1,
   },
+  questionCardWrap: {
+    marginTop: 16,
+  },
   sectionLabel: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 10.5,
     letterSpacing: 1.1,
     color: colors.ink3,
     marginBottom: 10,
   },
-  questionBlock: {
-    marginTop: 22,
-  },
-  question: {
-    fontFamily: fonts.serif,
-    fontSize: 24,
-    lineHeight: 31,
-    color: colors.ink,
-  },
-  purpose: {
-    fontFamily: fonts.sans,
-    fontSize: 13.5,
-    lineHeight: 20,
-    color: colors.ink2,
-    marginTop: 8,
-  },
-  options: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 18,
-  },
-  option: {
-    paddingVertical: 11,
-    paddingHorizontal: 18,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  optionPressed: {
-    backgroundColor: colors.accentSoft,
-    borderColor: colors.accent,
-  },
-  optionText: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 14.5,
-    color: colors.ink,
-  },
   confirmation: {
-    fontFamily: fonts.serif,
-    fontSize: 20,
-    lineHeight: 28,
+    ...type.title3,
     color: colors.ink,
     marginTop: 24,
   },
   confirmationSmall: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.evidence,
     marginTop: 12,
@@ -243,14 +195,14 @@ const styles = StyleSheet.create({
     marginTop: 34,
   },
   noteHint: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13.5,
     lineHeight: 20,
     color: colors.ink2,
     marginTop: -2,
   },
   submitError: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.accent,
     marginTop: 12,
@@ -261,7 +213,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   securityText: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 11.5,
     color: colors.ink3,
     textAlign: 'center',

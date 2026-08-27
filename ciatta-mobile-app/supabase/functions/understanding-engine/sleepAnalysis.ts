@@ -263,12 +263,12 @@ const RATING_DOMAIN_COPY: Record<
   energy: {
     narrative: "Your energy tends to be lower the day after a short night's sleep.",
     label: 'energy',
-    suggestedNames: ['The Short-Night Effect', 'Sleep Debt Signal', 'The Morning After'],
+    suggestedNames: ['The Short Night Effect', 'Sleep Debt Signal', 'The Morning After'],
   },
   mood: {
     narrative: "Your mood tends to dip the day after a short night's sleep.",
     label: 'mood',
-    suggestedNames: ['The Sleep-Mood Link', 'Rested Mind', 'The Groggy Truth'],
+    suggestedNames: ['The Sleep Mood Link', 'Rested Mind', 'The Groggy Truth'],
   },
 };
 
@@ -285,7 +285,7 @@ export function buildSleepRatingDiscovery(
 
   return {
     narrative: copy.narrative,
-    detail: `Comparing ${result.shortNightCount} short nights against ${result.normalNightCount} more typical ones, your next-day ${copy.label} ran about ${drop} points lower (on a 4-point scale) after the short nights.`,
+    detail: `Comparing ${result.shortNightCount} short nights against ${result.normalNightCount} more typical ones, your next day ${copy.label} ran about ${drop} points lower (on a 4 point scale) after the short nights.`,
     confidence: result.confidence,
     confidenceLabel: CONFIDENCE_LABEL[strength],
     suggestedNames: copy.suggestedNames,

@@ -184,6 +184,18 @@ Deno.test('freeform search (no understanding) bypasses the Care Connection looku
   });
 });
 
+Deno.test('freeform search with no criteria still 200s by defaulting to primary care', async () => {
+  await withFixtureFetch(NPI_FIXTURE_RESPONSE, async () => {
+    const result = await handleProviderSearch(
+      { userId: FIXTURE_OWNER_ID, overrides: {} },
+      { getUnderstanding: () => Promise.resolve(null), adapter: createNpiRegistryAdapter() }
+    );
+    assertEquals(result.status, 200);
+    if (!('criteria' in result.body)) throw new Error('expected a success body');
+    assertEquals(result.body.criteria.specialty, CARE_TYPE_SPECIALTY['primary-care']);
+  });
+});
+
 Deno.test('scope guard: the response shape never contains booking, messaging, referral, insurance-verification, or clinical-interoperability fields', async () => {
   await withFixtureFetch(NPI_FIXTURE_RESPONSE, async () => {
     const result = await handleProviderSearch(

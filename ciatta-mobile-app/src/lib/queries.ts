@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { displayCopy, displayCopyList, displayCopyMaybe } from './displayCopy';
 import type { Discovery, Domain, Strength } from './types';
 
 // 'primary-care' | 'ob-gyn' | 'mental-health' — mirrors
@@ -35,7 +36,18 @@ export async function fetchUnderstandings(userId: string): Promise<Understanding
     )
     .eq('user_id', userId);
   if (error) throw error;
-  return (data ?? []) as UnderstandingRow[];
+  return ((data ?? []) as UnderstandingRow[]).map(sanitizeUnderstanding);
+}
+
+function sanitizeUnderstanding(row: UnderstandingRow): UnderstandingRow {
+  return {
+    ...row,
+    narrative: displayCopy(row.narrative),
+    confidence_label: displayCopyMaybe(row.confidence_label),
+    still_learning: displayCopyList(row.still_learning),
+    guidance: displayCopyMaybe(row.guidance),
+    care_recommendation_reason: displayCopyMaybe(row.care_recommendation_reason),
+  };
 }
 
 export interface UnderstandingHistoryRow {
@@ -53,7 +65,10 @@ export async function fetchUnderstandingHistory(
     .eq('user_id', userId)
     .order('event_date', { ascending: true });
   if (error) throw error;
-  return (data ?? []) as UnderstandingHistoryRow[];
+  return ((data ?? []) as UnderstandingHistoryRow[]).map((row) => ({
+    ...row,
+    label: displayCopy(row.label),
+  }));
 }
 
 export interface RelationshipRow {
@@ -109,7 +124,15 @@ export async function fetchCrossDomainUnderstandings(
     )
     .eq('user_id', userId);
   if (error) throw error;
-  return (data ?? []) as CrossDomainUnderstandingRow[];
+  return ((data ?? []) as CrossDomainUnderstandingRow[]).map((row) => ({
+    ...row,
+    label: displayCopy(row.label),
+    narrative: displayCopy(row.narrative),
+    confidence_label: displayCopyMaybe(row.confidence_label),
+    still_learning: displayCopyList(row.still_learning),
+    guidance: displayCopyMaybe(row.guidance),
+    care_recommendation_reason: displayCopyMaybe(row.care_recommendation_reason),
+  }));
 }
 
 export interface DiscoveryRow {
@@ -133,7 +156,14 @@ export async function fetchDiscoveries(userId: string): Promise<DiscoveryRow[]> 
     .eq('user_id', userId)
     .order('discovered_at', { ascending: false });
   if (error) throw error;
-  return (data ?? []) as DiscoveryRow[];
+  return ((data ?? []) as DiscoveryRow[]).map((row) => ({
+    ...row,
+    name: displayCopyMaybe(row.name),
+    narrative: displayCopy(row.narrative),
+    detail: displayCopyMaybe(row.detail),
+    confidence_label: displayCopyMaybe(row.confidence_label),
+    suggested_names: displayCopyList(row.suggested_names),
+  }));
 }
 
 // "Connected" here means real synced data exists, not just that the user

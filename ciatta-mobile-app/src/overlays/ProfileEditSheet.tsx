@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { colors, fonts, radii } from '../theme/tokens';
+import { colors, fonts, radii, type } from '../theme/tokens';
 import type { Profile } from '../lib/types';
 import BottomSheet from '../components/BottomSheet';
 import PrimaryButton from '../components/PrimaryButton';
+import GlassChip from '../components/GlassChip';
+import { GlassGroup } from '../components/GlassSurface';
 import { CloseIcon } from '../components/icons';
 
 type FieldKind = 'text' | 'longtext' | 'date' | 'choice' | 'list';
@@ -28,7 +30,7 @@ export const PROFILE_FIELDS: Record<string, FieldSpec> = {
     key: 'name',
     label: 'Your name',
     kind: 'text',
-    placeholder: 'What should I call you?',
+    placeholder: 'What should we call you?',
   },
   'life-stage': {
     key: 'life_stage',
@@ -41,28 +43,28 @@ export const PROFILE_FIELDS: Record<string, FieldSpec> = {
       'Postpartum',
       'Perimenopause',
       'Menopause',
-      'Post-menopause',
+      'Postmenopause',
     ],
-    helper: 'This shapes what I look for in your data.',
+    helper: 'This shapes how your data is read.',
   },
   goals: {
     key: 'goals',
     label: 'Goals & focus',
     kind: 'list',
     placeholder: 'One per line',
-    helper: 'What you want me to pay attention to. One per line.',
+    helper: 'What you want this picture to hold. One per line.',
   },
   about: {
     key: 'about',
     label: 'About you',
     kind: 'longtext',
-    placeholder: 'Anything that helps me understand your everyday life',
+    placeholder: 'Anything about your everyday life that belongs here',
   },
   dob: {
     key: 'dob',
     label: 'Date of birth',
     kind: 'date',
-    placeholder: 'YYYY-MM-DD',
+    placeholder: '1990 06 15',
     helper: 'Used to interpret what is typical for your age.',
   },
   pronouns: {
@@ -76,6 +78,7 @@ export const PROFILE_FIELDS: Record<string, FieldSpec> = {
 function toInput(profile: Profile, spec: FieldSpec): string {
   const raw = profile[spec.key];
   if (spec.kind === 'list') return Array.isArray(raw) ? raw.join('\n') : '';
+  if (spec.kind === 'date' && typeof raw === 'string') return raw.replace(/-/g, ' ');
   return typeof raw === 'string' ? raw : '';
 }
 
@@ -106,8 +109,9 @@ export default function ProfileEditSheet({
     if (!spec || spec.kind !== 'date') return false;
     const t = value.trim();
     if (!t) return false;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return true;
-    const d = new Date(t);
+    if (!/^\d{4}[- ]\d{2}[- ]\d{2}$/.test(t)) return true;
+    const iso = t.replace(/ /g, '-');
+    const d = new Date(iso);
     return Number.isNaN(d.getTime()) || d > new Date();
   }, [spec, value]);
 
@@ -117,14 +121,16 @@ export default function ProfileEditSheet({
     setError(null);
     try {
       const trimmed = value.trim();
+      const stored =
+        spec.kind === 'date' && trimmed ? trimmed.replace(/ /g, '-') : trimmed;
       const patch: Partial<Profile> =
         spec.kind === 'list'
           ? ({ [spec.key]: trimmed ? trimmed.split('\n').map((l) => l.trim()).filter(Boolean) : [] } as Partial<Profile>)
-          : ({ [spec.key]: trimmed || null } as Partial<Profile>);
+          : ({ [spec.key]: stored || null } as Partial<Profile>);
       await onSave(patch);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "That didn't save — try again.");
+      setError(e instanceof Error ? e.message : "That didn't save. Try again.");
     } finally {
       setSaving(false);
     }
@@ -144,23 +150,19 @@ export default function ProfileEditSheet({
           {spec.helper ? <Text style={styles.helper}>{spec.helper}</Text> : null}
 
           {spec.kind === 'choice' ? (
-            <View style={styles.choices}>
+            <GlassGroup spacing={8} style={styles.choices}>
               {spec.choices?.map((c) => {
                 const active = value.toLowerCase() === c.toLowerCase();
                 return (
-                  <Pressable
+                  <GlassChip
                     key={c}
+                    label={c}
+                    selected={active}
                     onPress={() => setValue(c)}
-                    accessibilityRole="button"
-                    accessibilityLabel={c}
-                    accessibilityState={{ selected: active }}
-                    style={[styles.choice, active && styles.choiceActive]}
-                  >
-                    <Text style={[styles.choiceText, active && styles.choiceTextActive]}>{c}</Text>
-                  </Pressable>
+                  />
                 );
               })}
-            </View>
+            </GlassGroup>
           ) : (
             <TextInput
               value={value}
@@ -179,7 +181,9 @@ export default function ProfileEditSheet({
           )}
 
           {dateInvalid ? (
-            <Text style={styles.error}>Use YYYY-MM-DD, and a date that has already happened.</Text>
+            <Text style={styles.error}>
+              Use a year, month, and day that have already happened. For example 1990 06 15.
+            </Text>
           ) : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -204,14 +208,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   title: {
-    fontFamily: fonts.serif,
-    fontSize: 27,
+    ...type.title2,
     color: colors.ink,
     flex: 1,
     paddingRight: 12,
   },
   helper: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13.5,
     lineHeight: 20,
     color: colors.ink2,
@@ -225,7 +228,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 15.5,
     color: colors.ink,
   },
@@ -242,28 +245,8 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 18,
   },
-  choice: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  choiceActive: {
-    backgroundColor: colors.accentSoft,
-    borderColor: colors.accent,
-  },
-  choiceText: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 14,
-    color: colors.ink2,
-  },
-  choiceTextActive: {
-    color: colors.accent,
-  },
   error: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.accent,
     marginTop: 10,

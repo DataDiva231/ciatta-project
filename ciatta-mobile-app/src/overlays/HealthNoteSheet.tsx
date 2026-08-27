@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { colors, fonts, radii } from '../theme/tokens';
+import { colors, fonts, radii, type } from '../theme/tokens';
 import BottomSheet from '../components/BottomSheet';
 import PrimaryButton from '../components/PrimaryButton';
 import { CloseIcon } from '../components/icons';
@@ -22,7 +22,7 @@ const PROMPTS: Record<string, { label: string; prompt: string }> = {
   },
   conditions: {
     label: 'Health conditions',
-    prompt: 'Anything ongoing you live with — diagnosed or suspected.',
+    prompt: 'Anything ongoing you live with, diagnosed or suspected.',
   },
   medications: {
     label: 'Medications & supplements',
@@ -30,7 +30,7 @@ const PROMPTS: Record<string, { label: string; prompt: string }> = {
   },
   pregnancy: {
     label: 'Pregnancy history',
-    prompt: 'Pregnancies, outcomes, or anything you want me to hold in mind.',
+    prompt: 'Pregnancies, outcomes, or anything you want this picture to hold.',
   },
   'family-history': {
     label: 'Family history',
@@ -38,7 +38,7 @@ const PROMPTS: Record<string, { label: string; prompt: string }> = {
   },
   allergies: {
     label: 'Allergies',
-    prompt: 'Foods, medications, environmental — and how they tend to show up.',
+    prompt: 'Foods, medications, environmental, and how they tend to show up.',
   },
 };
 
@@ -51,11 +51,13 @@ export default function HealthNoteSheet({
   userId,
   onClose,
   onSaved,
+  onGuestSave,
 }: {
   rowId: string | null;
   userId: string | null;
   onClose: () => void;
   onSaved: (rowId: string) => void;
+  onGuestSave?: (rowId: string, text: string) => void;
 }) {
   const spec = rowId ? PROMPTS[rowId] ?? null : null;
   const [value, setValue] = useState('');
@@ -73,7 +75,7 @@ export default function HealthNoteSheet({
         if (active) setValue(existing ?? '');
       })
       .catch(() => {
-        if (active) setError("I couldn't load what you'd already shared.");
+        if (active) setError("This couldn't be loaded just now.");
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -84,15 +86,22 @@ export default function HealthNoteSheet({
   }, [rowId, userId, spec]);
 
   async function handleSave() {
-    if (!rowId || !userId) return;
+    if (!rowId) return;
+    const text = value.trim();
+    if (!userId) {
+      onGuestSave?.(rowId, text);
+      onSaved(rowId);
+      onClose();
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      await saveHealthNote(userId, rowId, value.trim());
+      await saveHealthNote(userId, rowId, text);
       onSaved(rowId);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "That didn't save — try again.");
+      setError(e instanceof Error ? e.message : "That didn't save. Try again.");
     } finally {
       setSaving(false);
     }
@@ -128,7 +137,7 @@ export default function HealthNoteSheet({
           />
 
           <Text style={styles.privacy}>
-            Only you can see this. I use it to interpret the rest of your data more carefully.
+            Only you can see this. It helps interpret the rest of your data more carefully.
           </Text>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -149,14 +158,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   title: {
-    fontFamily: fonts.serif,
-    fontSize: 27,
+    ...type.title2,
     color: colors.ink,
     flex: 1,
     paddingRight: 12,
   },
   prompt: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13.5,
     lineHeight: 20,
     color: colors.ink2,
@@ -172,19 +180,19 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     minHeight: 130,
     textAlignVertical: 'top',
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 15.5,
     color: colors.ink,
   },
   privacy: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 12,
     lineHeight: 17,
     color: colors.ink3,
     marginTop: 10,
   },
   error: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.accent,
     marginTop: 10,

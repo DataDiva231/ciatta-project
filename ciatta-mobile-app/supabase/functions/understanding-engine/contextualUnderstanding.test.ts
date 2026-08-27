@@ -68,7 +68,7 @@ Deno.test('buildContextualUnderstanding: always names still-learning honestly â€
     recency: null,
   });
   assertEquals(draft!.stillLearning.length, 1);
-  assert(draft!.stillLearning[0].toLowerCase().includes("don't yet have enough health data"));
+  assert(draft!.stillLearning[0].toLowerCase().includes("isn't enough health data"));
 });
 
 Deno.test('buildContextualUnderstanding: emerging strength means the existing Guidance gate stays closed', () => {

@@ -157,7 +157,9 @@ export function createNpiRegistryAdapter(): ProviderDirectoryAdapter {
       }
       const body = (await res.json()) as NpiResponse;
       if (body.Errors && body.Errors.length > 0) {
-        throw new Error(body.Errors.map((e) => e.description).join('; '));
+        const description = body.Errors.map((e) => e.description).join('; ');
+        if (/no valid search criteria/i.test(description)) return [];
+        throw new Error(description);
       }
       return normalizeResponse(body);
     },

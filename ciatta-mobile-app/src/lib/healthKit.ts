@@ -70,6 +70,31 @@ export async function connectHealthKit(userId: string): Promise<HealthKitConnect
   return { granted: true, observationsSynced };
 }
 
+/**
+ * OS permission only — no observations are written. Used during guest
+ * onboarding so Apple Health is not associated with an account until
+ * authentication completes.
+ */
+export async function requestHealthKitPermission(): Promise<HealthKitConnectResult> {
+  const available = await isHealthKitAvailable();
+  if (!available) {
+    return { granted: false, observationsSynced: 0, reason: 'unavailable' };
+  }
+
+  let granted: boolean;
+  try {
+    granted = await requestAuthorization({ toRead: READ_TYPES });
+  } catch {
+    return { granted: false, observationsSynced: 0, reason: 'permission-denied' };
+  }
+
+  if (!granted) {
+    return { granted: false, observationsSynced: 0, reason: 'permission-denied' };
+  }
+
+  return { granted: true, observationsSynced: 0 };
+}
+
 function sleepStageLabel(value: CategoryValueSleepAnalysis): string {
   switch (value) {
     case CategoryValueSleepAnalysis.inBed:

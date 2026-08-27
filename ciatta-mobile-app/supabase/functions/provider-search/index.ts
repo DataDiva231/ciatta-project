@@ -56,8 +56,23 @@ export const CARE_TYPE_SPECIALTY: Record<string, string> = {
 function json(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    },
   });
+}
+
+function hasDirectoryQuery(criteria: ProviderSearchCriteria): boolean {
+  return Boolean(
+    criteria.specialty?.trim() ||
+      criteria.providerName?.trim() ||
+      criteria.organization?.trim() ||
+      criteria.city?.trim() ||
+      criteria.state?.trim() ||
+      criteria.postalCode?.trim()
+  );
 }
 
 export interface UnderstandingLookup {
@@ -136,6 +151,16 @@ export async function handleProviderSearch(
     // criteria object.
   }
 
+  // NPI Registry rejects a request with only version/limit ("No valid
+  // search criteria provided") and that used to become a 500, which the
+  // client surfaces as "Edge Function returned a non-2xx status code."
+  // Freeform You → Provider connections often opens with no ZIP yet, so
+  // fall back to the same primary-care specialty Care Connection already
+  // uses rather than calling the directory empty-handed.
+  if (!hasDirectoryQuery(criteria)) {
+    criteria = { ...criteria, specialty: CARE_TYPE_SPECIALTY['primary-care'] };
+  }
+
   const providers = await deps.adapter.search(criteria);
   return {
     status: 200,
@@ -150,6 +175,9 @@ export async function handleProviderSearch(
 if (import.meta.main) {
   Deno.serve(async (req) => {
   try {
+    if (req.method === 'OPTIONS') {
+      return json({ ok: true });
+    }
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) return json({ error: 'Missing Authorization header' }, 401);
 

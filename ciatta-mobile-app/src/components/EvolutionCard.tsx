@@ -27,13 +27,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   label: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 12,
     color: colors.ink,
     marginTop: 10,
   },
   caption: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 10.5,
     color: colors.ink3,
     textAlign: 'center',

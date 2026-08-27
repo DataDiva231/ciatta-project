@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
-import { colors, fonts, strengthColor } from '../theme/tokens';
+import { colors, fonts, glass, strengthColor } from '../theme/tokens';
 import { domainLabel, strengthLabel } from '../lib/mockData';
 import type { Domain, RelationshipRef } from '../lib/types';
 import type {
@@ -10,6 +10,7 @@ import type {
   UnderstandingRow,
 } from '../lib/queries';
 import { buildVisitBrief } from '../lib/visitPrep';
+import { displayCopy } from '../lib/displayCopy';
 import { insertObservation, type ProviderFeedbackRow } from '../lib/observations';
 import type { Provider } from '../lib/providerSearch';
 import BottomSheet from '../components/BottomSheet';
@@ -17,6 +18,9 @@ import RelationshipList from '../components/RelationshipList';
 import Timeline from '../components/Timeline';
 import TextField from '../components/TextField';
 import PrimaryButton from '../components/PrimaryButton';
+import GlassChip from '../components/GlassChip';
+import GlassSurface, { GlassGroup } from '../components/GlassSurface';
+import Card from '../components/Card';
 import { CloseIcon } from '../components/icons';
 import ProviderSearchSheet from './ProviderSearchSheet';
 
@@ -39,16 +43,20 @@ const PROVIDER_OUTCOME: Record<string, string> = {
 };
 
 function formatFeedbackDate(value: string): string {
-  return new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return displayCopy(
+    new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  );
 }
 
 function formatDate(value: string | null): string {
-  if (!value) return '—';
-  return new Date(value).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  if (!value) return '·';
+  return displayCopy(
+    new Date(value).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  );
 }
 
 /** "3 days" / "6 weeks" / "4 months" — a span someone can feel, not a date. */
@@ -66,11 +74,11 @@ function formatProviderAddress(provider: Provider): string | null {
   const a = provider.address;
   if (!a) return null;
   const line2 = [a.city, a.state, a.postalCode].filter(Boolean).join(', ');
-  return [a.line1, line2].filter(Boolean).join(', ') || null;
+  return displayCopy([a.line1, line2].filter(Boolean).join(', ') || '') || null;
 }
 
 function formatAgo(value: string | null): string {
-  if (!value) return '—';
+  if (!value) return '·';
   const mins = Math.floor((Date.now() - new Date(value).getTime()) / 60000);
   if (mins < 60) return mins <= 1 ? 'just now' : `${mins}m ago`;
   const hours = Math.floor(mins / 60);
@@ -91,6 +99,7 @@ export default function UnderstandingSheet({
   onClose,
   onHelpLearnMore,
   onProviderFeedbackSaved,
+  startWithProviderSearch = false,
 }: {
   domain: Domain | null;
   understandings: UnderstandingRow[];
@@ -103,6 +112,7 @@ export default function UnderstandingSheet({
   onClose: () => void;
   onHelpLearnMore: () => void;
   onProviderFeedbackSaved: () => void;
+  startWithProviderSearch?: boolean;
 }) {
   // Care Preparation / Provider Feedback / Provider Search state. Hooks run
   // unconditionally — this has to sit above the `!understanding` early
@@ -122,6 +132,12 @@ export default function UnderstandingSheet({
   // below, rather than from `understanding` directly — the same three
   // handlers serve both cases, nothing is duplicated per-target.
   const [careTargetId, setCareTargetId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (domain && startWithProviderSearch) {
+      setProviderSearchOpen(true);
+    }
+  }, [domain, startWithProviderSearch]);
 
   function handleClose() {
     setLoggingProvider(false);
@@ -210,7 +226,7 @@ export default function UnderstandingSheet({
       : currentUnderstanding;
     const careTarget = cd
       ? {
-          displayLabel: `your ${cd.label.replace('-related', '')} pattern`,
+          displayLabel: `your ${displayCopy(cd.label).replace(/ related$/i, '').trim()} pattern`,
           domain: feedbackUnderstanding.domain,
           narrative: cd.narrative,
           confidenceLabel: cd.confidence_label ?? strengthLabel[cd.strength],
@@ -300,9 +316,10 @@ export default function UnderstandingSheet({
             providerSource: selectedProvider?.source ?? null,
           },
         });
+        onProviderFeedbackSaved();
       }
     } catch (e) {
-      setCareActionError(e instanceof Error ? e.message : "That didn't go through — try again.");
+      setCareActionError(e instanceof Error ? e.message : "That didn't go through. Try again.");
     }
   }
 
@@ -362,7 +379,7 @@ export default function UnderstandingSheet({
       setLoggingProvider(false);
       onProviderFeedbackSaved();
     } catch (e) {
-      setCareActionError(e instanceof Error ? e.message : "That didn't save — try again.");
+      setCareActionError(e instanceof Error ? e.message : "That didn't save. Try again.");
     } finally {
       setSavingProviderNote(false);
     }
@@ -374,7 +391,7 @@ export default function UnderstandingSheet({
       <View>
         <View style={styles.headerRow}>
           <View style={styles.headerText}>
-            <Text style={styles.eyebrow}>WHAT I UNDERSTAND ABOUT YOUR</Text>
+            <Text style={styles.eyebrow}>YOUR UNDERSTANDING</Text>
             <Text style={styles.title}>{domainLabel[understanding.domain]}</Text>
           </View>
           <Pressable onPress={handleClose} hitSlop={10}>
@@ -401,7 +418,7 @@ export default function UnderstandingSheet({
           <Text style={styles.confidenceMeta}>updated {formatAgo(understanding.last_updated)}</Text>
         </View>
 
-        <Text style={styles.sectionLabel}>WHY I BELIEVE IT</Text>
+        <Text style={styles.sectionLabel}>THE EVIDENCE</Text>
         <View style={styles.evidenceStrip}>
           <View style={styles.metric}>
             <Text style={styles.metricValue}>{understanding.observations_count}</Text>
@@ -409,12 +426,12 @@ export default function UnderstandingSheet({
           </View>
           <View style={styles.metricDivider} />
           <View style={styles.metric}>
-            <Text style={styles.metricValue}>{span ?? '—'}</Text>
-            <Text style={styles.metricLabel}>of watching{'\n'}your body</Text>
+            <Text style={styles.metricValue}>{span ?? '·'}</Text>
+            <Text style={styles.metricLabel}>of this{'\n'}pattern</Text>
           </View>
           <View style={styles.metricDivider} />
           <View style={styles.metric}>
-            <Text style={styles.metricValue}>{timelineSteps.length || '—'}</Text>
+            <Text style={styles.metricValue}>{timelineSteps.length || '·'}</Text>
             <Text style={styles.metricLabel}>time{timelineSteps.length === 1 ? '' : 's'} this{'\n'}has shifted</Text>
           </View>
         </View>
@@ -435,7 +452,7 @@ export default function UnderstandingSheet({
             {relatedCrossDomain.map((cd) => {
               const otherDomain = cd.from_domain === understanding.domain ? cd.to_domain : cd.from_domain;
               return (
-                <View key={cd.id} style={styles.crossDomainCard}>
+                <Card key={cd.id} style={styles.crossDomainCard}>
                   <View style={styles.confidenceRow}>
                     <View
                       style={[styles.confidenceDot, { backgroundColor: strengthColor[cd.strength] }]}
@@ -475,7 +492,7 @@ export default function UnderstandingSheet({
                       </Pressable>
                     </View>
                   ) : null}
-                </View>
+                </Card>
               );
             })}
           </>
@@ -490,7 +507,7 @@ export default function UnderstandingSheet({
 
         {understanding.still_learning.length > 0 ? (
           <>
-            <Text style={styles.sectionLabel}>STILL WORKING OUT</Text>
+            <Text style={styles.sectionLabel}>STILL LEARNING</Text>
             {understanding.still_learning.map((q) => (
               <View key={q} style={styles.bulletRow}>
                 <View style={styles.bullet} />
@@ -502,7 +519,10 @@ export default function UnderstandingSheet({
 
         {guidance ? (
           <>
-            <Text style={styles.sectionLabel}>WORTH DISCUSSING</Text>
+            <Text style={styles.sectionLabel}>CARE CONNECTION</Text>
+            {understanding.care_recommendation_reason ? (
+              <Text style={styles.bulletText}>{understanding.care_recommendation_reason}</Text>
+            ) : null}
             {understanding.care_recommendation_type ? (
               <Text style={styles.careTypeBadge}>
                 {CARE_TYPE_LABEL[understanding.care_recommendation_type] ??
@@ -542,15 +562,21 @@ export default function UnderstandingSheet({
             ) : null}
 
             {selectedProvider ? (
-              <View style={styles.selectedProviderRow}>
+              <GlassSurface
+                kind="regular"
+                tintColor={glass.tint}
+                colorScheme="auto"
+                style={styles.selectedProviderRow}
+                fallbackStyle={styles.selectedProviderFallback}
+              >
                 <Text style={styles.selectedProviderText}>
                   Preparing for: {selectedProvider.name}
-                  {selectedProvider.specialty[0] ? ` — ${selectedProvider.specialty[0]}` : ''}
+                  {selectedProvider.specialty[0] ? `, ${selectedProvider.specialty[0]}` : ''}
                 </Text>
                 <Pressable onPress={() => setSelectedProvider(null)} hitSlop={8}>
                   <Text style={styles.selectedProviderClear}>Clear</Text>
                 </Pressable>
-              </View>
+              </GlassSurface>
             ) : null}
 
             {loggingProvider ? (
@@ -562,24 +588,16 @@ export default function UnderstandingSheet({
                   multiline
                 />
                 <Text style={styles.outcomeLabel}>WHAT WAS THE OUTCOME?</Text>
-                <View style={styles.outcomeOptions}>
+                <GlassGroup spacing={8} style={styles.outcomeOptions}>
                   {Object.entries(PROVIDER_OUTCOME).map(([key, label]) => (
-                    <Pressable
+                    <GlassChip
                       key={key}
+                      label={label}
+                      selected={selectedOutcome === key}
                       onPress={() => setSelectedOutcome((v) => (v === key ? null : key))}
-                      style={[styles.outcomeChip, selectedOutcome === key && styles.outcomeChipActive]}
-                    >
-                      <Text
-                        style={[
-                          styles.outcomeChipText,
-                          selectedOutcome === key && styles.outcomeChipTextActive,
-                        ]}
-                      >
-                        {label}
-                      </Text>
-                    </Pressable>
+                    />
                   ))}
-                </View>
+                </GlassGroup>
                 <View style={{ marginTop: 10 }}>
                   <PrimaryButton
                     label="Save"
@@ -603,7 +621,7 @@ export default function UnderstandingSheet({
                   <View key={f.id} style={styles.bulletRow}>
                     <View style={styles.bullet} />
                     <Text style={styles.bulletText}>
-                      {formatFeedbackDate(f.recorded_at)} —{' '}
+                      {formatFeedbackDate(f.recorded_at)}:{' '}
                       {f.type === 'provider_outcome'
                         ? PROVIDER_OUTCOME[f.value.outcome as string] ?? String(f.value.outcome)
                         : String(f.value.text ?? '')}
@@ -616,7 +634,7 @@ export default function UnderstandingSheet({
         ) : null}
 
         <View style={{ marginTop: 28 }}>
-          <PrimaryButton label="Help me learn more" onPress={onHelpLearnMore} />
+          <PrimaryButton label="Share a little more" onPress={onHelpLearnMore} />
         </View>
       </View>
     </BottomSheet>
@@ -644,21 +662,22 @@ const styles = StyleSheet.create({
     paddingRight: 12,
   },
   eyebrow: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 10.5,
     letterSpacing: 1.1,
     color: colors.ink3,
     marginBottom: 4,
   },
   title: {
-    fontFamily: fonts.serif,
-    fontSize: 32,
+    ...fonts.serif,
+    fontSize: 14,
+    lineHeight: 18,
     color: colors.ink,
   },
   narrative: {
-    fontFamily: fonts.serif,
-    fontSize: 21,
-    lineHeight: 29,
+    ...fonts.sans,
+    fontSize: 14.5,
+    lineHeight: 22,
     color: colors.ink,
   },
   confidenceRow: {
@@ -674,21 +693,21 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   confidenceText: {
-    fontFamily: fonts.sansSemiBold,
+    ...fonts.sansSemiBold,
     fontSize: 13,
   },
   confidenceSep: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.ink3,
   },
   confidenceMeta: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.ink3,
   },
   sectionLabel: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 10.5,
     letterSpacing: 1.1,
     color: colors.ink3,
@@ -698,7 +717,7 @@ const styles = StyleSheet.create({
   evidenceStrip: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    backgroundColor: colors.canvas,
+    backgroundColor: colors.wash,
     borderRadius: 14,
     paddingVertical: 18,
   },
@@ -713,12 +732,12 @@ const styles = StyleSheet.create({
     marginVertical: 2,
   },
   metricValue: {
-    fontFamily: fonts.mono,
+    ...fonts.mono,
     fontSize: 20,
     color: colors.evidence,
   },
   metricLabel: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 11.5,
     lineHeight: 15,
     color: colors.ink2,
@@ -726,7 +745,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   evidenceFootnote: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 12,
     color: colors.ink3,
     marginTop: 10,
@@ -746,13 +765,13 @@ const styles = StyleSheet.create({
   },
   bulletText: {
     flex: 1,
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13.5,
     lineHeight: 20,
     color: colors.ink2,
   },
   careTypeBadge: {
-    fontFamily: fonts.sansSemiBold,
+    ...fonts.sansSemiBold,
     fontSize: 10.5,
     letterSpacing: 0.8,
     color: colors.accent,
@@ -765,19 +784,18 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   careActionLink: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 13,
-    color: colors.accent,
-    textDecorationLine: 'underline',
+    color: colors.ink,
   },
   careConfirmation: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.evidence,
     marginTop: 12,
   },
   careError: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.accent,
     marginTop: 10,
@@ -786,33 +804,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.canvas,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
     marginTop: 12,
   },
+  selectedProviderFallback: {
+    backgroundColor: colors.wash,
+    borderRadius: 10,
+  },
   selectedProviderText: {
     flex: 1,
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 12.5,
     color: colors.ink,
     paddingRight: 10,
   },
   selectedProviderClear: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 12.5,
     color: colors.ink3,
     textDecorationLine: 'underline',
   },
   crossDomainCard: {
-    backgroundColor: colors.canvas,
-    borderRadius: 14,
     padding: 14,
     marginBottom: 10,
   },
   crossDomainNarrative: {
-    fontFamily: fonts.serif,
+    ...fonts.serif,
     fontSize: 15.5,
     lineHeight: 21,
     color: colors.ink,
@@ -820,7 +839,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   outcomeLabel: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 10.5,
     letterSpacing: 1.1,
     color: colors.ink3,
@@ -832,30 +851,11 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
-  outcomeChip: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 20,
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-  },
-  outcomeChipActive: {
-    backgroundColor: colors.ink,
-    borderColor: colors.ink,
-  },
-  outcomeChipText: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 12,
-    color: colors.ink2,
-  },
-  outcomeChipTextActive: {
-    color: colors.canvas,
-  },
   feedbackHistory: {
     marginTop: 16,
   },
   careTargetIndicator: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 12,
     color: colors.ink3,
     marginTop: 10,

@@ -32,12 +32,12 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   label: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 14,
     color: colors.ink2,
   },
   value: {
-    fontFamily: fonts.mono,
+    ...fonts.mono,
     fontSize: 13,
     color: colors.ink,
   },

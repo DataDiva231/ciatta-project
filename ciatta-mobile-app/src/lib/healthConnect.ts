@@ -74,6 +74,27 @@ export async function connectHealthConnect(
   return { granted: true, observationsSynced };
 }
 
+/**
+ * OS permission only — no observations are written. Used during guest
+ * onboarding so Health Connect is not associated with an account until
+ * authentication completes.
+ */
+export async function requestHealthConnectPermission(): Promise<HealthConnectConnectResult> {
+  const available = await isHealthConnectAvailable();
+  if (!available) {
+    return { granted: false, observationsSynced: 0, reason: 'unavailable' };
+  }
+
+  await initialize();
+  const granted = await requestPermission(READ_PERMISSIONS);
+
+  if (granted.length === 0) {
+    return { granted: false, observationsSynced: 0, reason: 'permission-denied' };
+  }
+
+  return { granted: true, observationsSynced: 0 };
+}
+
 export async function syncHealthConnectData(userId: string): Promise<number> {
   const endTime = new Date();
   const startTime = new Date(endTime.getTime() - SYNC_WINDOW_HOURS * 60 * 60 * 1000);

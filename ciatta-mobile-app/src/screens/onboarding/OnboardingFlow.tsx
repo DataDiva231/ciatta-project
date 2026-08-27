@@ -1,8 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated,
-  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -11,29 +9,57 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts } from '../../theme/tokens';
+import { colors, fonts, type } from '../../theme/tokens';
 import PrimaryButton from '../../components/PrimaryButton';
 import GhostButton from '../../components/GhostButton';
 import Card from '../../components/Card';
 import { signIn, signUp } from '../../lib/auth';
 import { seedProfileName } from '../../lib/socialAuth';
 import SocialAuthButtons from '../../components/SocialAuthButtons';
-import { connectHealthConnect } from '../../lib/healthConnect';
-import { connectHealthKit } from '../../lib/healthKit';
+import { connectHealthConnect, requestHealthConnectPermission } from '../../lib/healthConnect';
+import { connectHealthKit, requestHealthKitPermission } from '../../lib/healthKit';
 import ConversationOnboarding, { type ConversationSummary } from './ConversationOnboarding';
+import {
+  CalendarStep,
+  HealthDocumentsStep,
+  MedicalRecordsStep,
+  MentalHealthStep,
+  NotificationsStep,
+  PoliciesStep,
+  WearablesStep,
+} from './OnboardingSetupSteps';
+import type { PendingHealthDocument } from '../../lib/onboardingSetup';
 import KeyboardAvoidingScreen from '../../components/KeyboardAvoidingScreen';
+import {
+  ONBOARDING_ACCOUNT_STEP,
+  ONBOARDING_CONVERSATION_STEP,
+  ONBOARDING_FLOW_STEPS,
+  type OnboardingAnswer,
+} from '../../lib/onboardingConversation';
+import {
+  loadGuestOnboardingDraft,
+  saveGuestOnboardingDraft,
+  type GuestOnboardingDraft,
+} from '../../lib/onboardingDraft';
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = ONBOARDING_FLOW_STEPS.length;
 
-// The single welcome screen (0), and the account-creation step it leads
-// into. Kept as a named constant so the "skip ahead" handler below doesn't
-// rely on a magic number.
-const ACCOUNT_STEP = 1;
+const ACCOUNT_STEP = ONBOARDING_ACCOUNT_STEP;
+const CONVERSATION_STEP = ONBOARDING_CONVERSATION_STEP;
+const UNDERSTANDING_STEP = ONBOARDING_FLOW_STEPS.indexOf('understanding');
+const REFLECTION_STEP = ONBOARDING_FLOW_STEPS.indexOf('reflection');
+const MENTAL_HEALTH_STEP = ONBOARDING_FLOW_STEPS.indexOf('mental-health');
+const HEALTH_DOCUMENTS_STEP = ONBOARDING_FLOW_STEPS.indexOf('health-documents');
+const MEDICAL_RECORDS_STEP = ONBOARDING_FLOW_STEPS.indexOf('medical-records');
+const WEARABLES_STEP = ONBOARDING_FLOW_STEPS.indexOf('wearables');
+const CALENDAR_STEP = ONBOARDING_FLOW_STEPS.indexOf('calendar');
+const NOTIFICATIONS_STEP = ONBOARDING_FLOW_STEPS.indexOf('notifications');
+const POLICIES_STEP = ONBOARDING_FLOW_STEPS.indexOf('policies');
 
-// The one welcome screen shown after the splash, before account creation.
+// The one welcome screen shown after the splash, before the conversation.
 const WELCOME_SLIDE = {
   title: 'Welcome to Ciatta.',
-  body: 'Every body tells a story. I build an understanding of yours over time, and help you make sense of what changes.',
+  body: 'Every body tells a story. Over time, an understanding of yours takes shape, so you can make sense of what changes.',
 };
 
 export interface OnboardingDraft {
@@ -43,15 +69,23 @@ export interface OnboardingDraft {
   story: string | null;
   notifPref: string;
   sharedHealthRows: string[];
+  pendingHealthNotes: Record<string, string>;
   height: string;
   weight: string;
+  answers: OnboardingAnswer[];
+  needsCommit: boolean;
+  connectHealthAfterAuth: boolean;
+  connectCalendarAfterAuth: boolean;
+  pendingDocuments: PendingHealthDocument[];
+  suggestedTests: string[];
+  includeMentalEmotional: boolean;
 }
 
 const HEALTH_SOURCE_NAME = Platform.OS === 'android' ? 'Health Connect' : 'Apple Health';
 const HEALTH_SOURCE_BODY =
   Platform.OS === 'android'
-    ? 'Health Connect helps me understand your sleep, activity, and heart health without asking you the same questions twice.'
-    : 'Apple Health helps me understand your sleep, activity, and heart health without asking you the same questions twice.';
+    ? 'Health Connect brings in your sleep, activity, and heart health without asking you the same questions twice.'
+    : 'Apple Health brings in your sleep, activity, and heart health without asking you the same questions twice.';
 
 export default function OnboardingFlow({
   onComplete,
@@ -73,32 +107,154 @@ export default function OnboardingFlow({
   const [concern, setConcern] = useState<string | null>(null);
   const [height, setHeight] = useState('');
   const [weight, setWeight] = useState('');
+  const [answers, setAnswers] = useState<OnboardingAnswer[]>([]);
+  const [needsCommit, setNeedsCommit] = useState(false);
+  const [conversationDone, setConversationDone] = useState(false);
+  const [connectHealthAfterAuth, setConnectHealthAfterAuth] = useState(false);
   const [appleHealthConnected, setAppleHealthConnected] = useState(false);
   const [healthConnecting, setHealthConnecting] = useState(false);
   const [healthConnectNote, setHealthConnectNote] = useState<string | null>(null);
+  const [notifPref, setNotifPref] = useState('discoveries');
+  const [sharedHealthRows, setSharedHealthRows] = useState<string[]>([]);
+  const [pendingHealthNotes, setPendingHealthNotes] = useState<Record<string, string>>({});
+  const [policiesAgreed, setPoliciesAgreed] = useState(false);
+  const [pendingDocuments, setPendingDocuments] = useState<PendingHealthDocument[]>([]);
+  const [suggestedTests, setSuggestedTests] = useState<string[]>([]);
+  const [includeMentalEmotional, setIncludeMentalEmotional] = useState(false);
+  const [connectCalendarAfterAuth, setConnectCalendarAfterAuth] = useState(false);
+
+  function buildDraft(healthAfterAuth = connectHealthAfterAuth): OnboardingDraft {
+    return {
+      name,
+      dob,
+      lifeStage,
+      story,
+      notifPref,
+      sharedHealthRows,
+      pendingHealthNotes,
+      height,
+      weight,
+      answers,
+      needsCommit,
+      connectHealthAfterAuth: healthAfterAuth,
+      connectCalendarAfterAuth,
+      pendingDocuments,
+      suggestedTests,
+      includeMentalEmotional,
+    };
+  }
+
+  function snapshotGuestDraft(
+    nextStep: number,
+    conversationDone: boolean,
+    extra: Partial<GuestOnboardingDraft> = {}
+  ) {
+    if (userId) return;
+    const snapshot: GuestOnboardingDraft = {
+      name,
+      dob,
+      lifeStage,
+      story,
+      concern,
+      height,
+      weight,
+      answers,
+      connectHealthAfterAuth,
+      conversationDone,
+      needsCommit: true,
+      step: nextStep,
+      notifPref,
+      sharedHealthRows,
+      pendingHealthNotes,
+      pendingDocuments,
+      suggestedTests,
+      includeMentalEmotional,
+      connectCalendarAfterAuth,
+      ...extra,
+    };
+    saveGuestOnboardingDraft(snapshot).catch(() => {});
+  }
+
+  useEffect(() => {
+    if (userId) return;
+    let cancelled = false;
+    loadGuestOnboardingDraft().then((saved) => {
+      if (cancelled || !saved) return;
+      setName(saved.name);
+      setDob(saved.dob);
+      setLifeStage(saved.lifeStage);
+      setStory(saved.story);
+      setConcern(saved.concern);
+      setHeight(saved.height);
+      setWeight(saved.weight);
+      setAnswers(saved.answers);
+      setNeedsCommit(saved.needsCommit);
+      setConversationDone(saved.conversationDone);
+      setConnectHealthAfterAuth(saved.connectHealthAfterAuth);
+      if (saved.notifPref) setNotifPref(saved.notifPref);
+      if (saved.sharedHealthRows) setSharedHealthRows(saved.sharedHealthRows);
+      if (saved.pendingHealthNotes) setPendingHealthNotes(saved.pendingHealthNotes);
+      if (saved.pendingDocuments) setPendingDocuments(saved.pendingDocuments);
+      if (saved.suggestedTests) setSuggestedTests(saved.suggestedTests);
+      if (typeof saved.includeMentalEmotional === 'boolean') {
+        setIncludeMentalEmotional(saved.includeMentalEmotional);
+      }
+      if (typeof saved.connectCalendarAfterAuth === 'boolean') {
+        setConnectCalendarAfterAuth(saved.connectCalendarAfterAuth);
+      }
+      if (typeof saved.step === 'number' && saved.step > 0) {
+        setStep(saved.step);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   // Onboarding no longer asks a separate "which categories can I share"
   // question — the conversation itself asks about cycle/medical history/
   // medications directly, so reaching this step already means all three
   // were discussed (answered or explicitly declined) rather than merely
   // permitted in the abstract.
-  function finishOnboarding() {
-    onComplete({
-      name,
-      dob,
-      lifeStage,
-      story,
-      notifPref: 'discoveries',
-      sharedHealthRows: ['cycle', 'medical', 'meds'],
-      height,
-      weight,
-    });
+  function finishOnboarding(healthAfterAuth = connectHealthAfterAuth) {
+    onComplete(buildDraft(healthAfterAuth));
   }
 
   async function handleConnectHealthSource() {
-    if (!userId || (Platform.OS !== 'android' && Platform.OS !== 'ios')) {
+    if (Platform.OS !== 'android' && Platform.OS !== 'ios') {
       setAppleHealthConnected(true);
-      finishOnboarding();
+      setConnectHealthAfterAuth(true);
+      return;
+    }
+    if (!userId) {
+      setHealthConnecting(true);
+      setHealthConnectNote(null);
+      try {
+        const result =
+          Platform.OS === 'android'
+            ? await requestHealthConnectPermission()
+            : await requestHealthKitPermission();
+        if (result.granted) {
+          setAppleHealthConnected(true);
+          setConnectHealthAfterAuth(true);
+        } else if (result.reason === 'unavailable') {
+          setHealthConnectNote(
+            Platform.OS === 'android'
+              ? "Health Connect isn't installed on this device yet. Install it from the Play Store, then come back and connect."
+              : "Apple Health isn't available on this device."
+          );
+        } else {
+          setHealthConnectNote(
+            "Permission wasn't granted to read your health data. You can try again or continue without it for now."
+          );
+        }
+      } catch (e) {
+        setHealthConnectNote(
+          e instanceof Error ? e.message : `Something went wrong connecting ${HEALTH_SOURCE_NAME}.`
+        );
+      } finally {
+        setHealthConnecting(false);
+      }
       return;
     }
     setHealthConnecting(true);
@@ -110,7 +266,6 @@ export default function OnboardingFlow({
           : await connectHealthKit(userId);
       if (result.granted) {
         setAppleHealthConnected(true);
-        finishOnboarding();
       } else if (result.reason === 'unavailable') {
         setHealthConnectNote(
           Platform.OS === 'android'
@@ -119,7 +274,7 @@ export default function OnboardingFlow({
         );
       } else {
         setHealthConnectNote(
-          "I wasn't given permission to read your health data. You can try again or continue without it for now."
+          "Permission wasn't granted to read your health data. You can try again or continue without it for now."
         );
       }
     } catch (e) {
@@ -139,13 +294,32 @@ export default function OnboardingFlow({
     setWeight(summary.weight);
     setStory(summary.intent);
     setConcern(summary.concern);
+    setAnswers(summary.answers);
+    setNeedsCommit(summary.needsCommit);
+    setConversationDone(true);
+    snapshotGuestDraft(step + 1, true, {
+      name: summary.name,
+      dob: summary.dob,
+      lifeStage: summary.lifeStage || null,
+      height: summary.height,
+      weight: summary.weight,
+      story: summary.intent,
+      concern: summary.concern,
+      answers: summary.answers,
+      needsCommit: summary.needsCommit,
+    });
     next();
   }
 
-  function goTo(next: number) {
+  function goTo(nextStep: number) {
+    if (nextStep === ACCOUNT_STEP && userId) {
+      snapshotGuestDraft(ACCOUNT_STEP, conversationDone);
+      finishOnboarding();
+      return;
+    }
     Animated.timing(fade, { toValue: 0, duration: 130, useNativeDriver: true }).start(
       () => {
-        setStep(next);
+        setStep(nextStep);
         Animated.timing(fade, {
           toValue: 1,
           duration: 250,
@@ -157,8 +331,7 @@ export default function OnboardingFlow({
 
   const next = () => goTo(step + 1);
   const back = () => step > 0 && goTo(step - 1);
-  // Begin drops straight into account creation.
-  const skipIntro = () => goTo(ACCOUNT_STEP);
+  const skipToAccount = () => goTo(ACCOUNT_STEP);
 
   const dark = DARK_STEPS.has(step);
 
@@ -200,36 +373,138 @@ export default function OnboardingFlow({
             title={WELCOME_SLIDE.title}
             body={WELCOME_SLIDE.body}
             ctaLabel="Begin"
-            onContinue={skipIntro}
+            onContinue={next}
+            secondaryLabel="Already have an account? Sign in"
+            onSecondary={skipToAccount}
           />
         )}
 
-        {step === 1 && <AccountStep onAuthed={next} />}
+        {step === CONVERSATION_STEP && (
+          <ConversationOnboarding userId={userId} onDone={handleConversationDone} />
+        )}
 
-        {step === 2 &&
-          (userId ? (
-            <ConversationOnboarding userId={userId} onDone={handleConversationDone} />
-          ) : (
-            <View style={[styles.flex, { alignItems: 'center', justifyContent: 'center' }]}>
-              <ActivityIndicator color={colors.accent} />
-            </View>
-          ))}
+        {step === UNDERSTANDING_STEP && <BeginningYourStory onDone={next} />}
 
-        {step === 3 && <BeginningYourStory onDone={next} />}
-
-        {step === 4 && (
+        {step === REFLECTION_STEP && (
           <Reflection
             name={name}
             lifeStage={lifeStage}
             story={story}
             concern={concern}
+            onContinue={() => {
+              snapshotGuestDraft(MENTAL_HEALTH_STEP, true);
+              next();
+            }}
+          />
+        )}
+
+        {step === MENTAL_HEALTH_STEP && (
+          <MentalHealthStep
+            onContinue={() => {
+              setIncludeMentalEmotional(true);
+              snapshotGuestDraft(HEALTH_DOCUMENTS_STEP, true, { includeMentalEmotional: true });
+              next();
+            }}
+          />
+        )}
+
+        {step === HEALTH_DOCUMENTS_STEP && (
+          <HealthDocumentsStep
+            userId={userId ?? null}
+            sharedIds={sharedHealthRows}
+            documents={pendingDocuments}
+            suggestedTests={suggestedTests}
+            onDocumentsChange={setPendingDocuments}
+            onSuggestedTestsChange={setSuggestedTests}
+            onGuestSave={(id, text) => {
+              setPendingHealthNotes((prev) => ({ ...prev, [id]: text }));
+              if (text) {
+                setSharedHealthRows((prev) => (prev.includes(id) ? prev : [...prev, id]));
+              } else {
+                setSharedHealthRows((prev) => prev.filter((row) => row !== id));
+              }
+            }}
+            onSaved={(id) => {
+              setSharedHealthRows((prev) => (prev.includes(id) ? prev : [...prev, id]));
+            }}
+            onContinue={next}
+            onSkip={next}
+          />
+        )}
+
+        {step === MEDICAL_RECORDS_STEP && (
+          <MedicalRecordsStep
+            userId={userId ?? null}
+            profileLocation={null}
+            onContinue={next}
+            onSkip={next}
+          />
+        )}
+
+        {step === WEARABLES_STEP && (
+          <WearablesStep
+            userId={userId ?? null}
             healthSourceName={HEALTH_SOURCE_NAME}
             healthSourceBody={HEALTH_SOURCE_BODY}
             healthConnecting={healthConnecting}
             healthConnectNote={healthConnectNote}
-            appleHealthConnected={appleHealthConnected}
-            onConnectHealth={handleConnectHealthSource}
-            onSkipHealth={finishOnboarding}
+            connected={appleHealthConnected}
+            onConnect={handleConnectHealthSource}
+            onContinue={next}
+            onSkip={() => {
+              setConnectHealthAfterAuth(false);
+              next();
+            }}
+            onSynced={() => {
+              setAppleHealthConnected(true);
+              setConnectHealthAfterAuth(false);
+            }}
+          />
+        )}
+
+        {step === CALENDAR_STEP && (
+          <CalendarStep
+            onAllow={() => {
+              setConnectCalendarAfterAuth(true);
+              next();
+            }}
+            onSkip={() => {
+              setConnectCalendarAfterAuth(false);
+              next();
+            }}
+          />
+        )}
+
+        {step === NOTIFICATIONS_STEP && (
+          <NotificationsStep
+            onAllow={() => {
+              setNotifPref('discoveries');
+              next();
+            }}
+            onSkip={() => {
+              setNotifPref('none');
+              next();
+            }}
+          />
+        )}
+
+        {step === POLICIES_STEP && (
+          <PoliciesStep
+            agreed={policiesAgreed}
+            onToggleAgree={() => setPoliciesAgreed((v) => !v)}
+            onContinue={next}
+          />
+        )}
+
+        {step === ACCOUNT_STEP && (
+          <AccountStep
+            onAuthed={() => {
+              if (conversationDone) {
+                finishOnboarding();
+              } else {
+                goTo(CONVERSATION_STEP);
+              }
+            }}
           />
         )}
       </Animated.View>
@@ -244,7 +519,7 @@ export default function OnboardingFlow({
 const DARK_STEPS = new Set<number>([]);
 
 function BeginningYourStory({ onDone }: { onDone: () => void }) {
-  const lines = ["I'm beginning to", 'understand you.'];
+  const lines = ['Your understanding', 'is beginning.'];
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -283,25 +558,13 @@ function Reflection({
   lifeStage,
   story,
   concern,
-  healthSourceName,
-  healthSourceBody,
-  healthConnecting,
-  healthConnectNote,
-  appleHealthConnected,
-  onConnectHealth,
-  onSkipHealth,
+  onContinue,
 }: {
   name: string;
   lifeStage: string | null;
   story: string | null;
   concern: string | null;
-  healthSourceName: string;
-  healthSourceBody: string;
-  healthConnecting: boolean;
-  healthConnectNote: string | null;
-  appleHealthConnected: boolean;
-  onConnectHealth: () => void;
-  onSkipHealth: () => void;
+  onContinue: () => void;
 }) {
   const told: string[] = [];
   if (name.trim()) told.push(`Your name is ${name.trim()}.`);
@@ -311,14 +574,14 @@ function Reflection({
 
   return (
     <View style={styles.flex}>
-      <Text style={styles.title}>What I'm beginning{'\n'}to understand.</Text>
+      <Text style={styles.title}>What's taking{'\n'}shape so far.</Text>
       <Text style={styles.subtitle}>
-        A quick honest look — what you told me, and what I've actually
-        observed so far.
+        A quick honest look: what you shared, and what has actually
+        been observed so far.
       </Text>
 
       <Card style={{ marginTop: 24 }}>
-        <Text style={styles.rightNowLabel}>WHAT YOU TOLD ME</Text>
+        <Text style={styles.rightNowLabel}>WHAT YOU SHARED</Text>
         {told.length > 0 ? (
           told.map((line, i) => (
             <Text key={i} style={[styles.rightNowText, i > 0 && { marginTop: 8 }]}>
@@ -326,48 +589,20 @@ function Reflection({
             </Text>
           ))
         ) : (
-          <Text style={styles.rightNowText}>Nothing yet — we'll pick this up as we go.</Text>
+          <Text style={styles.rightNowText}>Nothing yet. We'll pick this up as we go.</Text>
         )}
 
         <View style={styles.rightNowDivider} />
 
-        <Text style={styles.rightNowLabel}>WHAT I'VE OBSERVED</Text>
+        <Text style={styles.rightNowLabel}>WHAT'S BEEN OBSERVED</Text>
         <Text style={styles.rightNowSub}>
-          Nothing yet — I haven't seen any of your body's data. Once I do,
-          I'll start noticing real patterns instead of just what you tell me.
+          Nothing yet. There isn't any of your body's data here. Once there is,
+          real patterns can take shape instead of only what you share.
         </Text>
       </Card>
 
-      <Text style={[styles.subtitle, { marginTop: 24 }]}>{healthSourceBody}</Text>
-      {healthConnectNote ? (
-        <View style={{ marginTop: 14 }}>
-          <Text style={styles.authError}>{healthConnectNote}</Text>
-          {healthConnectNote.startsWith("Health Connect isn't installed") && (
-            <GhostButton
-              label="Open Play Store"
-              tone="ink"
-              onPress={() =>
-                Linking.openURL(
-                  'market://details?id=com.google.android.apps.healthdata'
-                ).catch(() =>
-                  Linking.openURL(
-                    'https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata'
-                  )
-                )
-              }
-            />
-          )}
-        </View>
-      ) : null}
-
       <View style={{ flex: 1 }} />
-      <PrimaryButton
-        label={appleHealthConnected ? 'Connected' : `Connect ${healthSourceName}`}
-        onPress={onConnectHealth}
-        loading={healthConnecting}
-        disabled={appleHealthConnected}
-      />
-      <GhostButton label="I'll do this later" onPress={onSkipHealth} />
+      <PrimaryButton label="Continue" onPress={onContinue} />
     </View>
   );
 }
@@ -412,7 +647,7 @@ function AccountStep({ onAuthed }: { onAuthed: () => void }) {
       setError(
         e instanceof Error
           ? e.message
-          : "That didn't work yet — try again once you've confirmed."
+          : "That didn't work yet. Try again once you've confirmed."
       );
     } finally {
       setLoading(false);
@@ -424,13 +659,13 @@ function AccountStep({ onAuthed }: { onAuthed: () => void }) {
       <View style={styles.flex}>
         <Text style={styles.title}>Check your email.</Text>
         <Text style={styles.subtitle}>
-          I've sent a confirmation link to {email}. Once you've confirmed, come
+          A confirmation link is on its way to {email}. Once you've confirmed, come
           back here to continue.
         </Text>
         {error ? <Text style={styles.authError}>{error}</Text> : null}
         <View style={{ flex: 1 }} />
         <PrimaryButton
-          label="I've confirmed — Continue"
+          label="I've confirmed. Continue"
           onPress={handleConfirmedContinue}
           loading={loading}
         />
@@ -515,12 +750,16 @@ function Message({
   body,
   ctaLabel,
   onContinue,
+  secondaryLabel,
+  onSecondary,
 }: {
   dark?: boolean;
   title: string;
   body: string;
   ctaLabel: string;
   onContinue: () => void;
+  secondaryLabel?: string;
+  onSecondary?: () => void;
 }) {
   return (
     <View style={styles.flex}>
@@ -530,6 +769,9 @@ function Message({
       </Text>
       <View style={{ flex: 1 }} />
       <PrimaryButton label={ctaLabel} onPress={onContinue} />
+      {secondaryLabel && onSecondary ? (
+        <GhostButton label={secondaryLabel} onPress={onSecondary} />
+      ) : null}
     </View>
   );
 }
@@ -565,7 +807,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
   },
   back: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.ink2,
   },
@@ -576,14 +818,12 @@ const styles = StyleSheet.create({
   },
 
   messageTitle: {
-    fontFamily: fonts.serif,
-    fontSize: 34,
-    lineHeight: 40,
+    ...type.title1,
     color: colors.ink,
     marginTop: 12,
   },
   messageBody: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 15.5,
     lineHeight: 23,
     color: colors.ink2,
@@ -591,21 +831,19 @@ const styles = StyleSheet.create({
   },
 
   title: {
-    fontFamily: fonts.serif,
-    fontSize: 32,
-    lineHeight: 38,
+    ...type.title1,
     color: colors.ink,
     marginTop: 8,
   },
   subtitle: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 14.5,
     lineHeight: 21,
     color: colors.ink2,
     marginTop: 10,
   },
   fieldLabel: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 11,
     letterSpacing: 1,
     color: colors.ink3,
@@ -615,13 +853,13 @@ const styles = StyleSheet.create({
   input: {
     borderBottomWidth: 1.5,
     borderBottomColor: colors.border,
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 16,
     color: colors.ink,
     paddingVertical: 10,
   },
   authError: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.accent,
     marginTop: 16,
@@ -634,28 +872,26 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   beginningTitle: {
-    fontFamily: fonts.serif,
-    fontSize: 30,
-    lineHeight: 36,
+    ...type.title1,
     color: colors.ink,
     textAlign: 'center',
   },
   beginningCaption: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.ink3,
     marginTop: 16,
   },
 
   rightNowLabel: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 11,
     letterSpacing: 1,
     color: colors.ink3,
     marginBottom: 8,
   },
   rightNowText: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 14.5,
     lineHeight: 21,
     color: colors.ink,
@@ -666,7 +902,7 @@ const styles = StyleSheet.create({
     marginVertical: 16,
   },
   rightNowSub: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13.5,
     lineHeight: 19,
     color: colors.ink2,

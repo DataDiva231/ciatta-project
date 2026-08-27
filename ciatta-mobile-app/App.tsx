@@ -3,19 +3,12 @@ import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, AppState, Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
-import { useFonts } from '@expo-google-fonts/karla';
-import { Karla_400Regular, Karla_500Medium, Karla_600SemiBold } from '@expo-google-fonts/karla';
-import {
-  Fraunces_500Medium,
-  Fraunces_600SemiBold,
-  Fraunces_500Medium_Italic,
-} from '@expo-google-fonts/fraunces';
-import { SpaceMono_400Regular, SpaceMono_700Bold } from '@expo-google-fonts/space-mono';
 import type { Session } from '@supabase/supabase-js';
 
-import { colors, fonts as fontTokens } from './src/theme/tokens';
+import { colors, fonts as fontTokens, type } from './src/theme/tokens';
+import GlassSurface from './src/components/GlassSurface';
 import { supabase } from './src/lib/supabase';
-import { signOut } from './src/lib/auth';
+import { signOut, getSession } from './src/lib/auth';
 import { isAuthFailure } from './src/lib/errors';
 import { isClockSkewError, logSessionClockSkew, withClockSkewRetry } from './src/lib/sessionGuard';
 import { fetchProfile, updateProfile } from './src/lib/profile';
@@ -33,28 +26,32 @@ import {
   type UnderstandingHistoryRow,
   type UnderstandingRow,
 } from './src/lib/queries';
-import { answerCuriosity, fetchActiveCuriosity, type ActiveCuriosity } from './src/lib/curiosity';
-import {
-  fetchLastHealthSyncAt,
-  fetchProviderFeedback,
-  fetchRecentSyncSummary,
-  type ProviderFeedbackRow,
-  type RecentSyncSummary,
-} from './src/lib/observations';
+import { answerCuriosity, fetchActiveCuriosity, fetchNextOnboardingQuestion, type ActiveCuriosity } from './src/lib/curiosity';
+import { fetchLastHealthSyncAt, fetchProviderFeedback, fetchRecentSyncSummary, fetchVisitPrepShared, type ProviderFeedbackRow, type RecentSyncSummary } from './src/lib/observations';
 import { registerForPush } from './src/lib/notifications';
 import { connectHealthConnect } from './src/lib/healthConnect';
 import { connectHealthKit } from './src/lib/healthKit';
+import { syncCalendarContext } from './src/lib/calendarContext';
+import { saveHealthNote } from './src/lib/healthNotes';
+import { domainLabel } from './src/lib/mockData';
+import { displayCopy } from './src/lib/displayCopy';
 import type { Domain, Profile, Strength } from './src/lib/types';
 
 import OnboardingFlow, {
   type OnboardingDraft,
 } from './src/screens/onboarding/OnboardingFlow';
+import { ONBOARDING_CONVERSATION_STEP } from './src/lib/onboardingConversation';
+import { isEligibleCareConnection, selectCareNotice, CARE_YOU_ROWS } from './src/lib/careConnection';
+import { completeOnboardingAfterAuth } from './src/lib/onboardingComplete';
+import { clearGuestOnboardingDraft } from './src/lib/onboardingDraft';
 import TodayScreen from './src/screens/TodayScreen';
 import CoreScreen from './src/screens/CoreScreen';
 import YouScreen from './src/screens/YouScreen';
 import BottomNav, { MainTab } from './src/components/BottomNav';
+import { NavAdaptivityProvider } from './src/lib/NavAdaptivity';
 
 import UnderstandingSheet from './src/overlays/UnderstandingSheet';
+import ProviderSearchSheet from './src/overlays/ProviderSearchSheet';
 import TodayInfoSheet from './src/overlays/TodayInfoSheet';
 import CuriosityOverlay from './src/overlays/CuriosityOverlay';
 import DiscoveryFlow from './src/overlays/DiscoveryFlow';
@@ -71,81 +68,25 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const AUTO_SYNC_COOLDOWN_MS = 60 * 60 * 1000;
 
-function parseDob(input: string): string | null {
-  const match = input.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!match) return null;
-  const [, mm, dd, yyyy] = match;
-  return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+function careYouLabel(rowId: string): string {
+  return CARE_YOU_ROWS.find((r) => r.id === rowId)?.label ?? rowId.replace(/-/g, ' ');
 }
 
-// The conversation collects height/weight as free text ("5'6\"", "165 cm",
-// "140 lb", "64 kg") rather than a constrained input, since forcing a unit
-// picker onto a chat bubble would break the conversational feel. These are
-// a best-effort parse into the columns' fixed units (cm / kg); an answer
-// that doesn't match anything recognizable is stored as null rather than
-// guessed at, since a wrong biometric is worse than a missing one.
-function parseHeightToCm(input: string): number | null {
-  const s = input.trim().toLowerCase();
-  if (!s) return null;
-
-  const feetInches = s.match(/^(\d+)\s*(?:'|ft)\s*(\d+)?\s*(?:"|in)?$/);
-  if (feetInches) {
-    const feet = Number(feetInches[1]);
-    const inches = Number(feetInches[2] ?? 0);
-    return Math.round((feet * 12 + inches) * 2.54 * 10) / 10;
-  }
-
-  const cm = s.match(/^(\d+(?:\.\d+)?)\s*cm$/);
-  if (cm) return Number(cm[1]);
-
-  const inOnly = s.match(/^(\d+(?:\.\d+)?)\s*(?:in|inches)$/);
-  if (inOnly) return Math.round(Number(inOnly[1]) * 2.54 * 10) / 10;
-
-  // A bare number is assumed to already be centimeters — the only unit a
-  // typical height (100-230) and this range don't collide with.
-  const bare = s.match(/^(\d+(?:\.\d+)?)$/);
-  if (bare) {
-    const n = Number(bare[1]);
-    return n >= 100 && n <= 230 ? n : null;
-  }
-
-  return null;
-}
-
-function parseWeightToKg(input: string): number | null {
-  const s = input.trim().toLowerCase();
-  if (!s) return null;
-
-  const lb = s.match(/^(\d+(?:\.\d+)?)\s*(?:lb|lbs|pounds?)$/);
-  if (lb) return Math.round(Number(lb[1]) * 0.453592 * 10) / 10;
-
-  const kg = s.match(/^(\d+(?:\.\d+)?)\s*(?:kg|kgs|kilograms?)$/);
-  if (kg) return Number(kg[1]);
-
-  // A bare number: kg and lb ranges overlap for adults, so this leans on
-  // the more common case (lb) once above a kg-implausible threshold.
-  const bare = s.match(/^(\d+(?:\.\d+)?)$/);
-  if (bare) {
-    const n = Number(bare[1]);
-    if (n > 160) return Math.round(n * 0.453592 * 10) / 10;
-    if (n > 0) return n;
-  }
-
-  return null;
+function sharedSummaryLine(row: ProviderFeedbackRow): string {
+  const domain = typeof row.value?.domain === 'string' ? row.value.domain : null;
+  const domainText =
+    domain && domain in domainLabel ? domainLabel[domain as Domain] : 'Visit summary';
+  const when = displayCopy(
+    new Date(row.recorded_at).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  );
+  return `${domainText} · ${when}`;
 }
 
 export default function App() {
-  const [fontsLoaded] = useFonts({
-    Karla_400Regular,
-    Karla_500Medium,
-    Karla_600SemiBold,
-    Fraunces_500Medium,
-    Fraunces_600SemiBold,
-    Fraunces_500Medium_Italic,
-    SpaceMono_400Regular,
-    SpaceMono_700Bold,
-  });
-
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [understandings, setUnderstandings] = useState<UnderstandingRow[]>([]);
@@ -155,6 +96,7 @@ export default function App() {
     CrossDomainUnderstandingRow[]
   >([]);
   const [providerFeedback, setProviderFeedback] = useState<ProviderFeedbackRow[]>([]);
+  const [visitPrepShared, setVisitPrepShared] = useState<ProviderFeedbackRow[]>([]);
   const [discoveries, setDiscoveries] = useState<DiscoveryRow[]>([]);
   const [activeCuriosity, setActiveCuriosity] = useState<ActiveCuriosity | null>(null);
   const [healthSourceConnected, setHealthSourceConnected] = useState(false);
@@ -164,9 +106,13 @@ export default function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [completing, setCompleting] = useState(false);
   const [completeError, setCompleteError] = useState<string | null>(null);
+  const holdingOnboardingRef = useRef(false);
 
   const [tab, setTab] = useState<MainTab>('today');
   const [understandingDomain, setUnderstandingDomain] = useState<Domain | null>(null);
+  const [startUnderstandingWithProviderSearch, setStartUnderstandingWithProviderSearch] =
+    useState(false);
+  const [youProviderSearchVisible, setYouProviderSearchVisible] = useState(false);
   const [curiosityVisible, setCuriosityVisible] = useState(false);
   const [todayInfoVisible, setTodayInfoVisible] = useState(false);
   const [discoveryFlowVisible, setDiscoveryFlowVisible] = useState(false);
@@ -239,7 +185,7 @@ export default function App() {
         // the whole batch before it's treated as a real failure — see
         // sessionGuard.ts. Everything else (network drop, a genuinely dead
         // session) passes straight through to the catch below unchanged.
-        const [p, u, r, h, cd, pf, d, c, hc, sync] = await withClockSkewRetry(
+        const [p, u, r, h, cd, pf, d, c, hc, sync, briefs] = await withClockSkewRetry(
           () =>
             Promise.all([
               fetchProfile(userId),
@@ -252,6 +198,7 @@ export default function App() {
               fetchActiveCuriosity(userId),
               hasHealthSourceObservations(userId),
               fetchRecentSyncSummary(userId),
+              fetchVisitPrepShared(userId),
             ]),
           'loadUserData'
         );
@@ -265,6 +212,7 @@ export default function App() {
         setActiveCuriosity(c);
         setHealthSourceConnected(hc);
         setRecentSyncSummary(sync);
+        setVisitPrepShared(briefs);
         // Fire-and-forget: push is an enhancement and must never block or
         // fail the load. Honours the preference captured at onboarding.
         registerForPush(userId, p?.notification_preference);
@@ -285,7 +233,7 @@ export default function App() {
           try {
             await signOut();
           } catch (signOutError) {
-            console.error('Sign-out during recovery also failed:', signOutError);
+            console.error('Sign out during recovery also failed:', signOutError);
           }
         } else {
           if (isClockSkewError(e)) {
@@ -294,14 +242,14 @@ export default function App() {
             // than one-off) skew is easy to spot instead of reading as an
             // ordinary connectivity error.
             console.error(
-              'PGRST303 (JWT issued at future) persisted through refresh + retry — treating as transient, not signing out:',
+              'PGRST303 (JWT issued at future) persisted through refresh + retry, treating as transient, not signing out:',
               e
             );
           } else {
             console.error('Could not load user data (keeping session):', e);
           }
           setLoadError(
-            "I couldn't reach your data just now. Check your connection and try again."
+            "Your data couldn't be reached just now. Check your connection and try again."
           );
         }
       } finally {
@@ -342,24 +290,43 @@ export default function App() {
   }, [session?.user?.id, healthSourceConnected, maybeAutoSync]);
 
   async function handleOnboardingComplete(draft: OnboardingDraft) {
-    if (!session?.user?.id) return;
+    const sessionNow = (await getSession()) ?? session;
+    const userId = sessionNow?.user?.id;
+    if (!userId) return;
     setCompleting(true);
     setCompleteError(null);
     try {
-      const name = draft.name.trim() || null;
-      const updated = await updateProfile(session.user.id, {
-        name,
-        preferred_name: name,
-        dob: parseDob(draft.dob),
-        life_stage: draft.lifeStage,
-        goals: draft.story ? [draft.story] : [],
-        notification_preference: draft.notifPref,
-        shared_health_rows: draft.sharedHealthRows,
-        height_cm: parseHeightToCm(draft.height),
-        weight_kg: parseWeightToKg(draft.weight),
-        onboarded_at: new Date().toISOString(),
+      const result = await completeOnboardingAfterAuth(userId, draft, {
+        fetchProfile,
+        updateProfile,
+        fetchNext: fetchNextOnboardingQuestion,
+        answer: answerCuriosity,
+        syncHealth: async (id) => {
+          try {
+            if (Platform.OS === 'android') await connectHealthConnect(id);
+            else if (Platform.OS === 'ios') await connectHealthKit(id);
+          } catch (healthError) {
+            console.error('Health source sync after onboarding failed:', healthError);
+          }
+        },
+        syncCalendar: async (id) => {
+          try {
+            await syncCalendarContext(id);
+          } catch (calendarError) {
+            console.error('Calendar context after onboarding failed:', calendarError);
+          }
+        },
+        saveHealthNotes: async (id, notes) => {
+          for (const [category, text] of Object.entries(notes)) {
+            if (text.trim()) await saveHealthNote(id, category, text);
+          }
+        },
+        clearGuestDraft: clearGuestOnboardingDraft,
+        loadUserData,
       });
-      setProfile(updated);
+      if (result.status === 'entered-existing-account' || result.status === 'onboarded') {
+        setProfile(result.profile as Profile);
+      }
     } catch (e) {
       setCompleteError(
         e instanceof Error ? e.message : 'Something went wrong saving your profile.'
@@ -396,11 +363,11 @@ export default function App() {
     );
   }
 
-  if (!fontsLoaded || !splashDone) {
+  if (!splashDone) {
     return (
       <SafeAreaProvider>
         <AnimatedSplash
-          ready={fontsLoaded && session !== undefined}
+          ready={session !== undefined}
           onFinish={() => setSplashDone(true)}
         />
         <StatusBar style="dark" />
@@ -408,61 +375,63 @@ export default function App() {
     );
   }
 
-  if (!session) {
-    return (
-      <SafeAreaProvider>
-        <StatusBar style="dark" />
-        <OnboardingFlow onComplete={handleOnboardingComplete} />
-      </SafeAreaProvider>
-    );
-  }
+  if (session && profile && profile.onboarded_at) {
+    holdingOnboardingRef.current = false;
+  } else {
+    if (!session) {
+      holdingOnboardingRef.current = true;
+    }
 
-  // A failed load no longer signs her out, so it needs somewhere to land
-  // other than a spinner that never resolves.
-  if (!dataLoading && !profile && loadError) {
-    return (
-      <SafeAreaProvider>
-        <View style={styles.loading}>
-          <Text style={styles.retryTitle}>I can't reach your data.</Text>
-          <Text style={styles.retryBody}>{loadError}</Text>
-          <View style={styles.retryButton}>
-            <PrimaryButton
-              label="Try again"
-              onPress={() => {
-                if (session?.user?.id) loadUserData(session.user.id);
-              }}
-            />
-          </View>
-          <StatusBar style="dark" />
-        </View>
-      </SafeAreaProvider>
-    );
-  }
+    if (session && !holdingOnboardingRef.current) {
+      if (!dataLoading && !profile && loadError) {
+        return (
+          <SafeAreaProvider>
+            <View style={styles.loading}>
+              <Text style={styles.retryTitle}>Your data couldn't be reached just now.</Text>
+              <Text style={styles.retryBody}>{loadError}</Text>
+              <View style={styles.retryButton}>
+                <PrimaryButton
+                  label="Try again"
+                  onPress={() => {
+                    if (session?.user?.id) loadUserData(session.user.id);
+                  }}
+                />
+              </View>
+              <StatusBar style="dark" />
+            </View>
+          </SafeAreaProvider>
+        );
+      }
 
-  if (dataLoading || !profile) {
-    return (
-      <SafeAreaProvider>
-        <View style={styles.loading}>
-          <ActivityIndicator color={colors.accent} />
-          <StatusBar style="dark" />
-        </View>
-      </SafeAreaProvider>
-    );
-  }
+      if (dataLoading || !profile) {
+        return (
+          <SafeAreaProvider>
+            <View style={styles.loading}>
+              <ActivityIndicator color={colors.accent} />
+              <StatusBar style="dark" />
+            </View>
+          </SafeAreaProvider>
+        );
+      }
+    }
 
-  if (!profile.onboarded_at) {
     return (
       <SafeAreaProvider>
         <StatusBar style="dark" />
         <OnboardingFlow
           onComplete={handleOnboardingComplete}
-          startStep={2}
+          startStep={session && !holdingOnboardingRef.current ? ONBOARDING_CONVERSATION_STEP : 0}
           userId={session?.user?.id}
         />
         {completeError ? (
-          <View style={styles.completeErrorBanner}>
+          <GlassSurface
+            kind="regular"
+            tintColor={colors.white}
+            style={styles.completeErrorBanner}
+            fallbackStyle={styles.completeErrorFallback}
+          >
             <Text style={styles.completeErrorText}>{completeError}</Text>
-          </View>
+          </GlassSurface>
         ) : null}
       </SafeAreaProvider>
     );
@@ -476,10 +445,12 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
+      <NavAdaptivityProvider>
       <View style={styles.app}>
         <View style={{ flex: 1 }}>
           {tab === 'today' && (
             <TodayScreen
+              userId={session?.user?.id}
               onOpenDiscoveryNudge={() => setDiscoveryFlowVisible(true)}
               onOpenUnderstanding={(d) => setUnderstandingDomain(d)}
               onOpenInfo={() => setTodayInfoVisible(true)}
@@ -489,6 +460,7 @@ export default function App() {
               understandings={understandings}
               preferredName={profile.preferred_name || profile.name || ''}
               recentSyncSummary={recentSyncSummary}
+              relationships={relationships}
             />
           )}
           {tab === 'core' && (
@@ -497,17 +469,33 @@ export default function App() {
               onOpenDiscovery={(id) => setSelectedDiscoveryId(id)}
               strengths={strengths}
               discoveries={discoveries}
+              understandings={understandings}
+              relationships={relationships}
             />
           )}
           {tab === 'you' && (
             <YouScreen
               profile={profile}
               healthSourceConnected={healthSourceConnected}
+              hasEligibleCareConnection={understandings.some(isEligibleCareConnection)}
+              sharedSummaryCount={visitPrepShared.length}
               onOpenRow={(section, row) => {
                 if (section === 'privacy' && row === 'export') {
                   setDataPrivacyVisible(true);
                 } else if (section === 'connections' && row === 'health-source') {
                   setHealthSyncVisible(true);
+                } else if (section === 'care' && row === 'provider') {
+                  const notice = selectCareNotice(understandings);
+                  if (notice) {
+                    setStartUnderstandingWithProviderSearch(true);
+                    setUnderstandingDomain(notice.domain);
+                  } else {
+                    setYouProviderSearchVisible(true);
+                  }
+                } else if (section === 'care' && row === 'visit-prep') {
+                  const notice = selectCareNotice(understandings);
+                  if (notice) setUnderstandingDomain(notice.domain);
+                  else setRowSheet({ section, row });
                 } else if (PROFILE_FIELDS[row]) {
                   setEditRowId(row);
                 } else if (isHealthNoteRow(row)) {
@@ -522,6 +510,7 @@ export default function App() {
         </View>
         <BottomNav active={tab} onChange={setTab} />
       </View>
+      </NavAdaptivityProvider>
 
       <TodayInfoSheet
         visible={todayInfoVisible}
@@ -538,14 +527,28 @@ export default function App() {
         providerFeedback={providerFeedback}
         userId={session?.user?.id ?? null}
         profileLocation={profile?.location ?? null}
-        onClose={() => setUnderstandingDomain(null)}
+        startWithProviderSearch={startUnderstandingWithProviderSearch}
+        onClose={() => {
+          setUnderstandingDomain(null);
+          setStartUnderstandingWithProviderSearch(false);
+        }}
         onHelpLearnMore={() => {
           setUnderstandingDomain(null);
+          setStartUnderstandingWithProviderSearch(false);
           setCuriosityVisible(true);
         }}
         onProviderFeedbackSaved={() => {
           if (session?.user?.id) loadUserData(session.user.id);
         }}
+      />
+
+      <ProviderSearchSheet
+        visible={youProviderSearchVisible}
+        understandingId={null}
+        careRecommendationType={null}
+        profileLocation={profile?.location ?? null}
+        onClose={() => setYouProviderSearchVisible(false)}
+        onSelectProvider={() => setYouProviderSearchVisible(false)}
       />
 
       <CuriosityOverlay
@@ -611,12 +614,25 @@ export default function App() {
         {rowSheet ? (
           <View>
             <Text style={styles.rowSheetTitle}>
-              {rowSheet.row.replace(/-/g, ' ')}
+              {displayCopy(careYouLabel(rowSheet.row))}
             </Text>
-            <Text style={styles.rowSheetBody}>
-              This is where I'll help you review and update this. For now,
-              I'm still learning what matters most to show here.
-            </Text>
+            {rowSheet.section === 'care' && rowSheet.row === 'shared' && visitPrepShared.length > 0 ? (
+              <View style={styles.sharedList}>
+                {visitPrepShared.map((row) => (
+                  <Text key={row.id} style={styles.rowSheetItem}>
+                    {sharedSummaryLine(row)}
+                  </Text>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.rowSheetBody}>
+                {rowSheet.section === 'care' && rowSheet.row === 'shared'
+                  ? 'Summaries you prepare for a visit are assembled from what you have already learned. They are not stored as a diagnosis. After you share one from an Understanding, you can come back here to see it listed.'
+                  : rowSheet.section === 'care'
+                    ? 'When something is worth discussing with a provider, you can prepare a summary from Today, Core, or an Understanding. This does not diagnose or decide treatment.'
+                    : 'This is where you can review and update this. For now, there isn\'t more to show here.'}
+              </Text>
+            )}
           </View>
         ) : null}
       </BottomSheet>
@@ -633,13 +649,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   retryTitle: {
-    fontFamily: fontTokens.serif,
-    fontSize: 26,
+    ...type.title2,
     color: colors.ink,
     textAlign: 'center',
   },
   retryBody: {
-    fontFamily: fontTokens.sans,
+    ...fontTokens.sans,
     fontSize: 14.5,
     lineHeight: 21,
     color: colors.ink2,
@@ -655,31 +670,44 @@ const styles = StyleSheet.create({
     backgroundColor: colors.canvas,
   },
   rowSheetTitle: {
-    fontFamily: fontTokens.serif,
-    fontSize: 24,
+    ...type.title2,
     color: colors.ink,
     textTransform: 'capitalize',
   },
   rowSheetBody: {
-    fontFamily: fontTokens.sans,
+    ...fontTokens.sans,
     fontSize: 14,
     lineHeight: 21,
     color: colors.ink2,
     marginTop: 12,
+  },
+  sharedList: {
+    marginTop: 12,
+    gap: 10,
+  },
+  rowSheetItem: {
+    ...fontTokens.sans,
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.ink,
   },
   completeErrorBanner: {
     position: 'absolute',
     left: 24,
     right: 24,
     bottom: 24,
+    borderRadius: 12,
+    padding: 16,
+    overflow: 'hidden',
+  },
+  completeErrorFallback: {
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 12,
-    padding: 16,
   },
   completeErrorText: {
-    fontFamily: fontTokens.sans,
+    ...fontTokens.sans,
     fontSize: 13,
     color: colors.ink,
   },

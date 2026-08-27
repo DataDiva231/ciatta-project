@@ -2,14 +2,16 @@ import React, { useEffect, useRef } from 'react';
 import {
   Animated,
   Dimensions,
+  Easing,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
-import { colors, radii } from '../theme/tokens';
+import { colors, glass } from '../theme/tokens';
 import KeyboardAvoidingScreen from './KeyboardAvoidingScreen';
+import GlassSurface, { useLiquidGlass } from './GlassSurface';
 
 const { height: SCREEN_H } = Dimensions.get('window');
 
@@ -26,18 +28,21 @@ export default function BottomSheet({
 }) {
   const translateY = useRef(new Animated.Value(SCREEN_H)).current;
   const backdrop = useRef(new Animated.Value(0)).current;
+  const native = useLiquidGlass();
 
   useEffect(() => {
     if (visible) {
       Animated.parallel([
         Animated.timing(translateY, {
           toValue: 0,
-          duration: 300,
+          duration: 340,
+          easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
         Animated.timing(backdrop, {
           toValue: 1,
-          duration: 300,
+          duration: 280,
+          easing: Easing.out(Easing.quad),
           useNativeDriver: true,
         }),
       ]).start();
@@ -49,28 +54,33 @@ export default function BottomSheet({
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      {/* Wraps the whole flex-end container, not just the sheet — padding
-          added here shrinks the space justifyContent:'flex-end' has to work
-          with, which is what actually pushes the sheet (and whatever
-          TextInput is focused inside it) up above the keyboard. */}
       <KeyboardAvoidingScreen style={styles.container}>
         <Animated.View style={[styles.backdrop, { opacity: backdrop }]}>
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         </Animated.View>
         <Animated.View
+          accessibilityViewIsModal
           style={[
-            styles.sheet,
+            styles.sheetMotion,
             { maxHeight: SCREEN_H * maxHeightPct, transform: [{ translateY }] },
           ]}
         >
-          <View style={styles.handle} />
-          <ScrollView
-            contentContainerStyle={styles.content}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
+          <GlassSurface
+            kind="regular"
+            tintColor={glass.tint}
+            colorScheme="auto"
+            style={[styles.sheet, native && styles.sheetNative]}
+            fallbackStyle={styles.sheetFallback}
           >
-            {children}
-          </ScrollView>
+            <View style={styles.handle} />
+            <ScrollView
+              contentContainerStyle={styles.content}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {children}
+            </ScrollView>
+          </GlassSurface>
         </Animated.View>
       </KeyboardAvoidingScreen>
     </Modal>
@@ -84,12 +94,24 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(16,16,16,0.45)',
+    backgroundColor: 'rgba(28, 28, 30, 0.45)',
+  },
+  sheetMotion: {
+    width: '100%',
   },
   sheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radii.lg,
-    borderTopRightRadius: radii.lg,
+    borderTopLeftRadius: glass.radius,
+    borderTopRightRadius: glass.radius,
+  },
+  sheetNative: {
+    borderWidth: 0,
+  },
+  sheetFallback: {
+    backgroundColor: glass.fillCard,
+    borderTopLeftRadius: glass.radius,
+    borderTopRightRadius: glass.radius,
+    borderWidth: 1,
+    borderColor: glass.border,
   },
   handle: {
     width: 36,

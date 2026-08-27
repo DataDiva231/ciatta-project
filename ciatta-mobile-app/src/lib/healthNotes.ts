@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { displayCopyMaybe } from './displayCopy';
 
 /**
  * The "Your Health" categories are stored as observations rather than profile
@@ -18,7 +19,7 @@ export async function fetchHealthNote(userId: string, category: string): Promise
     .limit(1);
   if (error) throw error;
   const v = data?.[0]?.value as { text?: string } | undefined;
-  return v?.text ?? null;
+  return displayCopyMaybe(v?.text);
 }
 
 export async function saveHealthNote(
