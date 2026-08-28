@@ -25,6 +25,31 @@ export function selectMorningDomain(writes: MorningWrite[]): string | null {
   return firstWrite?.domain ?? null;
 }
 
+/**
+ * Morning preference for sleep is the sleep processor, never a contextual
+ * rewrite of the same domain. Onboarding copy must not outrank a real
+ * health_data write from this run when Today picks by last_updated.
+ */
+export function assembleMorningWrites(args: {
+  cycleWrote: boolean;
+  sleepWrote: boolean;
+  recoveryWrote: boolean;
+  moodWrote: boolean;
+  contextualWrote: boolean;
+  contextualDomain: string | null;
+}): MorningWrite[] {
+  const writes: MorningWrite[] = [
+    { domain: 'cycle', wroteThisRun: args.cycleWrote },
+    { domain: 'sleep', wroteThisRun: args.sleepWrote },
+    { domain: 'recovery', wroteThisRun: args.recoveryWrote },
+    { domain: 'mood', wroteThisRun: args.moodWrote },
+  ];
+  if (!args.contextualWrote || !args.contextualDomain) return writes;
+  if (writes.some((w) => w.domain === args.contextualDomain)) return writes;
+  writes.push({ domain: args.contextualDomain, wroteThisRun: true });
+  return writes;
+}
+
 /** Same rule Today already uses: the most recently updated Understanding. */
 export function featuredUnderstanding(rows: UnderstandingFreshness[]): string | null {
   if (rows.length === 0) return null;

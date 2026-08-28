@@ -3,11 +3,12 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts, glass, type } from '../theme/tokens';
 import GlassSurface from '../components/GlassSurface';
 import type { ActiveCuriosity } from '../lib/curiosity';
-import type { RelationshipRow, UnderstandingRow } from '../lib/queries';
+import type { CrossDomainUnderstandingRow, RelationshipRow, UnderstandingHistoryRow, UnderstandingRow } from '../lib/queries';
 import type { Domain } from '../lib/types';
 import { domainLabel } from '../lib/mockData';
 import { formatSleepMinutes, type RecentSyncSummary } from '../lib/observations';
 import { derivePriority } from '../lib/priority';
+import { whyAvailable } from '../lib/whyLayer';
 import { domainUnderstandingTitle } from '../lib/voice';
 import { displayCopy } from '../lib/displayCopy';
 import { selectCareNotice } from '../lib/careConnection';
@@ -16,6 +17,7 @@ import BodySilhouette from '../components/BodySilhouette';
 import CuriosityCard from '../components/CuriosityCard';
 import Card from '../components/Card';
 import TamponWearCard from '../components/TamponWearCard';
+import WhySheet from '../overlays/WhySheet';
 import { ArrowRightIcon, InfoIcon } from '../components/icons';
 import {
   confirmTamponInserted,
@@ -74,6 +76,9 @@ export default function TodayScreen({
   relationships = [],
   preferredName,
   recentSyncSummary,
+  goals = [],
+  history = [],
+  crossDomain = [],
 }: {
   userId?: string | null;
   onOpenDiscoveryNudge: () => void;
@@ -86,6 +91,9 @@ export default function TodayScreen({
   relationships?: RelationshipRow[];
   preferredName: string;
   recentSyncSummary: RecentSyncSummary | null;
+  goals?: string[];
+  history?: UnderstandingHistoryRow[];
+  crossDomain?: CrossDomainUnderstandingRow[];
 }) {
   const [answered, setAnswered] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -93,6 +101,7 @@ export default function TodayScreen({
   const [tamponBleeding, setTamponBleeding] = useState(false);
   const [tamponBusy, setTamponBusy] = useState(false);
   const [tamponTick, setTamponTick] = useState(0);
+  const [whyOpen, setWhyOpen] = useState(false);
   const careNotice = selectCareNotice(understandings);
 
   // The thank-you is an acknowledgement, not a resting state — let it sit
@@ -157,6 +166,24 @@ export default function TodayScreen({
   ) as Partial<Record<Domain, (typeof understandings)[number]['strength']>>;
 
   const priority = derivePriority(featured, recentSyncSummary);
+  const showWhy =
+    featured != null &&
+    whyAvailable({
+      featured,
+      todayNarrative: featured.narrative,
+      todayPriority: priority,
+      understandings,
+      relationships: relationships.map((r) => ({
+        from_domain: r.from_domain,
+        to_domain: r.to_domain,
+      })),
+      crossDomain: crossDomain.map((cd) => ({
+        from_domain: cd.from_domain,
+        to_domain: cd.to_domain,
+        narrative: cd.narrative,
+      })),
+      history,
+    });
   const tamponActive =
     tamponWear != null &&
     tamponWear.activeTimerState !== 'insufficient' &&
@@ -198,6 +225,7 @@ export default function TodayScreen({
   }
 
   return (
+    <>
     <ScreenContainer>
       <View style={styles.header}>
         <View style={styles.headerText}>
@@ -258,18 +286,20 @@ export default function TodayScreen({
         <View style={styles.section}>
           <Text style={styles.label}>TODAY'S UNDERSTANDING</Text>
           <Text style={styles.headline}>
-            {domainUnderstandingTitle(domainLabel[featured.domain])}.
+            {domainUnderstandingTitle(domainLabel[featured.domain], featured.strength)}.
           </Text>
           <Text style={styles.body}>{featured.narrative}</Text>
+          {showWhy ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Why this holds"
-            onPress={() => onOpenUnderstanding(featured.domain)}
+            onPress={() => setWhyOpen(true)}
             style={({ pressed }) => [styles.whyRow, pressed && styles.pressedSoft]}
           >
             <Text style={styles.whyLabel}>Why</Text>
             <ArrowRightIcon size={16} color={colors.accent} />
           </Pressable>
+          ) : null}
         </View>
       ) : (
         <View style={styles.section}>
@@ -364,6 +394,20 @@ export default function TodayScreen({
         </Card>
       ) : null}
     </ScreenContainer>
+    <WhySheet
+      visible={whyOpen}
+      featured={featured}
+      todayNarrative={featured?.narrative ?? ''}
+      todayPriority={priority}
+      understandings={understandings}
+      relationships={relationships}
+      crossDomain={crossDomain}
+      history={history}
+      goals={goals}
+      userId={userId}
+      onClose={() => setWhyOpen(false)}
+    />
+    </>
   );
 }
 

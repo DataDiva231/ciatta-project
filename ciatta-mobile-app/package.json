@@ -51,7 +51,9 @@
     "test:glass": "deno test --sloppy-imports src/lib/liquidGlass.test.ts src/lib/navAdaptivity.test.ts",
     "test:copy": "deno test --allow-read --sloppy-imports src/lib/copyNoEmDash.test.ts",
     "test:constellation": "deno test --sloppy-imports src/lib/constellation.test.ts",
-    "test:all": "npm run test:engine && npm run test:provider-search && npm run test:visitprep && npm run test:tampon && npm run test:onboarding && npm run test:care && npm run test:glass && npm run test:constellation && npm run test:copy"
+    "test:insight": "deno test --sloppy-imports src/lib/insightViz.test.ts src/lib/observationSeries.test.ts src/lib/whyLayer.test.ts src/lib/intelligenceStatus.test.ts",
+    "test:healthkit": "deno test --sloppy-imports src/lib/healthKitMap.test.ts src/lib/observationIdentity.test.ts src/lib/healthKitSync.test.ts",
+    "test:all": "npm run test:engine && npm run test:provider-search && npm run test:visitprep && npm run test:tampon && npm run test:onboarding && npm run test:care && npm run test:glass && npm run test:constellation && npm run test:insight && npm run test:copy && npm run test:healthkit"
   },
   "private": true
 }

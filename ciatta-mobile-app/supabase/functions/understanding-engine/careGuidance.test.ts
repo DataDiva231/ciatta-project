@@ -39,8 +39,27 @@ Deno.test('deriveGuidance: domain-specific defaults are ob-gyn for cycle, mental
   assertEquals(deriveGuidance('cycle', 'strong', null, EVIDENCE_3_WEEKS, NOW).careRecommendationType, 'ob-gyn');
   assertEquals(deriveGuidance('mood', 'strong', null, EVIDENCE_3_WEEKS, NOW).careRecommendationType, 'mental-health');
   assertEquals(deriveGuidance('sleep', 'strong', null, EVIDENCE_3_WEEKS, NOW).careRecommendationType, 'primary-care');
-  assertEquals(deriveGuidance('recovery', 'strong', null, EVIDENCE_3_WEEKS, NOW).careRecommendationType, 'primary-care');
-  assertEquals(deriveGuidance('energy', 'strong', null, EVIDENCE_3_WEEKS, NOW).careRecommendationType, 'primary-care');
+  assertEquals(deriveGuidance('recovery', 'strong', null, EVIDENCE_3_WEEKS, NOW).careRecommendationType, null);
+  assertEquals(deriveGuidance('energy', 'strong', null, EVIDENCE_3_WEEKS, NOW).careRecommendationType, null);
+});
+
+Deno.test('deriveGuidance: activity volume recovery is pattern only, never a care connection', () => {
+  const result = deriveGuidance('recovery', 'very-strong', null, EVIDENCE_3_WEEKS, NOW, {
+    clinicalConcern: false,
+  });
+  assert(result.guidance !== null);
+  assertEquals(result.careRecommendationType, null);
+  assertEquals(result.careRecommendationReason, null);
+  assertEquals(result.guidance!.toLowerCase().includes('discussing'), false);
+  assertEquals(result.guidance!.toLowerCase().includes('provider'), false);
+});
+
+Deno.test('deriveGuidance: recovery care is attached only when clinical concern is evidenced', () => {
+  const result = deriveGuidance('recovery', 'strong', 'mood', EVIDENCE_3_WEEKS, NOW, {
+    clinicalConcern: true,
+  });
+  assertEquals(result.careRecommendationType, 'primary-care');
+  assert(result.guidance!.includes('primary care provider'));
 });
 
 Deno.test('deriveGuidance: the recommended provider type and the guidance sentence never disagree', () => {

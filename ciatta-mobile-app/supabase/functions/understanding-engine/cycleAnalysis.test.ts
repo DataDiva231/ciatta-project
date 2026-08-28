@@ -4,6 +4,7 @@ import {
   analyzeCycles,
   buildUnderstanding,
   strengthForConfidence,
+  strengthForObservedPattern,
   type FlowObservation,
   type RhrObservation,
 } from './cycleAnalysis.ts';
@@ -182,4 +183,12 @@ Deno.test('strengthForConfidence: tiers are monotonic and match the documented t
   assertEquals(strengthForConfidence(0.84), 'strong');
   assertEquals(strengthForConfidence(0.85), 'very-strong');
   assertEquals(strengthForConfidence(1), 'very-strong');
+});
+
+Deno.test('strengthForObservedPattern: sample size alone never produces very-strong', () => {
+  assertEquals(strengthForObservedPattern(1, 0), 'moderate');
+  assertEquals(strengthForObservedPattern(0.9, 0.04), 'moderate');
+  assertEquals(strengthForObservedPattern(0.9, 0.1), 'strong');
+  assertEquals(strengthForObservedPattern(0.9, 0.2), 'very-strong');
+  assertEquals(strengthForObservedPattern(0.5, 0.4), 'moderate');
 });

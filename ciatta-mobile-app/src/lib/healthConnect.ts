@@ -115,7 +115,12 @@ export async function syncHealthConnectData(userId: string): Promise<number> {
         value: { count: record.count },
         unit: 'count',
         recordedAt: record.endTime,
-        context: { startTime: record.startTime },
+        sourceSampleId: record.metadata?.id,
+        context: {
+          startTime: record.startTime,
+          sourceName: record.metadata?.dataOrigin,
+          measurement: { identifier: 'health-connect:Steps', storedUnit: 'count' },
+        },
       });
       count++;
     }
@@ -133,6 +138,13 @@ export async function syncHealthConnectData(userId: string): Promise<number> {
           value: { bpm: sample.beatsPerMinute },
           unit: 'bpm',
           recordedAt: sample.time,
+          sourceSampleId: record.metadata?.id
+            ? `${record.metadata.id}:${sample.time}`
+            : undefined,
+          context: {
+            sourceName: record.metadata?.dataOrigin,
+            measurement: { identifier: 'health-connect:HeartRate', storedUnit: 'bpm' },
+          },
         });
         count++;
       }
@@ -152,7 +164,13 @@ export async function syncHealthConnectData(userId: string): Promise<number> {
         value: { durationMinutes },
         unit: 'minutes',
         recordedAt: record.endTime,
-        context: { startTime: record.startTime, stages: record.stages ?? [] },
+        sourceSampleId: record.metadata?.id,
+        context: {
+          startTime: record.startTime,
+          stages: record.stages ?? [],
+          sourceName: record.metadata?.dataOrigin,
+          measurement: { identifier: 'health-connect:SleepSession', storedUnit: 'minutes' },
+        },
       });
       count++;
     }
@@ -180,6 +198,11 @@ export async function syncHealthConnectData(userId: string): Promise<number> {
         value: { bpm: record.beatsPerMinute },
         unit: 'bpm',
         recordedAt: record.time,
+        sourceSampleId: record.metadata?.id,
+        context: {
+          sourceName: record.metadata?.dataOrigin,
+          measurement: { identifier: 'health-connect:RestingHeartRate', storedUnit: 'bpm' },
+        },
       });
       count++;
     }
@@ -197,6 +220,11 @@ export async function syncHealthConnectData(userId: string): Promise<number> {
         type: 'menstrual_flow',
         value: { flow: menstruationFlowLabel(record.flow) },
         recordedAt: record.time,
+        sourceSampleId: record.metadata?.id,
+        context: {
+          sourceName: record.metadata?.dataOrigin,
+          measurement: { identifier: 'health-connect:MenstruationFlow' },
+        },
       });
       count++;
     }
@@ -215,11 +243,16 @@ export async function syncHealthConnectData(userId: string): Promise<number> {
         value: { ms: record.heartRateVariabilityMillis },
         unit: 'ms',
         recordedAt: record.time,
-        // RMSSD (Health Connect) and SDNN (HealthKit) are both real HRV
-        // metrics but computed differently — noted here rather than
-        // silently treated as identical, even though the engine currently
-        // reads them as one undifferentiated 'hrv' signal.
-        context: { metric: 'rmssd' },
+        sourceSampleId: record.metadata?.id,
+        context: {
+          metric: 'rmssd',
+          sourceName: record.metadata?.dataOrigin,
+          measurement: {
+            identifier: 'health-connect:HeartRateVariabilityRmssd',
+            storedUnit: 'ms',
+            metric: 'rmssd',
+          },
+        },
       });
       count++;
     }

@@ -27,6 +27,13 @@ Deno.test('processorsForObservationTypes: activity maps to recovery; cycle signa
   assertEquals(processorsForObservationTypes(['menstrual_flow']), ['cycle']);
 });
 
+Deno.test('processorsForObservationTypes: new HealthKit vitals and workouts debounce to recovery or stay unprocessed', () => {
+  assertEquals(processorsForObservationTypes(['workout']), ['recovery']);
+  assertEquals(processorsForObservationTypes(['oxygen_saturation']), ['recovery']);
+  assertEquals(processorsForObservationTypes(['basal_body_temperature']), []);
+  assertEquals(processorsForObservationTypes(['ovulation_test_result']), ['cycle']);
+});
+
 Deno.test('processorsForObservationTypes: mood, onboarding context, and provider feedback are targeted', () => {
   assertEquals(processorsForObservationTypes(['mood_rating']), ['mood']);
   assertEquals(processorsForObservationTypes(['health_concern']), ['contextual']);

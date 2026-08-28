@@ -2,6 +2,9 @@
 // evidence, or change what the Intelligence Engine already wrote.
 // Never use an em dash, en dash, or hyphen in copy.
 
-export function domainUnderstandingTitle(domainWord: string): string {
-  return `What's taking shape in your ${domainWord.toLowerCase()}`;
+import type { Strength } from './types';
+import { todayHeadline } from './intelligenceStatus';
+
+export function domainUnderstandingTitle(domainWord: string, strength?: Strength): string {
+  return todayHeadline(domainWord, strength ?? 'emerging');
 }

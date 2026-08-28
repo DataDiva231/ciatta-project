@@ -19,6 +19,7 @@ function row(
     narrative: partial.narrative ?? 'Your sleep has been running shorter than usual.',
     last_updated: partial.last_updated ?? '2026-08-01T00:00:00.000Z',
     guidance: partial.guidance === undefined ? null : partial.guidance,
+    care_recommendation_type: partial.care_recommendation_type ?? null,
     care_recommendation_reason: partial.care_recommendation_reason ?? null,
     ...partial,
   };
@@ -57,6 +58,7 @@ Deno.test('eligible: strong and very-strong with existing Guidance surface a car
     domain: 'mood',
     strength: 'very-strong',
     guidance: 'This may be worth discussing with a mental health provider.',
+    care_recommendation_type: 'mental-health',
     last_updated: '2026-08-20T00:00:00.000Z',
   });
   assertEquals(isEligibleCareConnection(strong), true);
@@ -108,4 +110,18 @@ Deno.test('complete flow: Today notice → prepare CTA names the Understanding; 
     CARE_YOU_ROWS.map((r) => r.id),
     ['provider', 'visit-prep', 'shared']
   );
+});
+
+Deno.test('activity volume recovery with pattern guidance is not a care connection', () => {
+  const recovery = row({
+    domain: 'recovery',
+    strength: 'strong',
+    narrative: 'You average about 8,412 steps a day. About 0% of your days are notably less active than that.',
+    guidance: "We've been learning your recovery patterns over the past several weeks. Consider prioritizing recovery and easing up where you can and tracking whether the pattern continues.",
+    care_recommendation_type: null,
+    care_recommendation_reason: null,
+  });
+  assertEquals(isEligibleCareConnection(recovery), false);
+  assertEquals(selectCareNotice([recovery]), null);
+  assertEquals(eligibleCareUnderstandings([recovery]), []);
 });

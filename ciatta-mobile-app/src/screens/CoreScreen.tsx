@@ -3,6 +3,7 @@ import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../theme/tokens';
 import { domainLabel, domains } from '../lib/mockData';
+import { coreStatusLabel } from '../lib/intelligenceStatus';
 import type { Domain, Strength } from '../lib/types';
 import type { DiscoveryRow, RelationshipRow, UnderstandingRow } from '../lib/queries';
 import { eligibleCareUnderstandings } from '../lib/careConnection';
@@ -91,6 +92,9 @@ export default function CoreScreen({
   const silhouetteScale = headerHeight > 0 ? Math.min(scaleForHeight, MAX_SCALE) : 1;
 
   const careRows = eligibleCareUnderstandings(understandings);
+  const statusLabels = Object.fromEntries(
+    understandings.map((u) => [u.domain, coreStatusLabel(u)])
+  ) as Partial<Record<Domain, string>>;
 
   return (
     <ScreenContainer>
@@ -104,6 +108,7 @@ export default function CoreScreen({
             variant="core"
             labeled
             strengths={strengths}
+            statusLabels={statusLabels}
             links={relationships.map((r) => ({
               from: r.from_domain,
               to: r.to_domain,
@@ -126,7 +131,7 @@ export default function CoreScreen({
           {careRows.map((u) => (
             <Card key={u.id} onPress={() => onOpenUnderstanding(u.domain)}>
               <Text style={styles.rowTitle}>
-                {domainUnderstandingTitle(domainLabel[u.domain])}
+                {domainUnderstandingTitle(domainLabel[u.domain], u.strength)}
               </Text>
               <Text style={styles.rowSub} numberOfLines={3}>
                 {u.narrative}

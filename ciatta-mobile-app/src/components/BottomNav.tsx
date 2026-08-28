@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, glass, type } from '../theme/tokens';
-import { useNavAdaptivity } from '../lib/NavAdaptivity';
+import { useNavAdaptivity } from '../lib/navAdaptivityContext';
 import { CoreIcon, PersonIcon, SunIcon } from './icons';
 import GlassSurface, { useLiquidGlass } from './GlassSurface';
 

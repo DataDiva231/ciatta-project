@@ -11,7 +11,7 @@
  * count, not calendar days — there's no daily density to assume.
  */
 import type { Strength } from './cycleAnalysis.ts';
-import { strengthForConfidence } from './cycleAnalysis.ts';
+import { strengthForObservedPattern } from './cycleAnalysis.ts';
 import type { RatingObservation } from './energyRelationship.ts';
 
 const MIN_ANSWERS = 10;
@@ -74,7 +74,7 @@ export function buildMoodUnderstanding(
   result: MoodUnderstandingResult
 ): MoodUnderstandingDraft | null {
   if (!result.eligible) return null;
-  const strength = strengthForConfidence(result.confidence);
+  const strength = strengthForObservedPattern(result.confidence, result.lowMoodRate);
   const pct = Math.round(result.lowMoodRate * 100);
   return {
     strength,

@@ -85,7 +85,7 @@ const HEALTH_SOURCE_NAME = Platform.OS === 'android' ? 'Health Connect' : 'Apple
 const HEALTH_SOURCE_BODY =
   Platform.OS === 'android'
     ? 'Health Connect brings in your sleep, activity, and heart health without asking you the same questions twice.'
-    : 'Apple Health brings in your sleep, activity, and heart health without asking you the same questions twice.';
+    : 'Apple Health brings in your sleep, activity, heart health, breathing, cycle, workouts, and body measurements without asking you the same questions twice.';
 
 export default function OnboardingFlow({
   onComplete,

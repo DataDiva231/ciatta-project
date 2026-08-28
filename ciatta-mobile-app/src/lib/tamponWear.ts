@@ -8,7 +8,7 @@
  * The FDA safety ceiling is eight hours and is never exceeded.
  * Insertion time is only used when the caller already confirmed it.
  */
-import { displayCopy, displayCopyList } from './displayCopy.ts';
+import { displayCopy, displayCopyList } from './displayCopy';
 
 export const FDA_MAX_WEAR_MS = 8 * 60 * 60 * 1000;
 const MIN_AFTER_INSERT_MS = 15 * 60 * 1000;

@@ -1,4 +1,9 @@
 import { supabase } from './supabase';
+import {
+  observationIdentity,
+  isMissingOnConflictConstraint,
+  isMissingSourceSampleIdColumn,
+} from './observationIdentity';
 
 // 'provider' — a patient-mediated report of what a provider said or
 // determined (see UnderstandingSheet's "Log what your provider said"),
@@ -21,23 +26,89 @@ export interface NewObservation {
   value: unknown;
   unit?: string | null;
   recordedAt?: string;
+  sourceSampleId?: string | null;
   context?: Record<string, unknown>;
 }
 
 export async function insertObservation(userId: string, observation: NewObservation) {
-  const { error } = await supabase.from('observations').upsert(
-    {
-      user_id: userId,
-      source: observation.source,
-      type: observation.type,
-      value: observation.value,
-      unit: observation.unit ?? null,
-      recorded_at: observation.recordedAt ?? new Date().toISOString(),
-      context: observation.context ?? {},
-    },
-    { onConflict: 'user_id,source,type,recorded_at', ignoreDuplicates: true }
-  );
-  if (error) throw error;
+  await insertObservations(userId, [observation]);
+}
+
+export const WRITE_BATCH_SIZE = 250;
+
+function observationRow(userId: string, observation: NewObservation) {
+  const recordedAt = observation.recordedAt ?? new Date().toISOString();
+  const identity = observationIdentity({
+    source: observation.source,
+    type: observation.type,
+    recordedAt,
+    sourceSampleId: observation.sourceSampleId,
+  });
+  return {
+    user_id: userId,
+    source: identity.source,
+    type: observation.type,
+    value: observation.value,
+    unit: observation.unit ?? null,
+    recorded_at: recordedAt,
+    source_sample_id: identity.sourceSampleId,
+    context: observation.context ?? {},
+  };
+}
+
+function dedupeObservationRows<T extends { source: string; source_sample_id: string }>(
+  rows: T[]
+): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const row of rows) {
+    const key = `${row.source}:${row.source_sample_id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out;
+}
+
+async function upsertObservationRows(
+  rows: ReturnType<typeof observationRow>[]
+): Promise<void> {
+  if (rows.length === 0) return;
+  const { error } = await supabase.from('observations').upsert(rows, {
+    onConflict: 'user_id,source,source_sample_id',
+    ignoreDuplicates: true,
+  });
+  if (!error) return;
+
+  if (isMissingOnConflictConstraint(error)) {
+    const inserted = await supabase.from('observations').insert(rows);
+    if (!inserted.error || inserted.error.code === '23505') return;
+    throw inserted.error;
+  }
+
+  if (isMissingSourceSampleIdColumn(error)) {
+    const legacyRows = rows.map(({ source_sample_id: _unused, ...legacyRow }) => legacyRow);
+    const legacy = await supabase.from('observations').upsert(legacyRows, {
+      onConflict: 'user_id,source,type,recorded_at',
+      ignoreDuplicates: true,
+    });
+    if (!legacy.error) return;
+    if (isMissingOnConflictConstraint(legacy.error)) {
+      const inserted = await supabase.from('observations').insert(legacyRows);
+      if (!inserted.error || inserted.error.code === '23505') return;
+      throw inserted.error;
+    }
+    throw legacy.error;
+  }
+
+  throw error;
+}
+
+export async function insertObservations(userId: string, observations: NewObservation[]) {
+  const rows = dedupeObservationRows(observations.map((observation) => observationRow(userId, observation)));
+  for (let i = 0; i < rows.length; i += WRITE_BATCH_SIZE) {
+    await upsertObservationRows(rows.slice(i, i + WRITE_BATCH_SIZE));
+  }
 }
 
 // Provider Feedback / Outcome — both are ordinary Observations

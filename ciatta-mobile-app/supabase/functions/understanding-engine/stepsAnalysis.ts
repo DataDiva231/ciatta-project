@@ -20,7 +20,7 @@
  *    comparison logic is shared).
  */
 import type { Strength } from './cycleAnalysis.ts';
-import { strengthForConfidence } from './cycleAnalysis.ts';
+import { strengthForObservedPattern } from './cycleAnalysis.ts';
 import type { RatingObservation } from './energyRelationship.ts';
 import {
   median,
@@ -117,7 +117,7 @@ export function buildStepsUnderstanding(
   result: StepsUnderstandingResult
 ): StepsUnderstandingDraft | null {
   if (!result.eligible) return null;
-  const strength = strengthForConfidence(result.confidence);
+  const strength = strengthForObservedPattern(result.confidence, result.lowActivityRate);
   const avgSteps = Math.round(result.avgSteps).toLocaleString('en-US');
   const pct = Math.round(result.lowActivityRate * 100);
   return {

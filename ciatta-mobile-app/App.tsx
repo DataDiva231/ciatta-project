@@ -48,7 +48,7 @@ import TodayScreen from './src/screens/TodayScreen';
 import CoreScreen from './src/screens/CoreScreen';
 import YouScreen from './src/screens/YouScreen';
 import BottomNav, { MainTab } from './src/components/BottomNav';
-import { NavAdaptivityProvider } from './src/lib/NavAdaptivity';
+import { NavAdaptivityProvider } from './src/lib/navAdaptivityContext';
 
 import UnderstandingSheet from './src/overlays/UnderstandingSheet';
 import ProviderSearchSheet from './src/overlays/ProviderSearchSheet';
@@ -188,17 +188,50 @@ export default function App() {
         const [p, u, r, h, cd, pf, d, c, hc, sync, briefs] = await withClockSkewRetry(
           () =>
             Promise.all([
-              fetchProfile(userId),
-              fetchUnderstandings(userId),
-              fetchRelationships(userId),
-              fetchUnderstandingHistory(userId),
-              fetchCrossDomainUnderstandings(userId),
-              fetchProviderFeedback(userId),
-              fetchDiscoveries(userId),
-              fetchActiveCuriosity(userId),
-              hasHealthSourceObservations(userId),
-              fetchRecentSyncSummary(userId),
-              fetchVisitPrepShared(userId),
+              fetchProfile(userId).catch((err) => {
+                console.error('[data] profile failed', err);
+                throw err;
+              }),
+              fetchUnderstandings(userId).catch((err) => {
+                console.error('[data] understandings failed', err);
+                throw err;
+              }),
+              fetchRelationships(userId).catch((err) => {
+                console.error('[data] relationships failed', err);
+                throw err;
+              }),
+              fetchUnderstandingHistory(userId).catch((err) => {
+                console.error('[data] history failed', err);
+                throw err;
+              }),
+              fetchCrossDomainUnderstandings(userId).catch((err) => {
+                console.error('[data] crossDomain failed', err);
+                throw err;
+              }),
+              fetchProviderFeedback(userId).catch((err) => {
+                console.error('[data] providerFeedback failed', err);
+                throw err;
+              }),
+              fetchDiscoveries(userId).catch((err) => {
+                console.error('[data] discoveries failed', err);
+                throw err;
+              }),
+              fetchActiveCuriosity(userId).catch((err) => {
+                console.error('[data] curiosity failed', err);
+                throw err;
+              }),
+              hasHealthSourceObservations(userId).catch((err) => {
+                console.error('[data] healthSource failed', err);
+                throw err;
+              }),
+              fetchRecentSyncSummary(userId).catch((err) => {
+                console.error('[data] syncSummary failed', err);
+                throw err;
+              }),
+              fetchVisitPrepShared(userId).catch((err) => {
+                console.error('[data] visitPrep failed', err);
+                throw err;
+              }),
             ]),
           'loadUserData'
         );
@@ -248,8 +281,11 @@ export default function App() {
           } else {
             console.error('Could not load user data (keeping session):', e);
           }
+          const detail = e instanceof Error ? e.message : '';
           setLoadError(
-            "Your data couldn't be reached just now. Check your connection and try again."
+            __DEV__ && detail
+              ? detail
+              : "Your data couldn't be reached just now. Check your connection and try again."
           );
         }
       } finally {
@@ -461,6 +497,9 @@ export default function App() {
               preferredName={profile.preferred_name || profile.name || ''}
               recentSyncSummary={recentSyncSummary}
               relationships={relationships}
+              goals={profile?.goals ?? []}
+              history={understandingHistory}
+              crossDomain={crossDomainUnderstandings}
             />
           )}
           {tab === 'core' && (
@@ -527,6 +566,7 @@ export default function App() {
         providerFeedback={providerFeedback}
         userId={session?.user?.id ?? null}
         profileLocation={profile?.location ?? null}
+        goals={profile?.goals ?? []}
         startWithProviderSearch={startUnderstandingWithProviderSearch}
         onClose={() => {
           setUnderstandingDomain(null);

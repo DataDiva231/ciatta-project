@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { displayCopy, displayCopyList, displayCopyMaybe } from './displayCopy';
+import { presentPersistedUnderstanding } from './intelligenceStatus';
 import type { Discovery, Domain, Strength } from './types';
 
 // 'primary-care' | 'ob-gyn' | 'mental-health' — mirrors
@@ -40,14 +41,14 @@ export async function fetchUnderstandings(userId: string): Promise<Understanding
 }
 
 function sanitizeUnderstanding(row: UnderstandingRow): UnderstandingRow {
-  return {
+  return presentPersistedUnderstanding({
     ...row,
-    narrative: displayCopy(row.narrative),
+    narrative: displayCopyMaybe(row.narrative) ?? '',
     confidence_label: displayCopyMaybe(row.confidence_label),
     still_learning: displayCopyList(row.still_learning),
     guidance: displayCopyMaybe(row.guidance),
     care_recommendation_reason: displayCopyMaybe(row.care_recommendation_reason),
-  };
+  });
 }
 
 export interface UnderstandingHistoryRow {

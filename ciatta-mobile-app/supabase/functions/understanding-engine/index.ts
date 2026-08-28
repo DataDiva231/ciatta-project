@@ -71,7 +71,14 @@ import {
   retryNotBeforeMs,
   type ProcessorName,
 } from './continuousIntelligence.ts';
-import { selectMorningDomain, type MorningWrite } from './morningState.ts';
+import { assembleMorningWrites, selectMorningDomain } from './morningState.ts';
+import { normalizeObservation } from './normalizedSignal.ts';
+import {
+  selectEvidenceSeries,
+  toHrvObservations,
+  toRhrObservations,
+  toStepsObservations,
+} from './signalEvidence.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -79,7 +86,9 @@ const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 interface ObservationRow {
   id: string;
   type: string;
+  source?: string;
   recorded_at: string;
+  unit?: string | null;
   value: Record<string, unknown>;
   context: Record<string, unknown>;
 }
@@ -116,7 +125,7 @@ async function loadObservations(
 ): Promise<LoadedObservations> {
   const { data, error } = await supabase
     .from('observations')
-    .select('id, type, recorded_at, value, context')
+    .select('id, type, source, recorded_at, unit, value, context')
     .eq('user_id', userId)
     .in('type', [
       'resting_heart_rate',
@@ -161,11 +170,6 @@ async function loadObservations(
         recordedAt: row.recorded_at,
         cycleStart: (row.context?.cycleStart as boolean | null) ?? null,
       });
-    } else if (row.type === 'resting_heart_rate') {
-      const bpm = row.value?.bpm;
-      if (typeof bpm === 'number') {
-        rhr.push({ id: row.id, recordedAt: row.recorded_at, bpm });
-      }
     } else if (row.type === 'energy_rating') {
       const rating = row.value?.rating;
       if (typeof rating === 'number') {
@@ -187,25 +191,6 @@ async function loadObservations(
           endTime: row.recorded_at,
           durationMinutes,
           stage: (row.value?.stage as string | undefined) ?? null,
-        });
-      }
-    } else if (row.type === 'steps') {
-      const count = row.value?.count;
-      if (typeof count === 'number') {
-        steps.push({ id: row.id, recordedAt: row.recorded_at, count });
-      }
-    } else if (row.type === 'hrv') {
-      const ms = row.value?.ms;
-      if (typeof ms === 'number') {
-        // SDNN (HealthKit) and RMSSD (Health Connect) are both real HRV
-        // metrics, computed differently — see hrvAnalysis.ts's own
-        // filterToConsistentMetric(), the one place this actually matters.
-        const metric = row.context?.metric;
-        hrv.push({
-          id: row.id,
-          recordedAt: row.recorded_at,
-          ms,
-          metric: typeof metric === 'string' ? metric : null,
         });
       }
     } else if (row.type === 'health_concern') {
@@ -261,6 +246,24 @@ async function loadObservations(
     }
   }
 
+  const signals = rows
+    .map((row) =>
+      normalizeObservation({
+        id: row.id,
+        type: row.type,
+        source: row.source,
+        recorded_at: row.recorded_at,
+        unit: row.unit,
+        value: row.value,
+        context: row.context,
+      })
+    )
+    .filter((signal): signal is NonNullable<typeof signal> => signal != null);
+
+  hrv.push(...toHrvObservations(selectEvidenceSeries(signals, 'hrv').series));
+  steps.push(...toStepsObservations(selectEvidenceSeries(signals, 'steps').series));
+  rhr.push(...toRhrObservations(selectEvidenceSeries(signals, 'resting_heart_rate').series));
+
   return {
     flow,
     rhr,
@@ -305,7 +308,8 @@ async function upsertUnderstanding(
   firstObserved: string | null,
   historyLabel: { first: string; changed: string },
   evidenceType: 'health_data' | 'user_reported',
-  skipIfUnchanged = false
+  skipIfUnchanged = false,
+  guidanceOptions?: { clinicalConcern?: boolean }
 ): Promise<string> {
   const { data: existing, error: fetchError } = await supabase
     .from('understandings')
@@ -376,7 +380,9 @@ async function upsertUnderstanding(
     domain,
     draft.strength,
     connectedDomain,
-    { observationsCount: observationIds.length, learningSince: learningSinceAnchor }
+    { observationsCount: observationIds.length, learningSince: learningSinceAnchor },
+    new Date(),
+    guidanceOptions
   );
 
   const { data: upserted, error: upsertError } = await supabase
@@ -682,7 +688,10 @@ async function processRecoveryDomain(
       changed: `This pattern has held across ${weight} days now.`,
     },
     'health_data',
-    skipIfUnchanged
+    skipIfUnchanged,
+    {
+      clinicalConcern: usingHrv && hrvResult.lowHrvRate >= 0.15,
+    }
   );
 
   // Same rationale as cycle and sleep: energy and mood are collected
@@ -808,7 +817,7 @@ async function processContextualDomain(
 
   const { data: existing, error: existingError } = await supabase
     .from('understandings')
-    .select('evidence_type')
+    .select('id, evidence_type, strength, narrative, confidence_label, observations_count, still_learning')
     .eq('user_id', userId)
     .eq('domain', domain)
     .maybeSingle();
@@ -822,6 +831,28 @@ async function processContextualDomain(
     obs.concernElaboration?.id,
     obs.concernRecency?.id,
   ].filter((id): id is string => !!id);
+
+  if (
+    existing &&
+    isRedundantUnderstandingWrite(
+      {
+        strength: existing.strength as string,
+        narrative: (existing.narrative as string) ?? '',
+        confidenceLabel: (existing.confidence_label as string) ?? '',
+        observationsCount: (existing.observations_count as number) ?? 0,
+        stillLearning: (existing.still_learning as string[]) ?? [],
+      },
+      {
+        strength: draft.strength,
+        narrative: draft.narrative,
+        confidenceLabel: draft.confidenceLabel,
+        observationsCount: observationIds.length,
+        stillLearning: draft.stillLearning ?? [],
+      }
+    )
+  ) {
+    return { wrote: false, reason: 'unchanged', domain };
+  }
 
   await upsertUnderstanding(
     supabase,
@@ -1190,19 +1221,17 @@ async function processUser(
     ? await decayStaleUnderstandings(supabase, userId, refreshed)
     : [];
 
-  const morningWrites: MorningWrite[] = [
-    { domain: 'cycle', wroteThisRun: !!cycle?.wrote },
-    { domain: 'sleep', wroteThisRun: !!sleep?.wrote },
-    { domain: 'recovery', wroteThisRun: !!recovery?.wrote },
-    { domain: 'mood', wroteThisRun: !!mood?.wrote },
-    {
-      domain:
-        contextual && 'domain' in contextual && typeof contextual.domain === 'string'
-          ? contextual.domain
-          : 'contextual',
-      wroteThisRun: !!contextual?.wrote,
-    },
-  ];
+  const morningWrites = assembleMorningWrites({
+    cycleWrote: !!cycle?.wrote,
+    sleepWrote: !!sleep?.wrote,
+    recoveryWrote: !!recovery?.wrote,
+    moodWrote: !!mood?.wrote,
+    contextualWrote: !!(contextual && 'wrote' in contextual && contextual.wrote),
+    contextualDomain:
+      contextual && 'domain' in contextual && typeof contextual.domain === 'string'
+        ? contextual.domain
+        : null,
+  });
   const morning = plan.runMorningState
     ? await applyMorningState(supabase, userId, morningWrites)
     : { featured: null };
@@ -1446,6 +1475,16 @@ Deno.serve(async (req) => {
           'sleep_segment',
           'steps',
           'hrv',
+          'heart_rate',
+          'workout',
+          'active_energy',
+          'oxygen_saturation',
+          'respiratory_rate',
+          'vo2_max',
+          'body_temperature',
+          'wrist_temperature',
+          'basal_body_temperature',
+          'walking_heart_rate_average',
           'mood_rating',
           // A user with only onboarding observations and no physiological
           // data yet still deserves the nightly run's own initial,

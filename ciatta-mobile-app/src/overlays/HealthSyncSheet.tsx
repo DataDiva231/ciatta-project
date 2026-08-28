@@ -7,11 +7,12 @@ import StatRow from '../components/StatRow';
 import { connectHealthConnect } from '../lib/healthConnect';
 import { connectHealthKit } from '../lib/healthKit';
 import { fetchSyncReflection, formatSleepMinutes, type SyncReflection } from '../lib/observations';
+import type { HealthKitSyncProgress, HealthKitSyncTelemetry } from '../lib/healthKitSync';
 
 const SOURCE_NAME = Platform.OS === 'android' ? 'Health Connect' : 'Apple Health';
 
 type SyncOutcome =
-  | { kind: 'synced'; count: number; reflection: SyncReflection }
+  | { kind: 'synced'; count: number; reflection: SyncReflection; telemetry?: HealthKitSyncTelemetry }
   | { kind: 'unavailable' }
   | { kind: 'permission-denied' }
   | { kind: 'error'; message: string };
@@ -48,6 +49,7 @@ export default function HealthSyncSheet({
 }) {
   const [syncing, setSyncing] = useState(false);
   const [outcome, setOutcome] = useState<SyncOutcome | null>(null);
+  const [progress, setProgress] = useState<HealthKitSyncProgress | null>(null);
 
   function handleClose() {
     setOutcome(null);
@@ -58,11 +60,12 @@ export default function HealthSyncSheet({
     if (!userId) return;
     setSyncing(true);
     setOutcome(null);
+    setProgress(null);
     try {
       const result =
         Platform.OS === 'android'
           ? await connectHealthConnect(userId)
-          : await connectHealthKit(userId);
+          : await connectHealthKit(userId, setProgress);
       if (!result.granted) {
         setOutcome(
           result.reason === 'unavailable' ? { kind: 'unavailable' } : { kind: 'permission-denied' }
@@ -70,7 +73,12 @@ export default function HealthSyncSheet({
         return;
       }
       const reflection = await fetchSyncReflection(userId);
-      setOutcome({ kind: 'synced', count: result.observationsSynced, reflection });
+      setOutcome({
+        kind: 'synced',
+        count: result.observationsSynced,
+        reflection,
+        telemetry: 'telemetry' in result ? result.telemetry : undefined,
+      });
       onSynced();
     } catch (e) {
       setOutcome({ kind: 'error', message: e instanceof Error ? e.message : 'Something went wrong.' });
@@ -86,7 +94,7 @@ export default function HealthSyncSheet({
         <Text style={styles.intro}>
           {connected
             ? `${SOURCE_NAME} is connected. Sync any time to pull in what's changed since last time. The more days that accumulate, the clearer the picture gets.`
-            : `Connect ${SOURCE_NAME} to bring in your steps, heart rate, sleep, and cycle history without asking the same questions twice.`}
+            : `Connect ${SOURCE_NAME} to bring in your activity, heart rate, sleep, breathing, cycle history, workouts, and body measurements without asking the same questions twice.`}
         </Text>
 
         <View style={styles.section}>
@@ -95,13 +103,24 @@ export default function HealthSyncSheet({
             onPress={handleSync}
             loading={syncing}
           />
+          {syncing && progress ? (
+            <Text style={styles.result}>
+              {progress.phase === 'write'
+                ? `Saving ${progress.samplesFetched} readings`
+                : `Reading Apple Health (${progress.typesDone} of ${progress.typesTotal})`}
+            </Text>
+          ) : null}
 
           {outcome?.kind === 'synced' && (
             <>
               <Text style={styles.result}>
                 {outcome.count > 0
                   ? `Pulled in ${outcome.count} new reading${outcome.count === 1 ? '' : 's'}.`
-                  : `No new data since last time. More can take shape the next time you sync.`}
+                  : outcome.telemetry?.incremental
+                    ? 'No new readings since last time.'
+                    : Platform.OS === 'ios'
+                      ? 'Apple Health had no readings to pull. The iOS Simulator does not store Health data. On a physical iPhone, open Health permissions for Ciatta and sync again.'
+                      : 'Health Connect had no readings to pull. More can take shape the next time you sync.'}
               </Text>
               {reflectionRows(outcome.reflection).length > 0 && (
                 <View style={styles.reflection}>
@@ -110,6 +129,20 @@ export default function HealthSyncSheet({
                   ))}
                 </View>
               )}
+              {__DEV__ && outcome.telemetry ? (
+                <View style={styles.reflection}>
+                  <StatRow label="HealthKit query" value={`${outcome.telemetry.healthKitQueryMs} ms`} />
+                  <StatRow label="Samples fetched" value={String(outcome.telemetry.samplesFetched)} />
+                  <StatRow label="Normalization" value={`${outcome.telemetry.normalizationMs} ms`} />
+                  <StatRow label="Database write" value={`${outcome.telemetry.databaseWriteMs} ms`} />
+                  <StatRow label="Intelligence" value={`${outcome.telemetry.intelligenceProcessingMs} ms`} />
+                  <StatRow
+                    label="Total"
+                    value={`${outcome.telemetry.totalMs} ms`}
+                    last
+                  />
+                </View>
+              ) : null}
             </>
           )}
           {outcome?.kind === 'unavailable' && (

@@ -54,6 +54,18 @@ export const domainColor = {
   mood: '#181818', // Mood
 } as const;
 
+// Insight charts use the living palette, including Sage for stress and HRV
+// marks that are not a constellation domain of their own.
+export const vizColor = {
+  coral: '#F27D72',
+  sage: '#8FA98F',
+  ocean: '#6AA5CB',
+  plum: '#5B4B7A',
+  amber: '#F6C76B',
+  ink: '#181818',
+  still: '#8E8E93',
+} as const;
+
 // SF Pro (the iOS system face). No fontFamily is set so UIKit applies
 // San Francisco with optical sizing (Text vs Display) from point size.
 // Weight is the only axis — same roles the previous family split used.

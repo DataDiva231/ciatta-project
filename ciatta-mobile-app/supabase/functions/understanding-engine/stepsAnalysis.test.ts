@@ -148,6 +148,29 @@ Deno.test('stepsAnalysis: cold start blocks the Understanding under 14 days', ()
   assertEquals(buildStepsUnderstanding(result), null);
 });
 
+Deno.test('stepsAnalysis: activity volume without notable low days is developing, never very-strong', () => {
+  nextId = 1;
+  const { steps } = buildScenario({
+    numDays: 30,
+    baselineSteps: 8000,
+    lowActivityRate: 0,
+    lowActivitySteps: 8000,
+    samplesPerDay: 1,
+    ratingBaseline: 3,
+    ratingDropAfterLow: 0,
+    ratingAnswerRate: 0,
+    seed: 9,
+  });
+  const result = analyzeSteps(steps);
+  const draft = buildStepsUnderstanding(result);
+  assertEquals(result.eligible, true);
+  assertEquals(result.lowActivityDays, 0);
+  assert(draft !== null);
+  assertEquals(draft!.strength, 'moderate');
+  assertEquals(draft!.confidenceLabel, 'fairly confident');
+  assert(!draft!.narrative.toLowerCase().includes('very strong'));
+});
+
 Deno.test('stepsAnalysis: real low-activity -> low-rating pattern is confirmed', () => {
   nextId = 1;
   const { steps, rating } = buildScenario({

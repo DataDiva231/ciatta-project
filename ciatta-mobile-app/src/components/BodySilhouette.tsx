@@ -20,7 +20,8 @@ import Svg, {
   Image as SvgImage,
 } from 'react-native-svg';
 import { colors, domainColor, fonts } from '../theme/tokens';
-import { domainLabel, strengthShort } from '../lib/mockData';
+import { domainLabel } from '../lib/mockData';
+import { coreStatusLabel } from '../lib/intelligenceStatus';
 import type { Domain, Strength } from '../lib/types';
 import {
   constellationBreath,
@@ -186,6 +187,7 @@ export interface BodySilhouetteProps {
   variant?: 'today' | 'core' | 'mini';
   activeDomain?: Domain;
   strengths?: Partial<Record<Domain, Strength>>;
+  statusLabels?: Partial<Record<Domain, string>>;
   links?: ConstellationLink[];
   labeled?: boolean;
   animated?: boolean;
@@ -200,6 +202,7 @@ export default function BodySilhouette({
   variant = 'today',
   activeDomain,
   strengths,
+  statusLabels,
   links = [],
   labeled = false,
   animated = true,
@@ -402,7 +405,11 @@ export default function BodySilhouette({
                 {domainLabel[d]}
               </Text>
               <Text style={[styles.labelSub, { textAlign: isLeft ? 'right' : 'left' }]}>
-                {strengthShort[strengths?.[d] ?? 'moderate']}
+                {statusLabels?.[d] ??
+                  coreStatusLabel({
+                    strength: strengths?.[d] ?? 'moderate',
+                    confidence_label: null,
+                  })}
               </Text>
             </Pressable>
           );

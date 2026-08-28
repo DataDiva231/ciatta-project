@@ -15,6 +15,7 @@ export interface CareUnderstanding {
   narrative: string;
   last_updated: string;
   guidance: string | null;
+  care_recommendation_type: string | null;
   care_recommendation_reason: string | null;
 }
 
@@ -29,8 +30,11 @@ export interface CareNotice {
 export function isEligibleCareConnection(row: {
   strength: Strength;
   guidance: string | null;
+  care_recommendation_type?: string | null;
+  care_recommendation_reason?: string | null;
 }): boolean {
-  return ACTIONABLE_STRENGTHS.has(row.strength) && !!row.guidance?.trim();
+  if (!ACTIONABLE_STRENGTHS.has(row.strength) || !row.guidance?.trim()) return false;
+  return !!(row.care_recommendation_type?.trim() || row.care_recommendation_reason?.trim());
 }
 
 function briefReason(row: CareUnderstanding): string {

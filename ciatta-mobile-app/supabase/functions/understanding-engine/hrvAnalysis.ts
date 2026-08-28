@@ -13,7 +13,7 @@
  * 'hrv' signal (noted in the ingestion code, not silently pretended away).
  */
 import type { Strength } from './cycleAnalysis.ts';
-import { strengthForConfidence } from './cycleAnalysis.ts';
+import { strengthForObservedPattern } from './cycleAnalysis.ts';
 import type { RatingObservation } from './energyRelationship.ts';
 import {
   median,
@@ -177,7 +177,7 @@ const CONFIDENCE_LABEL: Record<Strength, string> = {
 
 export function buildHrvUnderstanding(result: HrvUnderstandingResult): HrvUnderstandingDraft | null {
   if (!result.eligible) return null;
-  const strength = strengthForConfidence(result.confidence);
+  const strength = strengthForObservedPattern(result.confidence, result.lowHrvRate);
   const avgMs = Math.round(result.avgMs);
   const pct = Math.round(result.lowHrvRate * 100);
   return {

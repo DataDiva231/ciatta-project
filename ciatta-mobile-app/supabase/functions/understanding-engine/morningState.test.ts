@@ -1,5 +1,5 @@
 import { assertEquals } from 'jsr:@std/assert@1';
-import { featuredUnderstanding, selectMorningDomain } from './morningState.ts';
+import { assembleMorningWrites, featuredUnderstanding, selectMorningDomain } from './morningState.ts';
 
 Deno.test('selectMorningDomain: prefers sleep when the nightly/morning run actually wrote it', () => {
   assertEquals(
@@ -9,6 +9,38 @@ Deno.test('selectMorningDomain: prefers sleep when the nightly/morning run actua
       { domain: 'mood', wroteThisRun: false },
     ]),
     'sleep'
+  );
+});
+
+Deno.test('assembleMorningWrites: contextual sleep does not steal Today from a recovery write', () => {
+  assertEquals(
+    selectMorningDomain(
+      assembleMorningWrites({
+        cycleWrote: false,
+        sleepWrote: false,
+        recoveryWrote: true,
+        moodWrote: false,
+        contextualWrote: true,
+        contextualDomain: 'sleep',
+      })
+    ),
+    'recovery'
+  );
+});
+
+Deno.test('assembleMorningWrites: contextual only still features the onboarding domain', () => {
+  assertEquals(
+    selectMorningDomain(
+      assembleMorningWrites({
+        cycleWrote: false,
+        sleepWrote: false,
+        recoveryWrote: false,
+        moodWrote: false,
+        contextualWrote: true,
+        contextualDomain: 'sleep',
+      })
+    ),
+    null
   );
 });
 

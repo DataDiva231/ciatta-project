@@ -45,14 +45,17 @@
       [
         "@kingstinct/react-native-healthkit",
         {
-          "NSHealthShareUsageDescription": "Your steps, heart rate, and sleep from Health complete your picture, so you aren't asked the same questions twice.",
-          "NSHealthUpdateUsageDescription": "Your steps, heart rate, and sleep from Health complete your picture, so you aren't asked the same questions twice.",
+          "NSHealthShareUsageDescription": "Health shares your activity, heart, sleep, breathing, cycle, workouts, and body measurements with Ciatta so you are not asked the same questions twice.",
+          "NSHealthUpdateUsageDescription": "Health shares your activity, heart, sleep, breathing, cycle, workouts, and body measurements with Ciatta so you are not asked the same questions twice.",
           "background": false
         }
       ],
       [
         "expo-build-properties",
         {
+          "ios": {
+            "deploymentTarget": "16.4"
+          },
           "android": {
             "compileSdkVersion": 36,
             "targetSdkVersion": 36,

@@ -231,6 +231,21 @@ export function strengthForConfidence(confidence: number): Strength {
   return 'very-strong';
 }
 
+/**
+ * Sample size can make a volume signal look "very-strong" without a real
+ * pattern. very-strong requires both a large sample *and* a notable share
+ * of days that actually differ from this person's baseline.
+ */
+export function strengthForObservedPattern(confidence: number, notableRate: number): Strength {
+  const bySample = strengthForConfidence(confidence);
+  if (notableRate < 0.05) {
+    if (bySample === 'very-strong' || bySample === 'strong') return 'moderate';
+    return bySample;
+  }
+  if (bySample === 'very-strong' && notableRate < 0.15) return 'strong';
+  return bySample;
+}
+
 export interface UnderstandingDraft {
   strength: Strength;
   narrative: string;

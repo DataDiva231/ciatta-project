@@ -151,6 +151,22 @@ function considerSentence(domain: string): string {
   return `Consider ${action} and tracking whether the pattern continues.`;
 }
 
+export interface GuidanceOptions {
+  /**
+   * When false, pattern/consider sentences may still be written, but no
+   * provider care connection is attached. Activity volume and other
+   * descriptive recovery signals pass false. Defaults to true for cycle,
+   * mood, and sleep, false otherwise.
+   */
+  clinicalConcern?: boolean;
+}
+
+function wantsCare(domain: string, clinicalConcern?: boolean): boolean {
+  if (clinicalConcern === false) return false;
+  if (clinicalConcern === true) return true;
+  return domain === 'cycle' || domain === 'mood' || domain === 'sleep';
+}
+
 /**
  * @param domain - the Understanding's own domain (e.g. 'sleep')
  * @param strength - the Understanding's own confidence tier — the same
@@ -172,28 +188,34 @@ export function deriveGuidance(
   strength: string,
   connectedDomain: string | null,
   evidence: EvidenceContext,
-  now: Date = new Date()
+  now: Date = new Date(),
+  options: GuidanceOptions = {}
 ): GuidanceResult {
   if (!ACTIONABLE.has(strength)) return NO_GUIDANCE;
 
   const domainWord = DOMAIN_LABEL[domain] ?? domain;
   const connectedWord = connectedDomain ? DOMAIN_LABEL[connectedDomain] ?? connectedDomain : null;
+  const attachCare = wantsCare(domain, options.clinicalConcern);
+
+  const sentences = [evidenceSentence(domainWord, evidence, now), considerSentence(domain)];
+
+  if (!attachCare) {
+    return {
+      guidance: sentences.join(' '),
+      careRecommendationType: null,
+      careRecommendationReason: null,
+    };
+  }
 
   const careRecommendationType: CareRecommendationType = DOMAIN_CARE_TYPE[domain] ?? 'primary-care';
   const careLabel = CARE_LABEL[careRecommendationType];
-
   const patternBase = connectedWord
     ? `This pattern in your ${domainWord} appears connected to your ${connectedWord}.`
     : `This is a consistent pattern in your ${domainWord}.`;
-
-  const guidance = [
-    evidenceSentence(domainWord, evidence, now),
-    considerSentence(domain),
-    `${patternBase} If it continues, it may be worth discussing with ${careLabel}.`,
-  ].join(' ');
+  sentences.push(`${patternBase} If it continues, it may be worth discussing with ${careLabel}.`);
 
   return {
-    guidance,
+    guidance: sentences.join(' '),
     careRecommendationType,
     careRecommendationReason: CARE_REASON[careRecommendationType],
   };

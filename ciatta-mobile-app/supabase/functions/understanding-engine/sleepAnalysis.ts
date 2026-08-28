@@ -15,7 +15,7 @@
  *    rotation.
  */
 import type { Strength } from './cycleAnalysis.ts';
-import { strengthForConfidence } from './cycleAnalysis.ts';
+import { strengthForConfidence, strengthForObservedPattern } from './cycleAnalysis.ts';
 import type { RatingObservation } from './energyRelationship.ts';
 
 export interface SleepObservation {
@@ -123,7 +123,7 @@ const CONFIDENCE_LABEL: Record<Strength, string> = {
 
 export function buildSleepUnderstanding(result: SleepUnderstandingResult): SleepUnderstandingDraft | null {
   if (!result.eligible) return null;
-  const strength = strengthForConfidence(result.confidence);
+  const strength = strengthForObservedPattern(result.confidence, result.shortNightRate);
   const hours = Math.floor(result.avgMinutes / 60);
   const minutes = Math.round(result.avgMinutes % 60);
   const pct = Math.round(result.shortNightRate * 100);

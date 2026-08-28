@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts, glass, strengthColor } from '../theme/tokens';
-import { domainLabel, strengthLabel } from '../lib/mockData';
+import { domainLabel } from '../lib/mockData';
+import { coreStatusLabel } from '../lib/intelligenceStatus';
 import type { Domain, RelationshipRef } from '../lib/types';
 import type {
   CrossDomainUnderstandingRow,
@@ -21,6 +22,7 @@ import PrimaryButton from '../components/PrimaryButton';
 import GlassChip from '../components/GlassChip';
 import GlassSurface, { GlassGroup } from '../components/GlassSurface';
 import Card from '../components/Card';
+import InsightVizHost from '../components/InsightVizHost';
 import { CloseIcon } from '../components/icons';
 import ProviderSearchSheet from './ProviderSearchSheet';
 
@@ -96,6 +98,7 @@ export default function UnderstandingSheet({
   providerFeedback,
   userId,
   profileLocation,
+  goals = [],
   onClose,
   onHelpLearnMore,
   onProviderFeedbackSaved,
@@ -109,6 +112,7 @@ export default function UnderstandingSheet({
   providerFeedback: ProviderFeedbackRow[];
   userId: string | null;
   profileLocation: string | null;
+  goals?: string[];
   onClose: () => void;
   onHelpLearnMore: () => void;
   onProviderFeedbackSaved: () => void;
@@ -188,7 +192,7 @@ export default function UnderstandingSheet({
   }
 
   const span = formatSpan(understanding.learning_since);
-  const confidence = understanding.confidence_label ?? strengthLabel[understanding.strength];
+  const confidence = coreStatusLabel(understanding);
   // Read straight off the row the Understanding Engine wrote — not
   // recomputed here, so there is exactly one place Guidance is derived.
   const guidance = understanding.guidance;
@@ -229,7 +233,7 @@ export default function UnderstandingSheet({
           displayLabel: `your ${displayCopy(cd.label).replace(/ related$/i, '').trim()} pattern`,
           domain: feedbackUnderstanding.domain,
           narrative: cd.narrative,
-          confidenceLabel: cd.confidence_label ?? strengthLabel[cd.strength],
+          confidenceLabel: cd.confidence_label ?? coreStatusLabel({ strength: cd.strength, confidence_label: cd.confidence_label }),
           // Cross-domain rows don't persist their own observation count —
           // it's the honest sum of what's already loaded for the two
           // domains that produced it, not a fabricated number.
@@ -418,6 +422,19 @@ export default function UnderstandingSheet({
           <Text style={styles.confidenceMeta}>updated {formatAgo(understanding.last_updated)}</Text>
         </View>
 
+        {userId && domain ? (
+          <View style={styles.viz}>
+            <InsightVizHost
+              userId={userId}
+              understandings={understandings}
+              relationships={relationships}
+              goals={goals}
+              featuredDomain={understanding.domain}
+              focusDomain={understanding.domain}
+            />
+          </View>
+        ) : null}
+
         <Text style={styles.sectionLabel}>THE EVIDENCE</Text>
         <View style={styles.evidenceStrip}>
           <View style={styles.metric}>
@@ -458,7 +475,7 @@ export default function UnderstandingSheet({
                       style={[styles.confidenceDot, { backgroundColor: strengthColor[cd.strength] }]}
                     />
                     <Text style={[styles.confidenceText, { color: strengthColor[cd.strength] }]}>
-                      {cd.confidence_label ?? strengthLabel[cd.strength]}
+                      {coreStatusLabel({ strength: cd.strength, confidence_label: cd.confidence_label })}
                     </Text>
                     <Text style={styles.confidenceSep}>·</Text>
                     <Text style={styles.confidenceMeta}>
@@ -713,6 +730,9 @@ const styles = StyleSheet.create({
     color: colors.ink3,
     marginTop: 30,
     marginBottom: 12,
+  },
+  viz: {
+    marginTop: 18,
   },
   evidenceStrip: {
     flexDirection: 'row',

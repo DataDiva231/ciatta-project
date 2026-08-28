@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   glassLayer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   fallback: {
     backgroundColor: glass.fillSolid,
