@@ -136,13 +136,20 @@ a { color: inherit; }
   max-width: 15ch;
   text-wrap: balance;
 }
-.hero-title em {
+.hero-title em,
+.section-title em {
   display: block;
   margin-top: 0.1em;
   font-style: italic;
   font-weight: 600;
   color: var(--accent-ink);
 }
+/* "Ciatta helps you see it." reads as part of the same voice as the body
+   copy beneath it, not a call-out — same ink-2 as .hero-lede. */
+.hero-title em { color: var(--ink-2); }
+/* Same treatment for "See what connects." — matches the section-lede
+   beneath it rather than standing out as an accent. */
+#insights-heading em { color: var(--ink-2); }
 
 .section-title {
   margin-top: 14px;
@@ -160,6 +167,14 @@ a { color: inherit; }
   font-size: clamp(1.05rem, 1.6vw, 1.25rem);
   line-height: 1.72;
   color: var(--ink-2);
+}
+
+/* The one line per section that carries the payoff — a step up from the
+   lede's ink-2, not a new type scale, so it reads as emphasis within the
+   same paragraph rhythm rather than a separate callout. */
+.lede-accent {
+  color: var(--ink);
+  font-weight: 600;
 }
 
 /* ── header ───────────────────────────────────────────────────────────── */
@@ -324,6 +339,29 @@ a { color: inherit; }
   filter: contrast(1.06) saturate(0.96) drop-shadow(0 28px 56px rgba(28, 28, 30, 0.1));
 }
 
+/* Drawn at rest, not on hover — the figure's job is to show the signals as
+   one connected picture, not five separate readouts. Selecting a domain
+   (the insight nav, or the hero reacting to it) just brightens the lines
+   touching that point. */
+.silhouette-links {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.silhouette-link {
+  stroke: var(--ink);
+  stroke-opacity: 0.14;
+  stroke-width: 0.3;
+  vector-effect: non-scaling-stroke;
+  transition: stroke-opacity 0.3s, stroke 0.3s;
+}
+.silhouette-link.is-active {
+  stroke: var(--accent-ink);
+  stroke-opacity: 0.4;
+}
+
 .silhouette-dots {
   position: absolute;
   inset: 0;
@@ -477,6 +515,49 @@ a { color: inherit; }
 .joined-title { font-size: 17px; font-weight: 600; }
 .joined-sub { margin-top: 4px; font-size: 14px; color: var(--ink-3); }
 
+/* ── pieces ───────────────────────────────────────────────────────────── */
+.pieces {
+  padding: clamp(80px, 10vw, 120px) 0;
+  border-top: 1px solid var(--border);
+}
+
+.pieces-copy .section-title { max-width: 15ch; }
+.pieces-copy .section-lede { max-width: 44ch; }
+
+/* ── continuity ───────────────────────────────────────────────────────── */
+.continuity {
+  padding: clamp(80px, 10vw, 120px) 0;
+  border-top: 1px solid var(--border);
+  background: var(--wash);
+}
+
+.continuity .section-title { max-width: 20ch; }
+.continuity .section-lede { max-width: 50ch; }
+
+.continuity-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px clamp(20px, 3vw, 36px);
+  margin-top: clamp(28px, 4vw, 40px);
+}
+.continuity-list li {
+  position: relative;
+  padding-left: 22px;
+  font-size: clamp(1.05rem, 1.6vw, 1.25rem);
+  font-weight: 600;
+  color: var(--ink);
+}
+.continuity-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 11px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent-ink);
+}
+
 /* ── insights ─────────────────────────────────────────────────────────── */
 .insights {
   padding: clamp(88px, 12vw, 140px) 0;
@@ -522,43 +603,7 @@ a { color: inherit; }
   flex-direction: column;
 }
 
-/* The same constellation as the hero, small, above the domain list. The hero
-   figure already reacted to this nav but is scrolled far out of view by the
-   time anyone reaches it, so selecting a domain lit a point nobody could see.
-   This element is the .silhouette-wrap itself, not a parent of it. */
-.insight-figure {
-  justify-content: center;
-  margin-bottom: 20px;
-  padding-inline: 18px;
-}
-.insight-figure .silhouette-art {
-  -webkit-mask-image: none;
-  mask-image: none;
-}
-.insight-figure .silhouette-art::after { display: none; }
-.insight-figure .silhouette-img {
-  width: 100%;
-  max-width: 190px;
-  max-height: none;
-  filter: none;
-  opacity: 0.85;
-}
-.insight-figure .silhouette-dot {
-  --dot-size: 6px;
-  opacity: 0.2;
-  animation: none;
-  transition: opacity 0.35s;
-}
-.insight-figure .silhouette-dot.is-focal {
-  --dot-size: 9px;
-  opacity: 1;
-  animation: dot-breathe 5s ease-in-out infinite;
-}
-
-/* This selector out-specifies the global reduced-motion guard on
-   .silhouette-dot, so it has to opt out again on its own terms. */
 @media (prefers-reduced-motion: reduce) {
-  .insight-figure .silhouette-dot.is-focal { animation: none; }
   .insight-meter-fill { transition: none; }
 }
 
@@ -884,33 +929,118 @@ a { color: inherit; }
 
 /* ── responsive ───────────────────────────────────────────────────────── */
 @media (max-width: 960px) {
-  .hero-grid,
   .insights-body,
   .care-grid,
   .trust-grid {
     grid-template-columns: 1fr;
   }
 
-  .hero-visual {
-    order: -1;
-    justify-content: center;
-    margin-right: 0;
+  /* The desktop rhythm (80–140px, scaling with viewport width) reads as
+     a lot of empty scroll on a phone, where there's no width left for it
+     to scale down against. Tightened to a flat, still-clearly-a-new-
+     section amount instead of whatever the clamp bottoms out at. */
+  .pieces,
+  .continuity,
+  .insights,
+  .care,
+  .close {
+    padding-top: 48px;
+    padding-bottom: 48px;
   }
 
-  .hero-figure-wrap {
-    width: min(100%, 620px);
-    margin-inline: auto;
+  /* Same silhouette, same copy, same wait-list form — reflowed to a
+     full-bleed portrait: the figure fills the width of the screen top to
+     bottom, the copy is centered and pinned to the bottom of that same
+     box, and the two overlap by however much their own natural heights
+     spill into each other (no scroll — the box is exactly one screen). */
+  .hero {
+    height: 100svh;
+    min-height: 100svh;
+    overflow: hidden;
   }
+
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+    height: calc(100svh - var(--header-h));
+    padding-top: 0;
+    padding-bottom: clamp(20px, 4svh, 36px);
+  }
+
+  .hero-visual,
+  .hero-copy {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .hero-visual {
+    align-self: start;
+    z-index: 0;
+    width: calc(100% + var(--gutter) * 2);
+    margin-inline: calc(-1 * var(--gutter));
+  }
+
+  .hero-figure-wrap { width: 100%; max-width: none; margin-inline: 0; }
+  .silhouette-wrap { justify-content: center; }
+  .silhouette-art { width: 100%; max-width: none; }
 
   .silhouette-img {
-    width: min(100vw, 620px);
-    max-height: min(68svh, 760px);
-    margin-inline: auto;
+    width: 100%;
+    max-width: none;
+    height: auto;
+    max-height: none;
+    margin-inline: 0;
   }
 
-  .hero-title { max-width: none; }
+  /* A graduated wash behind the copy, not a hard-edged card — fully
+     transparent at its own top so it doesn't cut a visible line across the
+     figure, ramping up to solid canvas well before the headline so the
+     text always has a legible, accessible background regardless of what
+     part of the figure sits behind it on a given screen. Full-bleed so the
+     wash has no visible side edges within the gutter. */
+  .hero-copy {
+    align-self: end;
+    z-index: 2;
+    text-align: left;
+    width: calc(100% + var(--gutter) * 2);
+    margin-inline: calc(-1 * var(--gutter));
+    padding: clamp(28px, 6svh, 56px) var(--gutter) 0;
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      color-mix(in srgb, var(--canvas) 88%, transparent) 9%,
+      var(--canvas) 18%,
+      var(--canvas) 100%
+    );
+  }
 
-  .hero-copy { align-self: start; }
+  .hero-title {
+    margin-top: 0;
+    max-width: none;
+    font-size: clamp(1.4rem, 6.4vw, 2rem);
+    line-height: 1.1;
+  }
+
+  .hero-lede {
+    margin-top: clamp(4px, 1.2svh, 12px);
+    max-width: none;
+    font-size: clamp(0.85rem, 3.6vw, 0.95rem);
+    line-height: 1.48;
+  }
+
+  .hero-waitlist { margin-top: clamp(8px, 1.8svh, 18px); max-width: none; }
+
+  .hero-waitlist .waitlist-row { flex-direction: row; padding: 5px; border-radius: 999px; }
+  .hero-waitlist .waitlist-row input { padding: 10px 14px; font-size: 15px; }
+  .hero-waitlist .waitlist-row button {
+    width: auto;
+    flex: 0 0 auto;
+    padding: 10px 16px;
+    font-size: 13px;
+    border-radius: 999px;
+  }
+  .hero-waitlist .waitlist-note { margin-top: 6px; font-size: 12px; }
 
   .insight-nav-col { position: static; }
 
@@ -919,10 +1049,6 @@ a { color: inherit; }
     flex-wrap: wrap;
     gap: 8px;
   }
-
-  /* The nav becomes a horizontal chip row here; the standing figure has no
-     column to sit in, so it steps aside rather than shrinking to nothing. */
-  .insight-figure { display: none; }
 
   .insight-nav-item {
     grid-template-columns: 8px auto;
