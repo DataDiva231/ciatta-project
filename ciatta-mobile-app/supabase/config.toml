@@ -412,3 +412,8 @@ enabled = true
 # declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# Opened by people clicking a link in an email, who have no session and no
+# account. Verification is the token in the URL, not a JWT.
+[functions.waitlist-unsubscribe]
+verify_jwt = false

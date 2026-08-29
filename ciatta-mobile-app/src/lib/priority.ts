@@ -10,20 +10,30 @@
 //   1. An action, when the understanding is well enough evidenced to support
 //      one and a measured value exists to anchor it. The number in the
 //      sentence is the user's own, never a default.
-//   2. An open question, when it isn't. "Help me learn X" is a real ask
-//      drawn from the engine's own `still_learning` list.
+//   2. An open question, when it isn't. "We're still learning X" is a real
+//      ask drawn from the engine's own `still_learning` list.
 //
 // If neither applies the function returns null and the section does not
 // render, the same way empty sections are dropped elsewhere in the app.
 import type { Domain, Strength } from './types';
 import type { UnderstandingRow } from './queries';
 import { formatSleepMinutes, type RecentSyncSummary } from './observations';
+import { displayCopy } from './displayCopy';
 
 export interface TodayPriority {
   text: string;
   domain: Domain;
   /** True when the line is anchored to a measured value rather than an open question. */
   measured: boolean;
+  /**
+   * The Understanding Engine's own Guidance for this domain (see
+   * careGuidance.ts) — read straight off the featured Understanding, never
+   * recomputed here. Only ever present alongside a measured priority: an
+   * open question is, by definition, not yet evidenced enough for the
+   * engine to have written Guidance for it either, since both are gated on
+   * the exact same confidence tier.
+   */
+  consider?: string;
 }
 
 // Eight hours is the only numeric target stated anywhere in this file. It is
@@ -43,11 +53,24 @@ export function derivePriority(
   if (!featured) return null;
 
   const measured = measuredPriority(featured, sync);
-  if (measured) return { text: measured, domain: featured.domain, measured: true };
+  if (measured) {
+    return {
+      text: displayCopy(measured.text),
+      domain: featured.domain,
+      measured: true,
+      // Straight off the row the Understanding Engine wrote — not
+      // recomputed client-side, so there is exactly one place Guidance is
+      // ever derived. Withheld on a reinforcing line ("keep protecting
+      // your sleep") even though the row has Guidance too — "this is
+      // worth discussing with a provider" has no business sitting under a
+      // sentence telling her she's doing fine.
+      consider: measured.concerning ? displayCopy(featured.guidance ?? '') || undefined : undefined,
+    };
+  }
 
   const open = featured.still_learning?.[0];
   if (open) {
-    return { text: `Help me learn ${lowerFirst(open)}.`, domain: featured.domain, measured: false };
+    return { text: displayCopy(`We're still learning ${lowerFirst(open)}.`), domain: featured.domain, measured: false };
   }
 
   return null;
@@ -56,7 +79,7 @@ export function derivePriority(
 function measuredPriority(
   featured: UnderstandingRow,
   sync: RecentSyncSummary | null
-): string | null {
+): { text: string; concerning: boolean } | null {
   if (!ACTIONABLE_STRENGTHS.includes(featured.strength)) return null;
   if (!sync) return null;
 
@@ -66,9 +89,15 @@ function measuredPriority(
       if (slept == null) return null;
       if (slept < SLEEP_TARGET_MINUTES) {
         const short = SLEEP_TARGET_MINUTES - slept;
-        return `Prioritize eight hours of sleep — you were ${formatSleepMinutes(short)} short last night.`;
+        return {
+          text: `Prioritize eight hours of sleep. You were ${formatSleepMinutes(short)} short last night.`,
+          concerning: true,
+        };
       }
-      return `Keep protecting your sleep — you got ${formatSleepMinutes(slept)} last night.`;
+      return {
+        text: `Keep protecting your sleep. You got ${formatSleepMinutes(slept)} last night.`,
+        concerning: false,
+      };
     }
     // The remaining domains have no target Ciatta can defend yet, so they
     // fall through to the open question rather than inventing one.

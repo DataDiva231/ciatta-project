@@ -1,0 +1,28 @@
+-- Closes a real gap: onboarding already writes real Observations
+-- (primary_intent, health_concern, health_concern_detail,
+-- health_concern_recency, medications, supplements, health_history), but
+-- the Understanding Engine only ever analyzed physiological observation
+-- types (resting_heart_rate, sleep_session, hrv, ...). A user who has only
+-- just onboarded — no HealthKit sync, no curiosity ratings yet — could
+-- never have a single Understanding row, contextual or otherwise.
+--
+-- This does not replace the physiological engine or add a parallel one.
+-- It adds one more processing step to the SAME understanding-engine
+-- function (see contextualUnderstanding.ts and processContextualDomain()
+-- in index.ts), writing to the SAME `understandings` table through the
+-- SAME upsertUnderstanding() — just from user-reported context instead of
+-- measured data, and only ever filling a domain that has no physiological
+-- Understanding yet.
+--
+-- `evidence_type` is what lets the two coexist without either being
+-- mistaken for the other: 'health_data' for everything the existing four
+-- domain processors already produce (the column defaults to it, so those
+-- call sites needed no schema change to keep working), 'user_reported' for
+-- what the new contextual step produces. Nothing in this system currently
+-- produces 'clinical_record' (a provider's own record) or 'derived' (a
+-- pattern inferred from other Understandings) — the column is a free-text
+-- field like `domain`/`observation_type` already are elsewhere in this
+-- schema, not an enum, specifically so those can be introduced later
+-- without another migration.
+alter table public.understandings
+  add column evidence_type text not null default 'health_data';

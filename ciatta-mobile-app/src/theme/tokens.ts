@@ -1,64 +1,196 @@
-// "Field Notes" palette — a cool paper stock rather than a warm one, with two
-// accents that split labor instead of one color doing everything: `accent`
-// (a deep wine) marks actions and moments that matter; `evidence` (a muted
-// moss) marks anything measured or proven, so a button and a confidence tag
-// never compete for the same color.
-//
-// The neutral ramp is tuned against `canvas`, not chosen by eye: `ink3` is the
-// eyebrow/label grey and clears 4.5:1 on this background, where the previous
-// warm beige managed only 2.3:1 and failed for anyone reading in daylight.
+import type { TextStyle } from 'react-native';
+
+type AppleTextRamp =
+  | 'caption2'
+  | 'caption1'
+  | 'footnote'
+  | 'subheadline'
+  | 'callout'
+  | 'body'
+  | 'headline'
+  | 'title3'
+  | 'title2'
+  | 'title1'
+  | 'largeTitle';
+
+type TypeStyle = TextStyle & { dynamicTypeRamp?: AppleTextRamp };
+
+// Ciatta MVP palette. Neutrals are canvas, surface, and ink. Accents stay
+// Living Coral, Soft Amber, Sage, Ocean, and Deep Plum. Mood still uses
+// its existing domain charcoal. Washes and borders are ink at reduced
+// opacity, not additional hues.
 export const colors = {
-  canvas: '#F6F8FA',
-  surface: '#FFFFFF',
-  border: '#D7DEE6',
-  ink: '#1B2127',
-  ink2: '#55606B',
-  ink3: '#646E79',
-  accent: '#8C3A44',
-  accentSoft: 'rgba(140, 58, 68, 0.12)',
-  accentSofter: 'rgba(140, 58, 68, 0.06)',
-  evidence: '#6B7A55',
-  evidenceSoft: 'rgba(107, 122, 85, 0.14)',
-  evidenceSofter: 'rgba(107, 122, 85, 0.07)',
-  dark: '#171C22',
-  darkSurface: '#232A32',
-  white: '#FFFFFF',
-  silhouetteFill: 'rgba(132, 145, 158, 0.4)',
-  silhouetteFillDark: 'rgba(233, 238, 243, 0.16)',
+  // Canvas is the page and figure paper. Surface is cards, sheets, and nav.
+  canvas: '#FFFCF7',
+  grouped: '#F2F2F7',
+  surface: '#FFFFFD',
+  wash: 'rgba(28, 28, 30, 0.04)',
+  border: 'rgba(28, 28, 30, 0.12)',
+  ink: '#1C1C1E',
+  ink2: '#6B6B6F',
+  ink3: '#8E8E93',
+  accent: '#F27D72',
+  onAccent: '#1C1C1E',
+  accentSoft: 'rgba(242, 125, 114, 0.12)',
+  accentSofter: 'rgba(242, 125, 114, 0.06)',
+  // Measured/confidence chrome sits in ink, not a domain color.
+  evidence: '#1C1C1E',
+  evidenceSoft: 'rgba(28, 28, 30, 0.08)',
+  evidenceSofter: 'rgba(28, 28, 30, 0.04)',
+  dark: '#1C1C1E',
+  darkSurface: '#1C1C1E',
+  white: '#FFFFFD',
+  silhouetteFill: 'rgba(28, 28, 30, 0.28)',
+  silhouetteFillDark: 'rgba(255, 252, 247, 0.16)',
 } as const;
 
-// Three roles, not two: a characterful display serif for narrative moments
-// (Fraunces — used with restraint), a warm grotesk for UI and body copy
-// (Karla), and a monospace reserved *only* for measured data — confidence
-// scores, bpm, day counts, dates — so a number in this app always reads as
-// evidence, never as decoration.
+// Domain constellation hues. The product still has five domains; names in
+// comments are the living vocabulary the figure is coloured against.
+export const domainColor = {
+  cycle: '#F27D72', // Hormones
+  energy: '#F6C76B', // Metabolism
+  recovery: '#6AA5CB', // Recovery
+  sleep: '#5B4B7A', // Sleep
+  mood: '#181818', // Mood
+} as const;
+
+// SF Pro (the iOS system face). No fontFamily is set so UIKit applies
+// San Francisco with optical sizing (Text vs Display) from point size.
+// Weight is the only axis — same roles the previous family split used.
+type Face = Pick<TextStyle, 'fontWeight' | 'fontStyle' | 'fontVariant'>;
+
 export const fonts = {
-  serif: 'Fraunces_500Medium',
-  serifSemiBold: 'Fraunces_600SemiBold',
-  serifItalic: 'Fraunces_500Medium_Italic',
-  sans: 'Karla_400Regular',
-  sansMedium: 'Karla_500Medium',
-  sansSemiBold: 'Karla_600SemiBold',
-  mono: 'SpaceMono_400Regular',
-  monoBold: 'SpaceMono_700Bold',
-} as const;
+  serif: { fontWeight: '600' } satisfies Face,
+  serifSemiBold: { fontWeight: '700' } satisfies Face,
+  serifItalic: { fontWeight: '400', fontStyle: 'italic' } satisfies Face,
+  sans: { fontWeight: '400' } satisfies Face,
+  sansMedium: { fontWeight: '500' } satisfies Face,
+  sansSemiBold: { fontWeight: '600' } satisfies Face,
+  mono: { fontWeight: '400', fontVariant: ['tabular-nums'] } satisfies Face,
+  monoBold: { fontWeight: '600', fontVariant: ['tabular-nums'] } satisfies Face,
+};
 
+// Apple semantic text styles at the default (Large) Dynamic Type size.
+// `dynamicTypeRamp` maps each role onto UIFontMetrics so SF Pro tracks the
+// user's preferred content size the way system apps do.
 export const type = {
-  displayLarge: { fontFamily: fonts.serif, fontSize: 38, lineHeight: 44 },
-  displayMedium: { fontFamily: fonts.serif, fontSize: 29, lineHeight: 35 },
-  displaySmall: { fontFamily: fonts.serif, fontSize: 22, lineHeight: 28 },
-  body: { fontFamily: fonts.sans, fontSize: 15, lineHeight: 22 },
-  bodySmall: { fontFamily: fonts.sans, fontSize: 13.5, lineHeight: 19 },
-  label: {
-    fontFamily: fonts.sansMedium,
+  largeTitle: {
+    ...fonts.serif,
+    fontSize: 34,
+    lineHeight: 41,
+    dynamicTypeRamp: 'largeTitle',
+  } satisfies TypeStyle,
+  title1: {
+    ...fonts.serif,
+    fontSize: 28,
+    lineHeight: 34,
+    dynamicTypeRamp: 'title1',
+  } satisfies TypeStyle,
+  title2: {
+    ...fonts.serif,
+    fontSize: 22,
+    lineHeight: 28,
+    dynamicTypeRamp: 'title2',
+  } satisfies TypeStyle,
+  title3: {
+    ...fonts.serif,
+    fontSize: 20,
+    lineHeight: 25,
+    dynamicTypeRamp: 'title3',
+  } satisfies TypeStyle,
+  headline: {
+    ...fonts.sansSemiBold,
+    fontSize: 17,
+    lineHeight: 22,
+    dynamicTypeRamp: 'headline',
+  } satisfies TypeStyle,
+  body: {
+    ...fonts.sans,
+    fontSize: 17,
+    lineHeight: 22,
+    dynamicTypeRamp: 'body',
+  } satisfies TypeStyle,
+  callout: {
+    ...fonts.sans,
+    fontSize: 16,
+    lineHeight: 21,
+    dynamicTypeRamp: 'callout',
+  } satisfies TypeStyle,
+  subheadline: {
+    ...fonts.sans,
+    fontSize: 15,
+    lineHeight: 20,
+    dynamicTypeRamp: 'subheadline',
+  } satisfies TypeStyle,
+  footnote: {
+    ...fonts.sans,
+    fontSize: 13,
+    lineHeight: 18,
+    dynamicTypeRamp: 'footnote',
+  } satisfies TypeStyle,
+  caption1: {
+    ...fonts.sans,
+    fontSize: 12,
+    lineHeight: 16,
+    dynamicTypeRamp: 'caption1',
+  } satisfies TypeStyle,
+  caption2: {
+    ...fonts.sans,
     fontSize: 11,
-    lineHeight: 14,
-    letterSpacing: 1.1,
+    lineHeight: 13,
+    dynamicTypeRamp: 'caption2',
+  } satisfies TypeStyle,
+  label: {
+    ...fonts.sansMedium,
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.4,
     textTransform: 'uppercase' as const,
-  },
-  caption: { fontFamily: fonts.sans, fontSize: 12, lineHeight: 16 },
-  data: { fontFamily: fonts.mono, fontSize: 13, lineHeight: 18 },
-  dataLarge: { fontFamily: fonts.mono, fontSize: 17, lineHeight: 22 },
+    dynamicTypeRamp: 'caption1',
+  } satisfies TypeStyle,
+  data: {
+    ...fonts.mono,
+    fontSize: 13,
+    lineHeight: 18,
+    dynamicTypeRamp: 'footnote',
+  } satisfies TypeStyle,
+  dataLarge: {
+    ...fonts.mono,
+    fontSize: 17,
+    lineHeight: 22,
+    dynamicTypeRamp: 'body',
+  } satisfies TypeStyle,
+  // Aliases used by older call sites.
+  displayLarge: {
+    ...fonts.serif,
+    fontSize: 34,
+    lineHeight: 41,
+    dynamicTypeRamp: 'largeTitle',
+  } satisfies TypeStyle,
+  displayMedium: {
+    ...fonts.serif,
+    fontSize: 28,
+    lineHeight: 34,
+    dynamicTypeRamp: 'title1',
+  } satisfies TypeStyle,
+  displaySmall: {
+    ...fonts.serif,
+    fontSize: 22,
+    lineHeight: 28,
+    dynamicTypeRamp: 'title2',
+  } satisfies TypeStyle,
+  bodySmall: {
+    ...fonts.sans,
+    fontSize: 15,
+    lineHeight: 20,
+    dynamicTypeRamp: 'subheadline',
+  } satisfies TypeStyle,
+  caption: {
+    ...fonts.sans,
+    fontSize: 12,
+    lineHeight: 16,
+    dynamicTypeRamp: 'caption1',
+  } satisfies TypeStyle,
 };
 
 export const spacing = {
@@ -70,34 +202,25 @@ export const spacing = {
   xxl: 48,
 };
 
-// Frosted-glass surface tokens, kept together so the whole effect can be
-// retuned from one place. React Native has no `backdrop-filter`, so "glass"
-// here is layered translucency — a semi-opaque fill that lets scrolling
-// content read through it, a luminous inner edge, and a soft outer shadow.
-// Depth comes from stacking those three, never from a heavy drop shadow.
+// Native Liquid Glass (UIGlassEffect) is the material. These tokens only
+// describe shape, identity tint, and the solid fallback used when the API
+// is unavailable or Reduce Transparency is on — never a simulated blur.
 export const glass = {
   radius: 32,
-  // Cards are smaller and appear many to a screen, so they carry a tighter
-  // corner and a lighter shadow than the nav — the same material, less of it.
   radiusCard: 22,
-  // Cards sit on a flat canvas with nothing moving behind them, so a
-  // translucent fill bought no visible translucency — it only let Android's
-  // elevation shadow bleed up through the surface and ring every card. This
-  // is exactly what `fill` composited to over the canvas, minus the artifact.
-  fillCard: '#FEFEFE',
-  // Under 1.0 so content passing beneath still tints the surface — that is
-  // what makes it read as glass rather than as a painted bar. Tuned to 0.88
-  // because React Native has no `backdrop-filter`: without a real blur, a
-  // thinner fill lets sharp text through and it competes with the nav labels.
-  fill: 'rgba(255, 255, 255, 0.88)',
-  // The bright inner hairline that catches "light" along the top edge.
-  highlight: 'rgba(255, 255, 255, 0.95)',
-  // Outer edge, tinted from ink rather than pure black so it stays in-palette.
-  border: 'rgba(27, 33, 39, 0.07)',
-  shadowColor: '#1B2127',
-  // Active state: a translucent pill, not a solid fill.
-  activeFill: 'rgba(140, 58, 68, 0.09)',
-  activeBorder: 'rgba(140, 58, 68, 0.16)',
+  radiusControl: 999,
+  fillCard: '#FFFFFD',
+  fill: 'rgba(255, 255, 253, 0.72)',
+  fillSolid: '#FFFFFD',
+  // Dedicated nav plate only. Canvas stays #FFFCF7, so scrolling copy
+  // cannot be read through the dock.
+  navBacking: '#FFFFFD',
+  highlight: 'rgba(255, 255, 253, 0.92)',
+  border: 'rgba(28, 28, 30, 0.08)',
+  shadowColor: '#1C1C1E',
+  tint: '#FFFFFD',
+  activeFill: 'rgba(242, 125, 114, 0.12)',
+  activeBorder: 'rgba(242, 125, 114, 0.2)',
 } as const;
 
 // How much room scrolling content must leave so its last line clears the
@@ -111,14 +234,12 @@ export const radii = {
   pill: 999,
 };
 
-// Strength is fundamentally about how well-evidenced something is, not
-// about prompting an action — so it lives in the evidence (moss) family,
-// not the accent (wine) one. Wine is reserved for discoveries and CTAs;
-// this is reserved for "here's how sure I am."
+// Strength is how well-evidenced something is. It stays in Charcoal;
+// domain color is reserved for which part of the body is being named.
 export const strengthColor: Record<string, string> = {
-  'very-strong': colors.evidence,
-  strong: '#8B9873',
-  moderate: '#AEB79C',
+  'very-strong': colors.ink,
+  strong: 'rgba(28, 28, 30, 0.8)',
+  moderate: 'rgba(28, 28, 30, 0.55)',
   emerging: colors.ink3,
 };
 

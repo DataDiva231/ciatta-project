@@ -4,6 +4,9 @@ import {
   buildHrvUnderstanding,
   analyzeHrvRatingRelationship,
   buildHrvRatingDiscovery,
+  filterToConsistentMetric,
+  latestDayIsLowVsPersonalBaseline,
+  LOW_HRV_RATIO,
   type HrvObservation,
 } from './hrvAnalysis.ts';
 import type { EnergyObservation } from './energyRelationship.ts';
@@ -127,6 +130,72 @@ Deno.test('hrvAnalysis: real low-HRV -> low-rating pattern is confirmed with eno
   assert(discovery!.narrative.toLowerCase().includes('hrv'));
 });
 
+// --- Signal-quality gate: SDNN (HealthKit) and RMSSD (Health Connect) are
+// real, already-captured provenance (context.metric), not a synthetic
+// score — see filterToConsistentMetric() in hrvAnalysis.ts. ---
+
+function taggedDay(day: string, ms: number, metric: string | null): HrvObservation {
+  return { id: id(), recordedAt: `${day}T08:00:00Z`, ms, metric };
+}
+
+Deno.test('filterToConsistentMetric: untagged observations pass through unchanged, single-metric too', () => {
+  const untagged = Array.from({ length: 20 }, (_, i) =>
+    taggedDay(`2025-06-${String(i + 1).padStart(2, '0')}`, 50, null)
+  );
+  assertEquals(filterToConsistentMetric(untagged), untagged);
+
+  const allSdnn = Array.from({ length: 20 }, (_, i) =>
+    taggedDay(`2025-06-${String(i + 1).padStart(2, '0')}`, 50, 'sdnn')
+  );
+  assertEquals(filterToConsistentMetric(allSdnn), allSdnn);
+});
+
+Deno.test('filterToConsistentMetric: a mix of two tagged metrics keeps only the more-represented one', () => {
+  const sdnnDays = Array.from({ length: 15 }, (_, i) =>
+    taggedDay(`2025-06-${String(i + 1).padStart(2, '0')}`, 50, 'sdnn')
+  );
+  const rmssdDays = Array.from({ length: 5 }, (_, i) =>
+    taggedDay(`2025-07-${String(i + 1).padStart(2, '0')}`, 50, 'rmssd')
+  );
+  const result = filterToConsistentMetric([...sdnnDays, ...rmssdDays]);
+  assertEquals(result.length, 15);
+  assert(result.every((o) => o.metric === 'sdnn'));
+});
+
+Deno.test('filterToConsistentMetric: untagged observations are never excluded, even alongside a tagged mix', () => {
+  const sdnnDays = Array.from({ length: 10 }, (_, i) =>
+    taggedDay(`2025-06-${String(i + 1).padStart(2, '0')}`, 50, 'sdnn')
+  );
+  const rmssdDays = Array.from({ length: 3 }, (_, i) =>
+    taggedDay(`2025-07-${String(i + 1).padStart(2, '0')}`, 50, 'rmssd')
+  );
+  const untaggedDays = Array.from({ length: 4 }, (_, i) =>
+    taggedDay(`2025-08-${String(i + 1).padStart(2, '0')}`, 50, null)
+  );
+  const result = filterToConsistentMetric([...sdnnDays, ...rmssdDays, ...untaggedDays]);
+  // The 10 dominant sdnn days plus all 4 untagged — the 3 minority rmssd
+  // days are the only ones excluded.
+  assertEquals(result.length, 14);
+  assert(result.every((o) => o.metric !== 'rmssd'));
+});
+
+Deno.test('analyzeHrv: a mixed-metric account still reaches an Understanding from its dominant metric alone, provenance intact', () => {
+  nextId = 1;
+  const sdnnDays = Array.from({ length: 20 }, (_, i) =>
+    taggedDay(`2025-06-${String(i + 1).padStart(2, '0')}`, 55, 'sdnn')
+  );
+  const rmssdDays = Array.from({ length: 6 }, (_, i) =>
+    taggedDay(`2025-07-${String(i + 1).padStart(2, '0')}`, 20, 'rmssd')
+  );
+  const result = analyzeHrv([...sdnnDays, ...rmssdDays]);
+  assertEquals(result.eligible, true);
+  assertEquals(result.totalDays, 20);
+  // The excluded RMSSD days' ids must not appear in provenance — they were
+  // never part of what produced this Understanding.
+  const rmssdIds = new Set(rmssdDays.map((o) => o.id));
+  assert(result.observationIds.every((oid) => !rmssdIds.has(oid)));
+});
+
 Deno.test('hrvAnalysis: low-HRV days happen but rating is uncorrelated -> no discovery', () => {
   nextId = 1;
   const { hrv, rating } = buildScenario({
@@ -143,4 +212,66 @@ Deno.test('hrvAnalysis: low-HRV days happen but rating is uncorrelated -> no dis
   const relResult = analyzeHrvRatingRelationship(hrv, rating);
   assertEquals(relResult.eligible, false);
   assertEquals(buildHrvRatingDiscovery(relResult, 'energy'), null);
+});
+
+Deno.test('latestDayIsLowVsPersonalBaseline: uses the same 14-day personal median and 30% band as analyzeHrv — not a pairwise sample delta', () => {
+  nextId = 1;
+  const start = new Date('2025-06-01T12:00:00Z');
+  const hrv: HrvObservation[] = [];
+  for (let i = 0; i < 14; i++) {
+    hrv.push({
+      id: id(),
+      recordedAt: addDays(start, i).toISOString(),
+      ms: 50,
+    });
+  }
+  assertEquals(latestDayIsLowVsPersonalBaseline(hrv), false);
+
+  hrv.push({
+    id: id(),
+    recordedAt: addDays(start, 14).toISOString(),
+    ms: 50 * LOW_HRV_RATIO - 1,
+  });
+  assertEquals(latestDayIsLowVsPersonalBaseline(hrv), true);
+});
+
+Deno.test('latestDayIsLowVsPersonalBaseline: a 10% sample-to-sample dip is not a real swing against the personal baseline', () => {
+  nextId = 1;
+  const start = new Date('2025-06-01T12:00:00Z');
+  const hrv: HrvObservation[] = [];
+  for (let i = 0; i < 14; i++) {
+    hrv.push({ id: id(), recordedAt: addDays(start, i).toISOString(), ms: 50 });
+  }
+  hrv.push({ id: id(), recordedAt: addDays(start, 14).toISOString(), ms: 45 });
+  assertEquals(latestDayIsLowVsPersonalBaseline(hrv), false);
+});
+
+Deno.test('latestDayIsLowVsPersonalBaseline: cold start (under 14 days) cannot declare a swing, even if the last reading is very low', () => {
+  nextId = 1;
+  const start = new Date('2025-06-01T12:00:00Z');
+  const hrv: HrvObservation[] = [];
+  for (let i = 0; i < 12; i++) {
+    hrv.push({ id: id(), recordedAt: addDays(start, i).toISOString(), ms: 50 });
+  }
+  hrv.push({ id: id(), recordedAt: addDays(start, 12).toISOString(), ms: 20 });
+  assertEquals(latestDayIsLowVsPersonalBaseline(hrv), false);
+});
+
+Deno.test('latestDayIsLowVsPersonalBaseline: sustained means the day average, so one noisy sample on an otherwise normal day is not a swing', () => {
+  nextId = 1;
+  const start = new Date('2025-06-01T12:00:00Z');
+  const hrv: HrvObservation[] = [];
+  for (let i = 0; i < 14; i++) {
+    hrv.push({ id: id(), recordedAt: addDays(start, i).toISOString(), ms: 50 });
+  }
+  const lastDay = addDays(start, 14);
+  hrv.push({ id: id(), recordedAt: lastDay.toISOString(), ms: 50 });
+  hrv.push({
+    id: id(),
+    recordedAt: new Date(lastDay.getTime() + 60 * 60 * 1000).toISOString(),
+    ms: 20,
+  });
+  // Day average (50+20)/2 = 35, which is exactly at the 30% band (35 === 50*0.7).
+  // Low days are strictly below the band, same as analyzeHrv.
+  assertEquals(latestDayIsLowVsPersonalBaseline(hrv), false);
 });

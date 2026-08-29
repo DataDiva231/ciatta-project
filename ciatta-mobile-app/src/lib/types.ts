@@ -70,6 +70,11 @@ export interface Profile {
   goals: string[];
   notification_preference: string;
   shared_health_rows: string[];
+  // Baseline physiology the conversational onboarding collects — the two
+  // biometrics with no existing home (life_stage already covers
+  // reproductive stage).
+  height_cm: number | null;
+  weight_kg: number | null;
   onboarded_at: string | null;
   created_at: string;
   updated_at: string;
@@ -86,6 +91,8 @@ export type ProfileDraft = Partial<
     | 'goals'
     | 'notification_preference'
     | 'shared_health_rows'
+    | 'height_cm'
+    | 'weight_kg'
     | 'onboarded_at'
   >
 >;

@@ -78,7 +78,7 @@ export function buildMoodUnderstanding(
   const pct = Math.round(result.lowMoodRate * 100);
   return {
     strength,
-    narrative: `Out of ${result.totalAnswers} times I've asked, you've rated your mood as "Low" ${pct}% of the time.`,
+    narrative: `Out of ${result.totalAnswers} times you've answered, you've rated your mood as "Low" ${pct}% of the time.`,
     confidenceLabel: CONFIDENCE_LABEL[strength],
   };
 }

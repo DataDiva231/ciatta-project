@@ -7,7 +7,7 @@
 // rather than describing the system in the abstract.
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { colors, fonts } from '../theme/tokens';
+import { colors, fonts, type } from '../theme/tokens';
 import BottomSheet from '../components/BottomSheet';
 import GhostButton from '../components/GhostButton';
 import type { UnderstandingRow } from '../lib/queries';
@@ -31,7 +31,7 @@ export default function TodayInfoSheet({
 
       <Text style={styles.body}>
         Everything on this screen is drawn from what you've shared and what
-        your devices have recorded — never from averages for people like you.
+        your devices have recorded, never from averages for people like you.
       </Text>
 
       {formed > 0 ? (
@@ -47,8 +47,8 @@ export default function TodayInfoSheet({
       <Text style={styles.body}>
         The understanding shown is whichever one changed most recently. The
         priority beneath it is either an action anchored to something measured,
-        or the open question that would sharpen what I know. If neither is
-        available, nothing appears there — I'd rather say less than guess.
+        or the open question that would sharpen this picture. If neither is
+        available, nothing appears there. Better to say less than guess.
       </Text>
 
       <Text style={styles.body}>
@@ -72,28 +72,26 @@ function Stat({ value, label }: { value: string; label: string }) {
 
 const styles = StyleSheet.create({
   eyebrow: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 11,
     letterSpacing: 1.1,
     color: colors.ink3,
     marginBottom: 8,
   },
   title: {
-    fontFamily: fonts.serif,
-    fontSize: 26,
-    lineHeight: 32,
+    ...type.title2,
     color: colors.ink,
     marginBottom: 16,
   },
   body: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 14.5,
     lineHeight: 22,
     color: colors.ink2,
     marginBottom: 16,
   },
   emphasis: {
-    fontFamily: fonts.sansSemiBold,
+    ...fonts.sansSemiBold,
     color: colors.ink,
   },
   stats: {
@@ -103,12 +101,12 @@ const styles = StyleSheet.create({
   },
   stat: {},
   statValue: {
-    fontFamily: fonts.mono,
+    ...fonts.mono,
     fontSize: 20,
     color: colors.evidence,
   },
   statLabel: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 12,
     color: colors.ink3,
     marginTop: 2,

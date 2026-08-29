@@ -1,0 +1,16 @@
+---
+description: Never use dashes of any kind in user-facing copy
+alwaysApply: true
+---
+
+# No dashes in copy
+
+Never use an em dash (—), en dash (–), or hyphen (-) in user-facing copy. This is a permanent Ciatta rule.
+
+Rewrite with a period, comma, space, or a new sentence. Compound words become separate words (`heart rate`, `check ins`, `1 or 2 nights`). Phone numbers and on-screen dates use spaces, not hyphens. Empty metrics use `·`. List items use `•`.
+
+Any string that can appear on screen, in a visit brief, or in a notification must pass through `displayCopy()` in `src/lib/displayCopy.ts` if it comes from storage, a template, a provider directory, or a date/phone formatter.
+
+Do not use `--` as a stand-in.
+
+Internal CSS keys, row IDs, ISO timestamps, and API identifiers may keep hyphens only when they are never rendered.

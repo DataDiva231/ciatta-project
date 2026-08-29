@@ -28,11 +28,63 @@ export interface HrvObservation {
   id: string;
   recordedAt: string;
   ms: number;
+  // 'sdnn' (HealthKit) or 'rmssd' (Health Connect) when the source tagged
+  // it, null for anything untagged (older rows, or a future source that
+  // doesn't report one). See filterToConsistentMetric() below — this is
+  // real, already-captured provenance, not a synthetic quality score.
+  metric?: string | null;
 }
 
-const BASELINE_MIN_DAYS = 14;
-const LOW_HRV_RATIO = 0.7;
+export const BASELINE_MIN_DAYS = 14;
+/** A day is "low" when its average is strictly below this fraction of the
+ * person's own median daily HRV — the same band analyzeHrv() and the
+ * recovery relationship already use. Continuous cadence must reuse this
+ * rather than invent a second swing threshold. */
+export const LOW_HRV_RATIO = 0.7;
 const CONFIDENCE_SAMPLE_CAP = 30;
+
+/**
+ * SDNN and RMSSD are both legitimate HRV metrics, but they're computed
+ * differently and aren't directly comparable — averaging a run of SDNN
+ * readings together with a run of RMSSD readings would silently blend two
+ * different measurements into one number that doesn't describe either.
+ * This is only ever reachable in practice for an account that has synced
+ * HRV from both an iOS/HealthKit device and an Android/Health Connect
+ * device; the overwhelming majority of accounts are single-platform and
+ * this is a no-op for them.
+ *
+ * Rather than reject a mixed dataset outright (which would erase real,
+ * already-baseline-eligible data over a rare edge case) or invent a way to
+ * reconcile two different metrics (which would be exactly the kind of
+ * synthetic quality score this change is deliberately avoiding), this
+ * keeps only the more-represented metric's observations — the same
+ * treatment an ineligible day already gets: it simply doesn't count.
+ * Untagged (metric === null/undefined) observations are never excluded on
+ * this basis alone — absence of metadata isn't evidence of a mismatch.
+ */
+export function filterToConsistentMetric(observations: HrvObservation[]): HrvObservation[] {
+  const counts = new Map<string, number>();
+  for (const obs of observations) {
+    if (!obs.metric) continue;
+    counts.set(obs.metric, (counts.get(obs.metric) ?? 0) + 1);
+  }
+  if (counts.size <= 1) return observations;
+
+  // Ties broken by whichever tagged metric appears first — observations
+  // arrive oldest-first (see loadObservations()'s own ordering), so this
+  // deterministically favors this person's earlier, more-established
+  // source rather than an arbitrary platform preference.
+  let dominant = observations.find((o) => o.metric)!.metric!;
+  let best = counts.get(dominant) ?? 0;
+  for (const [metric, count] of counts) {
+    if (count > best) {
+      dominant = metric;
+      best = count;
+    }
+  }
+
+  return observations.filter((o) => !o.metric || o.metric === dominant);
+}
 
 export function dailyHrvAverages(observations: HrvObservation[]): Map<string, DailyMetricDay> {
   const byDay = new Map<string, { sum: number; count: number; ids: string[] }>();
@@ -61,8 +113,24 @@ export interface HrvUnderstandingResult {
   observationIds: string[];
 }
 
+/**
+ * Whether the latest *day* (all same-day samples averaged, same as
+ * analyzeHrv) sits in the existing low-HRV band versus this person's
+ * median. Returns false until BASELINE_MIN_DAYS of daily averages exist —
+ * a single noisy reading is not a swing, and neither is any dip before
+ * there is a personal baseline to compare against.
+ */
+export function latestDayIsLowVsPersonalBaseline(observations: HrvObservation[]): boolean {
+  const byDay = dailyHrvAverages(filterToConsistentMetric(observations));
+  if (byDay.size < BASELINE_MIN_DAYS) return false;
+  const values = [...byDay.keys()].sort().map((key) => byDay.get(key)!.value);
+  const baseline = median(values);
+  const latest = values[values.length - 1];
+  return latest < baseline * LOW_HRV_RATIO;
+}
+
 export function analyzeHrv(observations: HrvObservation[]): HrvUnderstandingResult {
-  const byDay = dailyHrvAverages(observations);
+  const byDay = dailyHrvAverages(filterToConsistentMetric(observations));
   const days = [...byDay.values()];
   const totalDays = days.length;
 
@@ -124,7 +192,7 @@ export function analyzeHrvRatingRelationship(
   ratingObservations: RatingObservation[]
 ): DailyMetricRatingRelationshipResult {
   return analyzeDailyMetricRatingRelationship(
-    dailyHrvAverages(hrvObservations),
+    dailyHrvAverages(filterToConsistentMetric(hrvObservations)),
     ratingObservations,
     BASELINE_MIN_DAYS,
     LOW_HRV_RATIO
@@ -140,7 +208,7 @@ const HRV_DISCOVERY_COPY = {
   },
   suggestedNames: {
     energy: ['The HRV Signal', 'Nervous System Rebound', 'The Recovery Lag'],
-    mood: ['HRV and Mood', 'The Recovery-Mood Link', 'The Quiet Signal'],
+    mood: ['HRV and Mood', 'The Recovery Mood Link', 'The Quiet Signal'],
   },
 };
 

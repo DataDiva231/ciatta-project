@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { colors, fonts } from '../theme/tokens';
+import { colors, type } from '../theme/tokens';
 import Avatar from './Avatar';
 
 export default function EditorialHeader({
@@ -45,13 +45,11 @@ const styles = StyleSheet.create({
     paddingRight: 12,
   },
   title: {
-    fontFamily: fonts.serif,
-    fontSize: 30,
+    ...type.title2,
     color: colors.ink,
   },
   subtitle: {
-    fontFamily: fonts.sans,
-    fontSize: 14,
+    ...type.subheadline,
     color: colors.ink2,
     marginTop: 2,
   },

@@ -15,8 +15,6 @@ export const connections: ConnectionItem[] = [
   },
   { id: 'medical-records', label: 'Medical records', status: 'not-connected' },
   { id: 'arc', label: 'Ciatta Arc™', status: 'coming-soon' },
-  { id: 'webbee', label: 'Webbee™', status: 'coming-soon' },
-  { id: 'clinician', label: 'Clinician access', status: 'not-connected' },
 ];
 
 export const healthItems: HealthItem[] = [
@@ -61,8 +59,8 @@ export const strengthShort: Record<string, string> = {
 
 
 export const evolutionStages = [
-  { id: 'week1', label: 'Week 1', caption: 'Just getting to know you.', density: 0 },
-  { id: 'month6', label: '6 Months', caption: 'Beginning to see patterns.', density: 1 },
-  { id: 'year1', label: '1 Year', caption: 'Building deeper connections.', density: 2 },
-  { id: 'year3', label: '3 Years', caption: 'A living model of you.', density: 3 },
+  { id: 'week1', label: 'Week 1', caption: 'Your picture is just beginning.', density: 0 },
+  { id: 'month6', label: '6 Months', caption: 'Patterns are beginning to show.', density: 1 },
+  { id: 'year1', label: '1 Year', caption: 'Connections are deepening.', density: 2 },
+  { id: 'year3', label: '3 Years', caption: 'A living picture of you.', density: 3 },
 ];

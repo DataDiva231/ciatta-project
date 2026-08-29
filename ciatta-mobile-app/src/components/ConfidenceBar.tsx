@@ -39,13 +39,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   label: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 11,
     letterSpacing: 1,
     color: colors.ink3,
   },
   pct: {
-    fontFamily: fonts.mono,
+    ...fonts.mono,
     fontSize: 13,
     color: colors.evidence,
   },
@@ -66,12 +66,12 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   endpointText: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 11,
     color: colors.ink3,
   },
   endpointTextMid: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 11,
     color: colors.ink,
   },

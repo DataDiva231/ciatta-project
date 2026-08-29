@@ -18,6 +18,16 @@ const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
+function sanitizeCopy(value: string): string {
+  return value
+    .replace(/\s*[—–−]\s*/g, '. ')
+    .replace(/[-‐‑‒]/g, ' ')
+    .replace(/\.\s*\./g, '.')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/ \./g, '.')
+    .trim();
+}
+
 interface ExpoTicket {
   status: 'ok' | 'error';
   id?: string;
@@ -77,13 +87,13 @@ Deno.serve(async (req) => {
       const more = discoveries.length - 1;
       const body =
         more > 0
-          ? `${first.narrative} (and ${more} more)`
-          : (first.narrative as string);
+          ? sanitizeCopy(`${first.narrative} (and ${more} more)`)
+          : sanitizeCopy(first.narrative as string);
 
       for (const t of tokens) {
         messages.push({
           to: t.token as string,
-          title: "I've noticed something",
+          title: 'Something new is taking shape',
           body,
           data: { discoveryId: first.id },
           channelId: 'discoveries',

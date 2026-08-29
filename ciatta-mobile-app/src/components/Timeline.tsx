@@ -70,12 +70,12 @@ const styles = StyleSheet.create({
     paddingLeft: 12,
   },
   label: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 13.5,
     color: colors.ink,
   },
   detail: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13.5,
     color: colors.ink2,
     marginTop: 2,

@@ -1,33 +1,45 @@
-import React, { useEffect, useMemo, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AccessibilityInfo,
+  Animated,
+  Easing,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import Svg, {
   Circle,
   Defs,
-  G,
-  Image as SvgImage,
   Line,
   LinearGradient,
   Mask,
   RadialGradient,
   Rect,
   Stop,
+  Image as SvgImage,
 } from 'react-native-svg';
-import { colors, fonts, strengthOpacity } from '../theme/tokens';
+import { colors, domainColor, fonts } from '../theme/tokens';
 import { domainLabel, strengthShort } from '../lib/mockData';
 import type { Domain, Strength } from '../lib/types';
+import {
+  constellationBreath,
+  constellationDotRadius,
+  constellationGlowRadius,
+  constellationHaloOpacity,
+  constellationLinkOpacity,
+  todayConstellationDomains,
+  uniqueConstellationLinks,
+  type ConstellationLink,
+} from '../lib/constellation';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-// Fractional (0-1) positions over the figure — proportions of its width and
-// height, so they hold at any render size. `labelDy` and `lead` place the
-// label away from its point, which is what turns the leader line diagonal.
 type Position = {
   x: number;
   y: number;
   side: 'left' | 'right';
-  /** Vertical offset of the label from the point, as a fraction of height. */
   labelDy?: number;
-  /** Horizontal run from the point to the label anchor, in px at base width. */
   lead?: number;
 };
 
@@ -39,10 +51,6 @@ type Figure = {
   positions: Record<Domain, Position>;
 };
 
-// Two renders of the same body: a torso crop that Today frames tightly, and
-// the full figure the Core map needs so hip and leg anchors have somewhere to
-// sit. They carry separate anchors because the proportions differ — reusing
-// one set would drift every point.
 const FIGURES: Record<'torso' | 'full', Figure> = {
   torso: {
     src: require('../../assets/images/silhouette.png'),
@@ -74,11 +82,33 @@ const FIGURES: Record<'torso' | 'full', Figure> = {
 
 const DOMAIN_ORDER: Domain[] = ['sleep', 'recovery', 'cycle', 'energy', 'mood'];
 
-function Glow({
+export const CORE_FIGURE_BASE_WIDTH = FIGURES.full.baseWidth;
+export const CORE_FIGURE_ASPECT = FIGURES.full.h / FIGURES.full.w;
+
+function useReduceMotion() {
+  const [reduceMotion, setReduceMotion] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    AccessibilityInfo.isReduceMotionEnabled?.().then((enabled) => {
+      if (alive) setReduceMotion(!!enabled);
+    });
+    const sub = AccessibilityInfo.addEventListener?.('reduceMotionChanged', (enabled) => {
+      setReduceMotion(!!enabled);
+    });
+    return () => {
+      alive = false;
+      sub?.remove();
+    };
+  }, []);
+  return reduceMotion;
+}
+
+function ConstellationStar({
   domain,
   pos,
   strength,
-  delay,
+  focal,
+  gradientId,
   animated,
   w,
   h,
@@ -86,121 +116,69 @@ function Glow({
   domain: Domain;
   pos: Position;
   strength: Strength;
-  delay: number;
+  focal: boolean;
+  gradientId: string;
   animated: boolean;
   w: number;
   h: number;
 }) {
   const cx = pos.x * w;
   const cy = pos.y * h;
-  const progress = useRef(new Animated.Value(0)).current;
+  const coreR = constellationDotRadius(w, strength, focal);
+  const glowR = constellationGlowRadius(coreR);
+  const haloOpacity = constellationHaloOpacity(strength) * (focal ? 1.15 : 1);
+  const breath = constellationBreath(domain);
+  const progress = useRef(new Animated.Value(breath.phase)).current;
 
   useEffect(() => {
-    if (!animated) return;
+    if (!animated) {
+      progress.setValue(0.45);
+      return;
+    }
+    progress.setValue(breath.phase);
+    const half = breath.durationMs / 2;
+    const ease = Easing.inOut(Easing.sin);
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.delay(delay),
         Animated.timing(progress, {
           toValue: 1,
-          duration: 1750,
+          duration: half,
+          easing: ease,
           useNativeDriver: false,
         }),
         Animated.timing(progress, {
           toValue: 0,
-          duration: 1750,
+          duration: half,
+          easing: ease,
           useNativeDriver: false,
         }),
       ])
     );
     loop.start();
     return () => loop.stop();
-  }, [animated, delay, progress]);
+  }, [animated, breath.durationMs, breath.phase, progress]);
 
-  const baseOpacity =
-    strength === 'very-strong'
-      ? 0.9
-      : strength === 'strong'
-      ? 0.75
-      : strength === 'moderate'
-      ? 0.55
-      : 0.4;
-
-  const baseR = w * 0.15;
-  const r = animated
-    ? progress.interpolate({ inputRange: [0, 1], outputRange: [baseR * 0.92, baseR * 1.12] })
-    : baseR;
-  const opacity = animated
+  const fillOpacity = animated
     ? progress.interpolate({
         inputRange: [0, 1],
-        outputRange: [baseOpacity * 0.75, baseOpacity],
+        outputRange: [0.72 + haloOpacity * 0.4, 1],
       })
-    : baseOpacity;
+    : 0.9;
+  const glowSize = animated
+    ? progress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [glowR, glowR * 1.06],
+      })
+    : glowR;
 
   return (
-    <>
-      <AnimatedCircle
-        cx={cx}
-        cy={cy}
-        r={r as unknown as number}
-        fill={`url(#glow-${domain})`}
-        opacity={opacity as unknown as number}
-      />
-      <Circle cx={cx} cy={cy} r={4} fill={colors.white} stroke={colors.evidence} strokeWidth={2} />
-    </>
-  );
-}
-
-// The Today figure carries a single mark, not a pulsing field: one domain is
-// featured, so a soft glow reads as ambient noise where a drawn glyph reads
-// as "this, specifically." It echoes the Today tab icon deliberately — the
-// same sun means the same thing in both places.
-function DotMarker({
-  pos,
-  strength,
-  w,
-  h,
-}: {
-  pos: Position;
-  strength: Strength;
-  w: number;
-  h: number;
-}) {
-  return (
-    <Circle
-      cx={pos.x * w}
-      cy={pos.y * h}
-      r={Math.max(3.5, w * 0.013)}
-      fill={colors.ink}
-      opacity={strengthOpacity[strength] ?? 0.6}
+    <AnimatedCircle
+      cx={cx}
+      cy={cy}
+      r={glowSize as unknown as number}
+      fill={`url(#${gradientId})`}
+      opacity={fillOpacity as unknown as number}
     />
-  );
-}
-
-function SunMarker({ pos, w, h }: { pos: Position; w: number; h: number }) {
-  const cx = pos.x * w;
-  const cy = pos.y * h;
-  const core = Math.max(5, w * 0.019);
-  const inner = core * 1.75;
-  const outer = core * 2.85;
-  return (
-    <G>
-      <Circle cx={cx} cy={cy} r={core} stroke={colors.accent} strokeWidth={1.5} fill="none" />
-      {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => {
-        const rad = (deg * Math.PI) / 180;
-        return (
-          <Line
-            key={deg}
-            x1={cx + Math.cos(rad) * inner}
-            y1={cy + Math.sin(rad) * inner}
-            x2={cx + Math.cos(rad) * outer}
-            y2={cy + Math.sin(rad) * outer}
-            stroke={colors.accent}
-            strokeWidth={1.5}
-            strokeLinecap="round"
-          />
-        );
-      })}
-    </G>
   );
 }
 
@@ -208,6 +186,7 @@ export interface BodySilhouetteProps {
   variant?: 'today' | 'core' | 'mini';
   activeDomain?: Domain;
   strengths?: Partial<Record<Domain, Strength>>;
+  links?: ConstellationLink[];
   labeled?: boolean;
   animated?: boolean;
   onDomainPress?: (domain: Domain) => void;
@@ -215,37 +194,43 @@ export interface BodySilhouetteProps {
   scale?: number;
   /** Fraction (0-1) of the full figure height to reveal, cropped from the top. */
   crop?: number;
-  /** How a featured domain is marked: a breathing glow, or a drawn sun glyph. */
-  marker?: 'glow' | 'sun' | 'dot';
 }
 
 export default function BodySilhouette({
   variant = 'today',
   activeDomain,
   strengths,
+  links = [],
   labeled = false,
   animated = true,
   onDomainPress,
   stage,
   scale = 1,
   crop = 1,
-  marker = 'glow',
 }: BodySilhouetteProps) {
+  const reduceMotion = useReduceMotion();
+  const learned = useMemo(
+    () => new Set((strengths ? (Object.keys(strengths) as Domain[]) : []) as Domain[]),
+    [strengths]
+  );
+
   const domainsToRender = useMemo<Domain[]>(() => {
     if (variant === 'today') {
-      return activeDomain ? [activeDomain] : [];
+      return todayConstellationDomains(activeDomain, links, learned.size > 0 ? learned : new Set(activeDomain ? [activeDomain] : []));
     }
     if (variant === 'mini') {
       const count = [1, 2, 4, 5][stage ?? 0];
       return DOMAIN_ORDER.slice(0, count);
     }
-    // core: only show domains with a real understanding, not the full set —
-    // an unlit figure is the honest state when nothing has been learned yet.
-    return strengths ? (Object.keys(strengths) as Domain[]) : DOMAIN_ORDER;
-  }, [variant, activeDomain, stage, strengths]);
+    return strengths ? (Object.keys(strengths) as Domain[]) : [];
+  }, [variant, activeDomain, stage, strengths, links, learned]);
 
-  // Core needs hips and legs, so it renders the full figure; Today and the
-  // onboarding mini both frame the torso.
+  const visible = useMemo(() => new Set(domainsToRender), [domainsToRender]);
+  const edges = useMemo(
+    () => (variant === 'mini' ? [] : uniqueConstellationLinks(links, visible)),
+    [variant, links, visible]
+  );
+
   const figure = variant === 'core' ? FIGURES.full : FIGURES.torso;
   const positions = figure.positions;
 
@@ -255,11 +240,6 @@ export default function BodySilhouette({
   const wrapW = w + gutter * 2;
   const visibleH = h * crop;
   const isCropped = crop < 1;
-  // The Today asset is tinted to the canvas color itself, so it needs no
-  // opacity to sit back — fading it further would only mute the modelling
-  // that makes a tone-on-tone figure readable at all.
-  // Both assets are already tinted to the canvas tone, so neither needs
-  // opacity to sit back; fading them only mutes the modelling.
   const imageOpacity = variant === 'mini' ? 0.7 : 1;
 
   return (
@@ -269,11 +249,20 @@ export default function BodySilhouette({
       <View style={{ position: 'absolute', left: gutter, top: 0 }}>
         <Svg width={w} height={visibleH}>
           <Defs>
-            {DOMAIN_ORDER.map((d) => (
-              <RadialGradient key={d} id={`glow-${d}`} cx="50%" cy="50%" r="50%">
-                <Stop offset="0%" stopColor={colors.evidence} stopOpacity={0.85} />
-                <Stop offset="60%" stopColor={colors.evidence} stopOpacity={0.28} />
-                <Stop offset="100%" stopColor={colors.evidence} stopOpacity={0} />
+            {domainsToRender.map((d) => (
+              <RadialGradient
+                key={`heat-${d}`}
+                id={`heat-${variant}-${d}`}
+                cx="50%"
+                cy="50%"
+                r="50%"
+                fx="50%"
+                fy="50%"
+              >
+                <Stop offset="0%" stopColor={domainColor[d]} stopOpacity={1} />
+                <Stop offset="32%" stopColor={domainColor[d]} stopOpacity={0.62} />
+                <Stop offset="70%" stopColor={domainColor[d]} stopOpacity={0.18} />
+                <Stop offset="100%" stopColor={domainColor[d]} stopOpacity={0} />
               </RadialGradient>
             ))}
             {isCropped && (
@@ -290,6 +279,7 @@ export default function BodySilhouette({
             )}
           </Defs>
 
+          <Rect x={0} y={0} width={w} height={visibleH} fill={colors.canvas} />
           <SvgImage
             href={figure.src}
             x={0}
@@ -300,6 +290,24 @@ export default function BodySilhouette({
             preserveAspectRatio="xMidYMin meet"
             mask={isCropped ? 'url(#fadeMask)' : undefined}
           />
+
+          {edges.map((link) => {
+            const a = positions[link.from];
+            const b = positions[link.to];
+            return (
+              <Line
+                key={`${link.from}-${link.to}`}
+                x1={a.x * w}
+                y1={a.y * h}
+                x2={b.x * w}
+                y2={b.y * h}
+                stroke={colors.ink}
+                strokeWidth={Math.max(0.6, w * 0.003)}
+                strokeLinecap="round"
+                opacity={constellationLinkOpacity(link.strength)}
+              />
+            );
+          })}
 
           {labeled &&
             domainsToRender.map((d) => {
@@ -314,72 +322,59 @@ export default function BodySilhouette({
                   y1={cy}
                   x2={cx + dir * (pos.lead ?? 44)}
                   y2={cy + (pos.labelDy ?? 0) * h}
-                  stroke={colors.ink3}
-                  strokeWidth={1}
+                  stroke={colors.ink}
+                  strokeWidth={0.75}
+                  opacity={0.18}
                 />
               );
             })}
 
-          {domainsToRender.map((d, i) =>
-            marker === 'sun' ? (
-              <SunMarker key={d} pos={positions[d]} w={w} h={h} />
-            ) : marker === 'dot' ? (
-              <DotMarker
-                key={d}
-                pos={positions[d]}
-                strength={strengths?.[d] ?? 'moderate'}
-                w={w}
-                h={h}
-              />
-            ) : (
-              <Glow
-                key={d}
-                domain={d}
-                pos={positions[d]}
-                strength={strengths?.[d] ?? 'moderate'}
-                delay={i * 500}
-                animated={animated && variant !== 'mini'}
-                w={w}
-                h={h}
-              />
-            )
-          )}
+          {domainsToRender.map((d) => (
+            <ConstellationStar
+              key={d}
+              domain={d}
+              pos={positions[d]}
+              strength={strengths?.[d] ?? 'moderate'}
+              focal={variant === 'today' && d === activeDomain}
+              gradientId={`heat-${variant}-${d}`}
+              animated={animated && variant !== 'mini' && !reduceMotion}
+              w={w}
+              h={h}
+            />
+          ))}
         </Svg>
       </View>
 
-      {/* Touch targets over the dots themselves. The dots live inside the
-          <Svg>, which takes no press events, so without these the only
-          tappable things are the text labels off to the side — and the
-          figure reads as interactive long before you find them. */}
-      {onDomainPress &&
-        domainsToRender.map((d) => {
-          const pos = positions[d];
-          const cx = gutter + pos.x * w;
-          const cy = pos.y * h;
-          // Anchors sit closer together on the full figure, so the target has
-          // to stay near the 44pt minimum rather than scaling with width.
-          const size = Math.max(44, w * (variant === 'core' ? 0.2 : 0.3));
-          if (cy > visibleH) return null;
-          return (
-            <Pressable
-              key={`hotspot-${d}`}
-              accessibilityRole="button"
-              accessibilityLabel={`${domainLabel[d]} — open understanding`}
-              onPress={() => onDomainPress(d)}
-              style={({ pressed }) => [
-                {
+      {onDomainPress ? (
+        <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+          {domainsToRender.map((d) => {
+            const pos = positions[d];
+            const cx = gutter + pos.x * w;
+            const cy = pos.y * h;
+            if (cy > visibleH) return null;
+            const strength = strengths?.[d] ?? 'moderate';
+            const focal = variant === 'today' && d === activeDomain;
+            const coreR = constellationDotRadius(w, strength, focal);
+            const hit = Math.max(44, coreR * 6.4);
+            return (
+              <Pressable
+                key={`hotspot-${d}`}
+                accessibilityRole="button"
+                accessibilityLabel={`${domainLabel[d]}, open understanding`}
+                onPress={() => onDomainPress(d)}
+                style={{
                   position: 'absolute',
-                  left: cx - size / 2,
-                  top: cy - size / 2,
-                  width: size,
-                  height: size,
-                  borderRadius: size / 2,
-                },
-                pressed && { backgroundColor: colors.evidenceSoft },
-              ]}
-            />
-          );
-        })}
+                  left: cx - hit / 2,
+                  top: cy - hit / 2,
+                  width: hit,
+                  height: hit,
+                  borderRadius: hit / 2,
+                }}
+              />
+            );
+          })}
+        </View>
+      ) : null}
 
       {labeled &&
         domainsToRender.map((d) => {
@@ -422,14 +417,14 @@ const styles = StyleSheet.create({
     width: 92,
   },
   labelTitle: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 12.5,
     letterSpacing: 0.9,
     textTransform: 'uppercase',
-    color: colors.accent,
+    color: colors.ink,
   },
   labelSub: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 11.5,
     lineHeight: 15,
     color: colors.ink2,

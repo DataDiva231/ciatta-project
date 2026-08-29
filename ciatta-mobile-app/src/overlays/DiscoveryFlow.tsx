@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, radii } from '../theme/tokens';
+import { colors, fonts, glass, radii, type } from '../theme/tokens';
+import GlassSurface from '../components/GlassSurface';
 import type { DiscoveryRow } from '../lib/queries';
 import PrimaryButton from '../components/PrimaryButton';
 import ConfidenceBar from '../components/ConfidenceBar';
+import KeyboardAvoidingScreen from '../components/KeyboardAvoidingScreen';
 
 type Step = 1 | 2 | 3;
 
@@ -48,7 +50,7 @@ export default function DiscoveryFlow({
       await onNameDiscovery(finalName);
       close();
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : "That didn't save — try again.");
+      setSaveError(e instanceof Error ? e.message : "That didn't save. Try again.");
     } finally {
       setSaving(false);
     }
@@ -58,7 +60,7 @@ export default function DiscoveryFlow({
 
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={close}>
-      <View
+      <KeyboardAvoidingScreen
         style={[
           StyleSheet.absoluteFill,
           styles.flex,
@@ -73,7 +75,7 @@ export default function DiscoveryFlow({
             <Text style={styles.announceTitle}>A new{'\n'}discovery</Text>
             <Text style={styles.announceBody}>{discovery.narrative}</Text>
             <Text style={styles.announceFooter}>
-              I think it's strong enough to become part of your story.
+              This is becoming part of your story.
             </Text>
             <View style={{ flex: 1 }} />
             <PrimaryButton label="Continue" onPress={() => setStep(2)} />
@@ -88,17 +90,39 @@ export default function DiscoveryFlow({
             </Text>
             <View style={{ marginTop: 28, gap: 12 }}>
               {discovery.suggested_names.map((name) => (
-                <Pressable
-                  key={name}
-                  onPress={() => setSelected(name)}
-                  style={[styles.nameOption, selected === name && styles.nameOptionActive]}
-                >
-                  <Text style={styles.nameOptionText}>{name}</Text>
+                <Pressable key={name} onPress={() => setSelected(name)}>
+                  <GlassSurface
+                    kind={selected === name ? 'regular' : 'clear'}
+                    interactive
+                    animateStyle
+                    tintColor={selected === name ? colors.ink : glass.tint}
+                    colorScheme="auto"
+                    style={styles.nameOption}
+                    fallbackStyle={[
+                      styles.nameOptionFallback,
+                      selected === name && styles.nameOptionActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.nameOptionText,
+                        selected === name && styles.nameOptionTextActive,
+                      ]}
+                    >
+                      {name}
+                    </Text>
+                  </GlassSurface>
                 </Pressable>
               ))}
-              <View
-                style={[
-                  styles.nameOption,
+              <GlassSurface
+                kind={selected === 'custom' ? 'regular' : 'clear'}
+                interactive
+                animateStyle
+                tintColor={selected === 'custom' ? colors.ink : glass.tint}
+                colorScheme="auto"
+                style={styles.nameOption}
+                fallbackStyle={[
+                  styles.nameOptionFallback,
                   selected === 'custom' && styles.nameOptionActive,
                 ]}
               >
@@ -111,9 +135,12 @@ export default function DiscoveryFlow({
                   onFocus={() => setSelected('custom')}
                   placeholder="Create my own"
                   placeholderTextColor={colors.ink3}
-                  style={styles.nameInput}
+                  style={[
+                    styles.nameInput,
+                    selected === 'custom' && styles.nameOptionTextActive,
+                  ]}
                 />
-              </View>
+              </GlassSurface>
             </View>
             <View style={{ flex: 1 }} />
             <PrimaryButton
@@ -144,7 +171,7 @@ export default function DiscoveryFlow({
             <PrimaryButton label="See in Core" onPress={handleFinish} loading={saving} />
           </View>
         )}
-      </View>
+      </KeyboardAvoidingScreen>
     </Modal>
   );
 }
@@ -154,7 +181,7 @@ const styles = StyleSheet.create({
   light: { backgroundColor: colors.canvas },
 
   brand: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 12,
     letterSpacing: 2,
     color: colors.ink3,
@@ -169,21 +196,19 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '45deg' }],
   },
   announceTitle: {
-    fontFamily: fonts.serif,
-    fontSize: 42,
-    lineHeight: 48,
+    ...type.largeTitle,
     color: colors.ink,
     marginTop: 28,
   },
   announceBody: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 16,
     lineHeight: 24,
     color: colors.ink2,
     marginTop: 22,
   },
   announceFooter: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 14,
     lineHeight: 21,
     color: colors.ink3,
@@ -191,57 +216,61 @@ const styles = StyleSheet.create({
   },
 
   title: {
-    fontFamily: fonts.serif,
-    fontSize: 34,
-    lineHeight: 40,
+    ...type.title1,
     color: colors.ink,
     marginTop: 20,
   },
   subtitle: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 14.5,
     lineHeight: 21,
     color: colors.ink2,
     marginTop: 10,
   },
   nameOption: {
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
     borderRadius: radii.md,
     paddingVertical: 16,
     paddingHorizontal: 18,
   },
+  nameOptionFallback: {
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+  },
   nameOptionActive: {
-    borderColor: colors.accent,
+    backgroundColor: colors.ink,
+    borderColor: colors.ink,
   },
   nameOptionText: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 15,
     color: colors.ink,
   },
+  nameOptionTextActive: {
+    color: colors.white,
+  },
   nameInput: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 15,
     color: colors.ink,
     padding: 0,
   },
 
   eyebrow: {
-    fontFamily: fonts.sansMedium,
+    ...fonts.sansMedium,
     fontSize: 11,
     letterSpacing: 1,
     color: colors.ink3,
     marginTop: 16,
   },
   discoveryName: {
-    fontFamily: fonts.serif,
-    fontSize: 34,
+    ...type.title1,
     color: colors.ink,
     marginTop: 8,
   },
   discoveryDate: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 12.5,
     color: colors.ink3,
     marginTop: 6,
@@ -255,20 +284,20 @@ const styles = StyleSheet.create({
     padding: 18,
   },
   discoveryNarrative: {
-    fontFamily: fonts.serif,
+    ...fonts.serif,
     fontSize: 19,
     lineHeight: 25,
     color: colors.ink,
   },
   discoveryDetail: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13.5,
     lineHeight: 19,
     color: colors.ink2,
     marginTop: 10,
   },
   saveError: {
-    fontFamily: fonts.sans,
+    ...fonts.sans,
     fontSize: 13,
     color: colors.accent,
     marginTop: 14,

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, fonts } from '../theme/tokens';
+import { colors, type } from '../theme/tokens';
 import { ChevronIcon, DotIcon } from './icons';
 
 export default function DisclosureRow({
@@ -50,17 +50,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 15,
+    minHeight: 44,
   },
   divider: {
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
   label: {
     flex: 1,
     flexShrink: 1,
-    fontFamily: fonts.sans,
-    fontSize: 15,
-    lineHeight: 20,
+    ...type.subheadline,
     color: colors.ink,
     marginRight: 12,
   },
@@ -73,8 +72,7 @@ const styles = StyleSheet.create({
   },
   value: {
     flexShrink: 1,
-    fontFamily: fonts.sans,
-    fontSize: 14,
+    ...type.subheadline,
     color: colors.ink3,
     textAlign: 'right',
   },

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, TextStyle } from 'react-native';
-import { colors, fonts } from '../theme/tokens';
+import { colors, type } from '../theme/tokens';
 
 export default function GhostButton({
   label,
@@ -35,10 +35,12 @@ export default function GhostButton({
 const styles = StyleSheet.create({
   wrap: {
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 12,
+    minHeight: 44,
   },
   label: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 15,
+    ...type.subheadline,
+    fontWeight: '500',
   },
 });

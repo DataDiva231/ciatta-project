@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ciatta — a health companion that notices</title>
+    <meta name="description" content="Ciatta watches your sleep, cycle, energy and mood, finds patterns that are yours alone, and tells you what it noticed. Join the wait list." />
+
+    <link rel="icon" type="image/png" href="/images/icon.png" />
+    <link rel="apple-touch-icon" href="/images/icon.png" />
+    <meta name="theme-color" content="#fffcf7" />
+
+    <!-- The Söhne faces are the page's only blocking asset the browser cannot
+         discover from the HTML, so the two used above the fold are hinted. -->
+    <link rel="preload" as="font" type="font/otf" href="/fonts/Sohne-Kraftig.otf" crossorigin />
+    <link rel="preload" as="font" type="font/otf" href="/fonts/Sohne-Buch.otf" crossorigin />
+
+    <link rel="canonical" href="https://ciatta.io/" />
+    <meta property="og:title" content="Ciatta — a health companion that notices" />
+    <meta property="og:description" content="Ciatta watches your sleep, cycle, energy and mood, and tells you what it noticed in a sentence, not a dashboard." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://ciatta.io/" />
+    <meta property="og:site_name" content="Ciatta" />
+    <!-- Facebook, LinkedIn and Slack all discard a relative og:image, so this
+         one is absolute even though every other asset here is root-relative. -->
+    <meta property="og:image" content="https://ciatta.io/images/og-card.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Ciatta — patterns across your whole body, one sentence at a time." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://ciatta.io/images/og-card.png" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
