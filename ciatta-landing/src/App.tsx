@@ -164,14 +164,17 @@ export default function App() {
           <div className="hero-glow" aria-hidden="true" />
           <div className="shell hero-grid">
             <div className="hero-copy">
-              <p className="eyebrow">Women's health intelligence</p>
               <h1 className="hero-title">
-                Patterns across your whole body.
-                <em> One sentence at a time.</em>
+                Your health is telling a bigger story.
+                <em> Ciatta helps you see it.</em>
               </h1>
               <p className="hero-lede">
-                Ciatta watches sleep, recovery, cycle, energy and mood, finds what repeats
-                for you alone, and tells you in plain English. Not another chart wall.
+                Your health information is scattered across apps, devices,
+                appointments, and life. Ciatta brings it together, connects what
+                matters, and shows you what's changing.
+              </p>
+              <p className="hero-lede lede-accent">
+                See the bigger picture, not just the numbers.
               </p>
               <div id="waitlist" className="hero-waitlist">
                 <WaitlistForm id="waitlist-hero" source="hero" />
@@ -183,6 +186,20 @@ export default function App() {
           </div>
         </section>
 
+        <section className="pieces" aria-labelledby="pieces-heading">
+          <div className="shell pieces-copy">
+            <h2 id="pieces-heading" className="section-title">
+              Your health doesn't happen one metric at a time.
+            </h2>
+            <p className="section-lede">
+              Sleep affects recovery. Recovery affects energy. Your cycle shifts mood.
+              Stress shows up in all of them. Most health apps still show each one on
+              its own screen, updated on its own schedule.
+            </p>
+            <p className="section-lede lede-accent">Ciatta looks across them together.</p>
+          </div>
+        </section>
+
         <section
           ref={insightsReveal.ref}
           id="examples"
@@ -190,16 +207,18 @@ export default function App() {
           aria-labelledby="insights-heading"
         >
           <div className="shell insights-intro">
-            <p className="eyebrow eyebrow-muted">Today screen</p>
-            <h2 id="insights-heading" className="section-title">What Ciatta says out loud.</h2>
+            <h2 id="insights-heading" className="section-title">
+              See what's changing.
+              <em> See what connects.</em>
+            </h2>
             <p className="section-lede">
-              One insight at a time. Measured against your baseline, not a population average.
+              Ciatta learns your patterns over time, and measures what's changing against
+              your own baseline, not a population average.
             </p>
           </div>
 
           <div className="shell insights-body">
             <div className="insight-nav-col">
-              <SilhouetteFigure activeId={insight.id} className="insight-figure" />
               <nav className="insight-nav" aria-label="Example insights">
                 {INSIGHTS.map((item, i) => (
                   <button
@@ -232,10 +251,26 @@ export default function App() {
                 </div>
               </header>
               <blockquote className="insight-quote">{insight.text}</blockquote>
-              <p className="insight-caption">
-                Your baseline<span className="dot-sep" aria-hidden="true" />updated as patterns strengthen
-              </p>
+              <p className="insight-caption">Your picture gets clearer as the pattern gets stronger.</p>
             </article>
+          </div>
+        </section>
+
+        <section className="continuity" aria-labelledby="continuity-heading">
+          <div className="shell">
+            <h2 id="continuity-heading" className="section-title">
+              The more your health changes, the more there is to connect.
+            </h2>
+            <p className="section-lede">
+              Ciatta doesn't start over each day. Every new signal is weighed against
+              what it has already learned about you, so it can tell:
+            </p>
+            <ul className="continuity-list">
+              <li>What changed.</li>
+              <li>What keeps repeating.</li>
+              <li>What might be connected.</li>
+              <li>What isn't clear yet.</li>
+            </ul>
           </div>
         </section>
 
@@ -246,67 +281,54 @@ export default function App() {
         >
           <div className="shell care-grid">
             <div className="care-copy">
-              <p className="eyebrow eyebrow-muted">Visit preparation</p>
-              <h2 id="care-heading" className="section-title">Walk in with your patterns already organized.</h2>
+              <h2 id="care-heading" className="section-title">
+                When you need to talk to someone, bring the picture with you.
+              </h2>
               <p className="section-lede">
-                Ciatta is not a clinician. When something is strong enough to discuss, it builds
-                a brief: what it noticed, how sure it is, what is still unclear, and what might be
-                worth raising. Provider details are optional.
+                Ciatta is not a clinician and doesn't diagnose you. When something is strong
+                enough to discuss, it organizes it into a concise brief you can bring with you.
+                Provider details are optional.
+              </p>
+              <p className="section-lede lede-accent">
+                It helps you walk into the conversation with the pieces already connected.
               </p>
             </div>
             <aside className="brief">
-              <p className="brief-tag">Sample brief</p>
               <dl className="brief-list">
                 <div>
                   <dt>Noticed</dt>
-                  <dd>Resting heart rate elevated three mornings after short sleep nights.</dd>
+                  <dd>Resting heart rate was elevated three mornings after short sleep nights.</dd>
                 </div>
                 <div>
-                  <dt>Worth discussing</dt>
-                  <dd>Whether sleep debt is affecting recovery markers this month.</dd>
+                  <dt>How strong</dt>
+                  <dd>The pattern appears consistently across your recent baseline.</dd>
                 </div>
                 <div>
                   <dt>Still learning</dt>
                   <dd>Whether the pattern holds outside your luteal phase.</dd>
+                </div>
+                <div>
+                  <dt>Worth discussing</dt>
+                  <dd>Whether sleep debt may be affecting recovery this month.</dd>
                 </div>
               </dl>
             </aside>
           </div>
         </section>
 
-        <section className="trust shell" aria-label="Boundaries and data handling">
-          <div className="trust-grid">
-            <div className="trust-block">
-              <p className="eyebrow eyebrow-muted">Boundaries</p>
-              <h2 className="section-title">What Ciatta refuses to do.</h2>
-              <ul className="trust-list trust-list-no">
-                <li>No calorie counting or nutrition logging</li>
-                <li>No social comparison or leaderboards</li>
-                <li>No selling your data</li>
-                <li>No population averages as personal insight</li>
-              </ul>
-            </div>
-            <div className="trust-block">
-              <p className="eyebrow eyebrow-muted">Your data</p>
-              <h2 className="section-title">What it holds, and how.</h2>
-              <ul className="trust-list trust-list-yes">
-                <li>HealthKit and Health Connect, with your permission</li>
-                <li>Insights against your baseline only</li>
-                <li>Delete your account, data goes with it</li>
-                <li>Row level security on every table</li>
-              </ul>
-            </div>
-          </div>
-        </section>
-
         <section className="close" id="join" aria-labelledby="close-heading">
           <div className="shell close-inner">
-            <p className="eyebrow">Private testing</p>
-            <h2 id="close-heading" className="section-title">Ciatta is learning on a small group first.</h2>
-            <p className="section-lede">
-              The list opens in order. You get one email when your place comes up, and
-              nothing before that.
+            <h2 id="close-heading" className="section-title">Your health is more than separate numbers.</h2>
+            <p className="section-lede close-lines">
+              It's patterns.
+              <br />
+              It's changes.
+              <br />
+              It's connections.
+              <br />
+              It's the bigger picture.
             </p>
+            <p className="section-lede lede-accent">Ciatta helps you see it.</p>
             <WaitlistForm id="waitlist-close" source="closing" />
           </div>
         </section>
