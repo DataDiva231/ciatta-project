@@ -1,0 +1,961 @@
+@font-face {
+  font-family: 'Sohne';
+  src: url('/fonts/Sohne-Buch.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Sohne';
+  src: url('/fonts/Sohne-BuchKursiv.otf') format('opentype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Sohne';
+  src: url('/fonts/Sohne-Halbfett.otf') format('opentype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Sohne';
+  src: url('/fonts/Sohne-Kraftig.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --canvas: #fffcf7;
+  --surface: #fffffd;
+  --ink: #1c1c1e;
+  /* Ink 2 and 3 are darkened from the app's iOS greys (#6B6B6F / #8E8E93).
+     At web body sizes those measured 5.2:1 and 3.2:1 on the canvas; the
+     second failed WCAG AA outright. These read 6.2:1 and 4.9:1 and keep a
+     visible step between them. */
+  --ink-2: #5f5f66;
+  --ink-3: #6f6f74;
+  /* Accent is the app's Living Coral and stays the fill: buttons, dots,
+     meters, borders. Ink on it is 6.4:1. As *text* on the canvas it is only
+     2.6:1, so accent-coloured words use the deepened tone below (6.5:1). */
+  --accent: #f27d72;
+  --accent-ink: #9c3f34;
+  --accent-soft: rgba(242, 125, 114, 0.14);
+  --accent-softer: rgba(242, 125, 114, 0.07);
+  --accent-border: rgba(242, 125, 114, 0.28);
+  --border: rgba(28, 28, 30, 0.1);
+  --wash: rgba(28, 28, 30, 0.045);
+  --shadow: 0 24px 64px rgba(28, 28, 30, 0.07);
+  --gutter: clamp(24px, 5vw, 88px);
+  --measure: 1240px;
+  --measure-wide: 1440px;
+  --font: 'Sohne', system-ui, sans-serif;
+  --radius: 18px;
+  --radius-lg: 26px;
+  --header-h: 72px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; overflow-x: clip; }
+
+body {
+  margin: 0;
+  overflow-x: clip;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 18px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, p, ul, dl, dd, dt, blockquote { margin: 0; }
+ul { padding: 0; list-style: none; }
+button { font: inherit; cursor: pointer; background: none; border: none; }
+a { color: inherit; }
+
+.shell {
+  width: 100%;
+  max-width: calc(var(--measure) + var(--gutter) * 2);
+  margin-inline: auto;
+  padding-left: var(--gutter);
+  padding-right: var(--gutter);
+}
+
+/* Anything the header CTA or skip link can jump to has to clear the fixed bar. */
+[id] { scroll-margin-top: calc(var(--header-h) + 24px); }
+
+:focus-visible {
+  outline: 2px solid var(--accent-ink);
+  outline-offset: 3px;
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1), transform 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal.is-visible { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .reveal { opacity: 1; transform: none; transition: none; }
+}
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+.skip {
+  position: absolute; left: -9999px; top: 12px; z-index: 500;
+  background: var(--accent); color: var(--ink); padding: 10px 18px;
+  border-radius: 999px; font-size: 14px; font-weight: 600; text-decoration: none;
+}
+.skip:focus { left: var(--gutter); }
+
+/* ── type ─────────────────────────────────────────────────────────────── */
+.eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+.eyebrow-muted { color: var(--ink-3); }
+
+.hero-title {
+  margin-top: 20px;
+  font-size: clamp(2.6rem, 4vw, 4rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  max-width: 15ch;
+  text-wrap: balance;
+}
+.hero-title em {
+  display: block;
+  margin-top: 0.1em;
+  font-style: italic;
+  font-weight: 600;
+  color: var(--accent-ink);
+}
+
+.section-title {
+  margin-top: 14px;
+  font-size: clamp(2.1rem, 4.2vw, 3.4rem);
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+  max-width: 16ch;
+}
+.section-title-sm { max-width: 14ch; }
+
+.hero-lede, .section-lede {
+  margin-top: 24px;
+  max-width: 38ch;
+  font-size: clamp(1.05rem, 1.6vw, 1.25rem);
+  line-height: 1.72;
+  color: var(--ink-2);
+}
+
+/* ── header ───────────────────────────────────────────────────────────── */
+.header {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 100;
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 var(--gutter);
+  background: color-mix(in srgb, var(--canvas) 88%, transparent);
+  backdrop-filter: blur(16px) saturate(1.2);
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.3s, background 0.3s;
+}
+
+/* The rule was already styled as transparent-until-needed but never turned on.
+   App.tsx sets .is-scrolled once the page leaves the top. */
+.header.is-scrolled {
+  border-bottom-color: var(--border);
+  background: color-mix(in srgb, var(--canvas) 94%, transparent);
+}
+
+.header-brand { display: flex; text-decoration: none; }
+
+/* wordmark.png is pure white with alpha — invisible on the cream canvas.
+   brightness(0) repaints the opaque pixels as ink without touching the mask. */
+.header-logo,
+.footer-logo {
+  width: auto;
+  filter: brightness(0);
+}
+.header-logo { height: 22px; opacity: 0.92; }
+
+.header-end {
+  display: flex;
+  align-items: center;
+  gap: clamp(12px, 2vw, 28px);
+}
+
+.header-status {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.header-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+.header-cta {
+  display: inline-flex;
+  align-items: center;
+  padding: 11px 20px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: filter 0.2s;
+}
+.header-cta:hover { filter: brightness(1.06); }
+
+@media (min-width: 768px) {
+  .header-status { display: inline-flex; }
+}
+
+/* ── hero ─────────────────────────────────────────────────────────────── */
+.hero {
+  position: relative;
+  min-height: 100svh;
+  padding-top: var(--header-h);
+  overflow: clip;
+}
+
+.hero-glow {
+  position: absolute;
+  top: -10%;
+  right: -5%;
+  width: min(70vw, 720px);
+  height: min(70vw, 720px);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(242, 125, 114, 0.16) 0%, transparent 68%);
+  pointer-events: none;
+}
+
+.hero-grid {
+  display: grid;
+  /* Was minmax(0, 0.9fr) against minmax(380px, 62vw): the figure track ate the
+     row and squeezed the headline into a six-line stack that pushed the only
+     signup form below the fold on a laptop. Two declared columns instead. */
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  align-items: center;
+  gap: clamp(16px, 3vw, 48px);
+  max-width: calc(var(--measure-wide) + var(--gutter) * 2);
+  margin-inline: auto;
+  min-height: calc(100svh - var(--header-h));
+  padding-top: clamp(24px, 4vw, 56px);
+  padding-bottom: clamp(24px, 4vw, 48px);
+}
+
+.hero-copy { position: relative; z-index: 2; }
+.hero-waitlist { margin-top: clamp(24px, 3vw, 36px); max-width: 460px; }
+
+.hero-visual {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  align-self: stretch;
+  min-width: 0;
+  margin-right: calc(-1 * var(--gutter) * 0.55);
+}
+
+.silhouette-wrap {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  line-height: 0;
+}
+
+.silhouette-art {
+  position: relative;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  /* The fade used to begin at 62%, which put the energy and mood points
+     (y: 85%) at ~36% mask alpha — two of the five domains were being erased
+     by the very gradient meant to ground the figure. It now clears them. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 86%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 86%, transparent 100%);
+}
+
+.silhouette-art::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 16%;
+  background: linear-gradient(to bottom, transparent, var(--canvas));
+  pointer-events: none;
+}
+
+.silhouette-img {
+  display: block;
+  width: 100%;
+  max-width: 720px;
+  max-height: min(82svh, 1080px);
+  height: auto;
+  object-fit: contain;
+  object-position: bottom center;
+  /* The art is a near-white body on a near-white canvas (avg #E4E1DD on
+     #FFFCF7). Without a touch of contrast the figure reads as an empty patch. */
+  filter: contrast(1.06) saturate(0.96) drop-shadow(0 28px 56px rgba(28, 28, 30, 0.1));
+}
+
+.silhouette-dots {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.silhouette-dot {
+  --dot-size: clamp(7px, 0.7vw, 11px);
+  position: absolute;
+  width: calc(var(--dot-size) * 2.6);
+  height: calc(var(--dot-size) * 2.6);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    var(--dot-color) 0%,
+    color-mix(in srgb, var(--dot-color) 55%, transparent) 34%,
+    color-mix(in srgb, var(--dot-color) 14%, transparent) 68%,
+    transparent 100%
+  );
+  animation: dot-breathe 5s ease-in-out infinite;
+  animation-delay: var(--dot-delay, 0s);
+}
+
+.silhouette-dot::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--dot-size);
+  height: var(--dot-size);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--dot-color);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--canvas) 72%, transparent),
+    0 0 10px color-mix(in srgb, var(--dot-color) 55%, transparent);
+}
+
+.silhouette-dot.is-focal {
+  --dot-size: clamp(9px, 0.95vw, 14px);
+  z-index: 1;
+}
+
+@keyframes dot-breathe {
+  0%, 100% { opacity: 0.78; transform: translate(-50%, -50%) scale(0.94); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .silhouette-dot { animation: none; opacity: 0.92; transform: translate(-50%, -50%); }
+}
+
+.hero-figure-wrap { margin-right: 0; }
+
+/* ── waitlist ─────────────────────────────────────────────────────────── */
+.waitlist-row {
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+/* The input clears its own outline, so focus was landing on a hairline inside
+   the pill. Ring the whole control instead. */
+.waitlist-row:focus-within {
+  border-color: var(--accent-ink);
+  box-shadow: var(--shadow), 0 0 0 3px var(--accent-soft);
+}
+.waitlist-row input:focus-visible { outline: none; }
+
+.waitlist-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 18px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 17px;
+  color: var(--ink);
+  outline: none;
+}
+.waitlist-row input::placeholder { color: var(--ink-3); }
+
+.waitlist-row button {
+  padding: 12px 22px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: filter 0.2s;
+}
+.waitlist-row button:hover:not(:disabled) { filter: brightness(1.06); }
+.waitlist-row button:disabled { opacity: 0.55; cursor: default; }
+
+.waitlist-note {
+  margin-top: 12px;
+  padding-left: 6px;
+  font-size: 14px;
+  color: var(--ink-3);
+}
+.waitlist-note[role='alert'] { color: var(--accent-ink); font-weight: 600; }
+
+.joined {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px 22px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--accent-border);
+  box-shadow: var(--shadow);
+}
+.joined-mark {
+  position: relative;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+}
+.joined-mark::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 4px;
+  width: 5px;
+  height: 9px;
+  border: solid var(--accent-ink);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* Stands in for the middle dot the subsetted font is missing. */
+.dot-sep {
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  margin: 0 9px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: middle;
+  opacity: 0.65;
+}
+.joined-title { font-size: 17px; font-weight: 600; }
+.joined-sub { margin-top: 4px; font-size: 14px; color: var(--ink-3); }
+
+/* ── insights ─────────────────────────────────────────────────────────── */
+.insights {
+  padding: clamp(88px, 12vw, 140px) 0;
+  border-top: 1px solid var(--border);
+}
+
+/* The intro was a single narrow stack (a 16ch title over a 38ch lede) sitting
+   in a 1240px measure, so two thirds of the row was empty. Setting the lede
+   beside the title on a shared baseline fills the measure and reads as a
+   masthead for the section rather than a stranded paragraph. */
+.insights-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  align-items: end;
+  gap: clamp(24px, 5vw, 72px);
+  margin-bottom: clamp(40px, 6vw, 64px);
+}
+.insights-intro .eyebrow { grid-column: 1 / -1; }
+.insights-intro .section-title { max-width: 14ch; }
+.insights-intro .section-lede { margin-top: 0; max-width: 40ch; }
+
+@media (max-width: 960px) {
+  /* Stacked, the column gap would double up with each element's own top
+     margin and open a gap the width of the desktop gutter. */
+  .insights-intro { grid-template-columns: 1fr; align-items: start; gap: 0; }
+  .insights-intro .section-lede { margin-top: 24px; }
+}
+
+.insights-body {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 56px);
+  align-items: start;
+}
+
+.insight-nav-col {
+  position: sticky;
+  top: calc(var(--header-h) + 24px);
+}
+
+.insight-nav {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The same constellation as the hero, small, above the domain list. The hero
+   figure already reacted to this nav but is scrolled far out of view by the
+   time anyone reaches it, so selecting a domain lit a point nobody could see.
+   This element is the .silhouette-wrap itself, not a parent of it. */
+.insight-figure {
+  justify-content: center;
+  margin-bottom: 20px;
+  padding-inline: 18px;
+}
+.insight-figure .silhouette-art {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.insight-figure .silhouette-art::after { display: none; }
+.insight-figure .silhouette-img {
+  width: 100%;
+  max-width: 190px;
+  max-height: none;
+  filter: none;
+  opacity: 0.85;
+}
+.insight-figure .silhouette-dot {
+  --dot-size: 6px;
+  opacity: 0.2;
+  animation: none;
+  transition: opacity 0.35s;
+}
+.insight-figure .silhouette-dot.is-focal {
+  --dot-size: 9px;
+  opacity: 1;
+  animation: dot-breathe 5s ease-in-out infinite;
+}
+
+/* This selector out-specifies the global reduced-motion guard on
+   .silhouette-dot, so it has to opt out again on its own terms. */
+@media (prefers-reduced-motion: reduce) {
+  .insight-figure .silhouette-dot.is-focal { animation: none; }
+  .insight-meter-fill { transition: none; }
+}
+
+.insight-nav-item {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 12px;
+  border-top: 1px solid var(--border);
+  border-radius: 10px;
+  text-align: left;
+  color: var(--ink-3);
+  transition: color 0.2s, background 0.2s;
+}
+.insight-nav-item:last-child { border-bottom: 1px solid var(--border); }
+.insight-nav-item:hover { background: var(--wash); }
+
+.insight-nav-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  opacity: 0.45;
+  transition: opacity 0.2s, transform 0.2s;
+}
+.insight-nav-label {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.insight-nav-strength {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.insight-nav-item.is-active {
+  color: var(--ink);
+  background: var(--wash);
+}
+.insight-nav-item.is-active .insight-nav-dot {
+  opacity: 1;
+  transform: scale(1.15);
+}
+.insight-nav-item.is-active .insight-nav-label { font-weight: 700; }
+.insight-nav-item:hover { color: var(--ink); }
+
+.insight-panel {
+  --panel-accent: var(--accent);
+  position: relative;
+  padding: clamp(40px, 6vw, 72px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--panel-accent);
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  box-shadow: var(--shadow);
+}
+
+.insight-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+/* The domain word used to be painted in its own hue. Against the surface that
+   ran from 7.7:1 (sleep) down to 1.6:1 (energy) — the same label was legible
+   or invisible depending on which one you picked. The colour is now a swatch
+   and the word is ink, which is also what the app's tokens prescribe. */
+.insight-panel-domain {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.insight-panel-domain::before {
+  content: '';
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--panel-accent);
+}
+
+.insight-meter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.insight-meter-track {
+  display: block;
+  width: 120px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--wash);
+  overflow: hidden;
+}
+/* tokens.ts: "Measured/confidence chrome sits in ink, not a domain color."
+   The bar was filling with the domain hue, which read as more brand than
+   measurement — and made a 44% amber bar look softer than a 44% plum one. */
+.insight-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--ink);
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.insight-meter-val {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+.insight-quote {
+  font-size: clamp(1.65rem, 2.6vw, 2.5rem);
+  font-weight: 700;
+  line-height: 1.24;
+  letter-spacing: -0.03em;
+  max-width: 26ch;
+  text-wrap: pretty;
+}
+
+.insight-caption {
+  margin-top: 28px;
+  font-size: 15px;
+  color: var(--ink-3);
+}
+
+/* ── care ─────────────────────────────────────────────────────────────── */
+.care {
+  padding: clamp(88px, 11vw, 128px) 0;
+  background: var(--accent-softer);
+  border-top: 1px solid var(--accent-border);
+}
+
+.care-grid {
+  display: grid;
+  /* The brief card was capped at 420px while the copy column ran to ~740px
+     holding a 38ch paragraph, so the middle of the row was empty. Giving the
+     card the extra width closes the gap and lets the brief read as the
+     artifact the copy is describing. */
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 520px);
+  gap: clamp(40px, 6vw, 88px);
+  align-items: center;
+}
+
+.care-copy .section-title { max-width: 14ch; }
+.care-copy .section-lede { max-width: 44ch; }
+
+.brief {
+  position: relative;
+  padding: 32px 32px 32px 36px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+.brief::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 28px;
+  bottom: 28px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.brief-tag {
+  margin-bottom: 24px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+
+.brief-list div {
+  padding: 18px 0;
+  border-top: 1px solid var(--border);
+}
+.brief-list div:first-child { padding-top: 0; border-top: none; }
+
+.brief-list dt {
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.brief-list dd {
+  font-size: 17px;
+  line-height: 1.62;
+  color: var(--ink-2);
+}
+
+/* ── trust ────────────────────────────────────────────────────────────── */
+.trust {
+  padding: clamp(88px, 10vw, 120px) 0 clamp(72px, 8vw, 96px);
+}
+
+.trust-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 48px);
+  width: 100%;
+}
+
+.trust-block {
+  min-width: 0;
+  padding: clamp(28px, 4vw, 40px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.trust-block .section-title {
+  max-width: none;
+}
+
+.trust-list li {
+  position: relative;
+  padding: 14px 0 14px 28px;
+  font-size: clamp(1rem, 1.4vw, 1.125rem);
+  line-height: 1.58;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--wash);
+  overflow-wrap: break-word;
+}
+.trust-list { margin-top: 28px; }
+
+/* The bundled Söhne files are subsetted and carry no ×, ✓, ·, ' or %, so those
+   characters were silently rendering in the fallback face beside Söhne text.
+   The two list markers are shapes, not language — drawing them removes the
+   mismatch entirely. (The % in the confidence figures still falls back; that
+   one needs a complete font file.) */
+.trust-list-no li::before,
+.trust-list-no li::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: calc(14px + 0.79em);
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent-ink);
+}
+.trust-list-no li::before { transform: translateY(-50%) rotate(45deg); }
+.trust-list-no li::after { transform: translateY(-50%) rotate(-45deg); }
+
+.trust-list-yes li::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: calc(14px + 0.79em);
+  width: 6px;
+  height: 11px;
+  border: solid var(--ink);
+  border-width: 0 2px 2px 0;
+  transform: translateY(-60%) rotate(45deg);
+}
+
+/* ── close ────────────────────────────────────────────────────────────── */
+/* The page used to end on a list of things the product refuses to do, with the
+   only signup form a full scroll back up in the hero — and the header CTA
+   pointing at it, so "Join wait list" scrolled you backwards. It ends on the
+   ask now, and the header points down here. */
+.close {
+  padding: clamp(80px, 9vw, 112px) 0 clamp(80px, 9vw, 112px);
+  border-top: 1px solid var(--border);
+  background:
+    radial-gradient(ellipse 60% 120% at 50% 0%, var(--accent-softer), transparent 70%),
+    var(--canvas);
+  text-align: center;
+}
+
+.close-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.close .section-title { max-width: 18ch; }
+.close .section-lede { max-width: 46ch; }
+.close .waitlist { width: min(100%, 460px); margin-top: 32px; }
+.close .waitlist-note { text-align: center; padding-left: 0; }
+.close .joined { margin-top: 32px; text-align: left; }
+
+/* ── footer ───────────────────────────────────────────────────────────── */
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding-top: 28px;
+  padding-bottom: 40px;
+  border-top: 1px solid var(--border);
+}
+
+.footer-logo { height: 18px; opacity: 0.7; }
+
+.footer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+.footer-nav a {
+  font-size: 14px;
+  color: var(--ink-3);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.footer-nav a:hover { color: var(--accent-ink); }
+
+.footer-copy { font-size: 14px; color: var(--ink-3); }
+
+/* ── responsive ───────────────────────────────────────────────────────── */
+@media (max-width: 960px) {
+  .hero-grid,
+  .insights-body,
+  .care-grid,
+  .trust-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-visual {
+    order: -1;
+    justify-content: center;
+    margin-right: 0;
+  }
+
+  .hero-figure-wrap {
+    width: min(100%, 620px);
+    margin-inline: auto;
+  }
+
+  .silhouette-img {
+    width: min(100vw, 620px);
+    max-height: min(68svh, 760px);
+    margin-inline: auto;
+  }
+
+  .hero-title { max-width: none; }
+
+  .hero-copy { align-self: start; }
+
+  .insight-nav-col { position: static; }
+
+  .insight-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* The nav becomes a horizontal chip row here; the standing figure has no
+     column to sit in, so it steps aside rather than shrinking to nothing. */
+  .insight-figure { display: none; }
+
+  .insight-nav-item {
+    grid-template-columns: 8px auto;
+    gap: 10px;
+    padding: 10px 16px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+  }
+  .insight-nav-item:hover { background: var(--wash); }
+  .insight-nav-item:last-child { border-bottom: 1px solid var(--border); }
+  .insight-nav-strength { display: none; }
+  .insight-nav-item.is-active {
+    background: var(--accent-soft);
+    border-color: var(--accent-border);
+  }
+
+  .insight-panel {
+    border-radius: var(--radius-lg);
+    border-left: 4px solid var(--panel-accent);
+  }
+}
+
+@media (max-width: 520px) {
+  .waitlist-row {
+    flex-direction: column;
+    border-radius: var(--radius);
+    padding: 8px;
+  }
+  .waitlist-row button {
+    width: 100%;
+    border-radius: 14px;
+  }
+  .trust-grid { grid-template-columns: 1fr; }
+  .footer { flex-direction: column; align-items: flex-start; }
+}

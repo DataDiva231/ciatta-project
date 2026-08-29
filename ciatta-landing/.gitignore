@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.local
+*.tsbuildinfo
+
+# Klim test fonts — licensed for internal mockups only, explicitly NOT for
+# public websites or redistribution (klim.co.nz/licences/test-fonts/).
+# Publishing them here would breach that twice: the repo is public, and the
+# deployed site would serve them. Buy a webfont licence and swap these for
+# .woff2 before shipping the current typography.
+public/fonts/*.otf
