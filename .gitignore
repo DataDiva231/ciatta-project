@@ -40,3 +40,6 @@ my_chat_backup.txt
 
 # Design source files kept beside the repo, not shipped with it
 /ciatta-core-mvp.png
+
+# git worktrees (superpowers subagent-driven-development)
+.worktrees/
