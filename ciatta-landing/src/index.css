@@ -270,14 +270,19 @@ a { color: inherit; }
   pointer-events: none;
 }
 
+/* Auto-fit rather than a fixed two-column split: the copy and the figure
+   sit side by side whenever there's room for both at a readable width
+   (420px), and fold into one column the moment there isn't — a continuous
+   function of the viewport, not a breakpoint. This is what lets the hero
+   go from a phone straight through to a wide desktop without ever landing
+   on a width where the fixed two-column version used to be too cramped to
+   read (roughly 640–960px, where a phone hasn't taken over yet but the
+   old grid was already forcing two columns). */
 .hero-grid {
   display: grid;
-  /* Was minmax(0, 0.9fr) against minmax(380px, 62vw): the figure track ate the
-     row and squeezed the headline into a six-line stack that pushed the only
-     signup form below the fold on a laptop. Two declared columns instead. */
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
   align-items: center;
-  gap: clamp(16px, 3vw, 48px);
+  gap: clamp(24px, 4vw, 48px);
   max-width: calc(var(--measure-wide) + var(--gutter) * 2);
   margin-inline: auto;
   min-height: calc(100svh - var(--header-h));
@@ -290,11 +295,19 @@ a { color: inherit; }
 
 .hero-visual {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   align-items: center;
   align-self: stretch;
   min-width: 0;
-  margin-right: calc(-1 * var(--gutter) * 0.55);
+}
+
+/* Once there's unambiguously room for the two-column layout, let the
+   figure bleed slightly past the shell's own measure — the same flourish
+   the fixed-width desktop hero always had, just deferred until the grid
+   has actually settled into two columns instead of applied by viewport
+   width alone. */
+@media (min-width: 1000px) {
+  .hero-visual { justify-content: flex-end; margin-right: calc(-1 * var(--gutter) * 0.55); }
 }
 
 .silhouette-wrap {
@@ -517,7 +530,7 @@ a { color: inherit; }
 
 /* ── pieces ───────────────────────────────────────────────────────────── */
 .pieces {
-  padding: clamp(80px, 10vw, 120px) 0;
+  padding: clamp(48px, 10vw, 120px) 0;
   border-top: 1px solid var(--border);
 }
 
@@ -526,7 +539,7 @@ a { color: inherit; }
 
 /* ── continuity ───────────────────────────────────────────────────────── */
 .continuity {
-  padding: clamp(80px, 10vw, 120px) 0;
+  padding: clamp(48px, 10vw, 120px) 0;
   border-top: 1px solid var(--border);
   background: var(--wash);
 }
@@ -560,7 +573,7 @@ a { color: inherit; }
 
 /* ── insights ─────────────────────────────────────────────────────────── */
 .insights {
-  padding: clamp(88px, 12vw, 140px) 0;
+  padding: clamp(48px, 12vw, 140px) 0;
   border-top: 1px solid var(--border);
 }
 
@@ -739,7 +752,7 @@ a { color: inherit; }
 
 /* ── care ─────────────────────────────────────────────────────────────── */
 .care {
-  padding: clamp(88px, 11vw, 128px) 0;
+  padding: clamp(48px, 11vw, 128px) 0;
   background: var(--accent-softer);
   border-top: 1px solid var(--accent-border);
 }
@@ -878,7 +891,7 @@ a { color: inherit; }
    pointing at it, so "Join wait list" scrolled you backwards. It ends on the
    ask now, and the header points down here. */
 .close {
-  padding: clamp(80px, 9vw, 112px) 0 clamp(80px, 9vw, 112px);
+  padding: clamp(48px, 9vw, 112px) 0 clamp(48px, 9vw, 112px);
   border-top: 1px solid var(--border);
   background:
     radial-gradient(ellipse 60% 120% at 50% 0%, var(--accent-softer), transparent 70%),
@@ -927,7 +940,10 @@ a { color: inherit; }
 
 .footer-copy { font-size: 14px; color: var(--ink-3); }
 
-/* ── responsive ───────────────────────────────────────────────────────── */
+/* ── responsive: tablet and below (not the hero) ─────────────────────────
+   The hero has its own dedicated, narrower breakpoint below — everything
+   here is the rest of the page reflowing to one column once two can't sit
+   comfortably side by side. */
 @media (max-width: 960px) {
   .insights-body,
   .care-grid,
@@ -935,24 +951,44 @@ a { color: inherit; }
     grid-template-columns: 1fr;
   }
 
-  /* The desktop rhythm (80–140px, scaling with viewport width) reads as
-     a lot of empty scroll on a phone, where there's no width left for it
-     to scale down against. Tightened to a flat, still-clearly-a-new-
-     section amount instead of whatever the clamp bottoms out at. */
-  .pieces,
-  .continuity,
-  .insights,
-  .care,
-  .close {
-    padding-top: 48px;
-    padding-bottom: 48px;
+  .insight-nav-col { position: static; }
+
+  .insight-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
-  /* Same silhouette, same copy, same wait-list form — reflowed to a
-     full-bleed portrait: the figure fills the width of the screen top to
-     bottom, the copy is centered and pinned to the bottom of that same
-     box, and the two overlap by however much their own natural heights
-     spill into each other (no scroll — the box is exactly one screen). */
+  .insight-nav-item {
+    grid-template-columns: 8px auto;
+    gap: 10px;
+    padding: 10px 16px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+  }
+  .insight-nav-item:hover { background: var(--wash); }
+  .insight-nav-item:last-child { border-bottom: 1px solid var(--border); }
+  .insight-nav-strength { display: none; }
+  .insight-nav-item.is-active {
+    background: var(--accent-soft);
+    border-color: var(--accent-border);
+  }
+
+  .insight-panel {
+    border-radius: var(--radius-lg);
+    border-left: 4px solid var(--panel-accent);
+  }
+}
+
+/* ── responsive: the mobile phone hero ───────────────────────────────────
+   Unchanged from before — same silhouette, same copy, same wait-list
+   form, full-bleed portrait with the copy pinned to the bottom of the
+   figure — just now scoped to genuine phone widths (≤640px) instead of
+   everything up to 960px. Tablet, laptop, and desktop use the fluid
+   hero-grid above instead, which reflows continuously rather than
+   snapping to this layout at a breakpoint. */
+@media (max-width: 640px) {
   .hero {
     height: 100svh;
     min-height: 100svh;
@@ -1041,35 +1077,6 @@ a { color: inherit; }
     border-radius: 999px;
   }
   .hero-waitlist .waitlist-note { margin-top: 6px; font-size: 12px; }
-
-  .insight-nav-col { position: static; }
-
-  .insight-nav {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .insight-nav-item {
-    grid-template-columns: 8px auto;
-    gap: 10px;
-    padding: 10px 16px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: var(--surface);
-  }
-  .insight-nav-item:hover { background: var(--wash); }
-  .insight-nav-item:last-child { border-bottom: 1px solid var(--border); }
-  .insight-nav-strength { display: none; }
-  .insight-nav-item.is-active {
-    background: var(--accent-soft);
-    border-color: var(--accent-border);
-  }
-
-  .insight-panel {
-    border-radius: var(--radius-lg);
-    border-left: 4px solid var(--panel-accent);
-  }
 }
 
 @media (max-width: 520px) {
