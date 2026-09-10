@@ -738,8 +738,7 @@ export function ProductShowcase() {
           {PROGRESSION.map((s) => <li key={s}>{s}</li>)}
         </ol>
         <p className="showcase-foot">
-          The insight is not a seventh thing Ciatta collected. It is what the other six
-          say when they are read together.
+          The insight is what the other six say when they are read together.
         </p>
       </div>
     </section>
