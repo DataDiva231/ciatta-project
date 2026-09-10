@@ -770,15 +770,36 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 
 .ps-body.is-dense { gap: 2.2cqw; }
 
+/* Four destinations now, so the pill container gives way to an even row: at
+   this width a pill per tab would leave no room for the labels. */
 .ps-tabs {
-  display: flex; gap: 1cqw; margin: 0 5cqw 1.6cqw;
-  padding: 1.1cqw; border-radius: 999px; background: var(--ps-raised);
+  display: flex; margin: 0; padding: 1.8cqw 3cqw 1cqw;
+  border-top: 1px solid var(--ps-rule); background: var(--ps-canvas);
 }
 .ps-tab {
-  flex: 1; text-align: center; border-radius: 999px;
-  padding: 1.5cqw 0; font-size: 2.7cqw; font-weight: 500; color: var(--ps-meta);
+  flex: 1; text-align: center; padding: 0.6cqw 0;
+  font-size: 2.35cqw; font-weight: 500; color: var(--ps-meta);
 }
-.ps-tab.is-on { background: var(--ps-ink); color: var(--ps-canvas); }
+/* The selected destination is named in ink with a mark under it, rather than
+   filled: a filled pill in a four-up row reads as a button, not a location. */
+.ps-tab.is-on { color: var(--ps-ink); font-weight: 600; position: relative; }
+.ps-tab.is-on::after {
+  content: ''; position: absolute; left: 50%; bottom: -1cqw;
+  width: 5cqw; height: 0.6cqw; margin-left: -2.5cqw;
+  border-radius: 999px; background: var(--ps-clay);
+}
+
+/* Teach Ciatta: persistent, reachable from anywhere, and deliberately not a
+   destination. It floats over the content just above the tab bar. */
+.ps-teach {
+  align-self: flex-end; margin: 0 5cqw 1.2cqw;
+  display: inline-flex; align-items: center; gap: 1.3cqw;
+  padding: 1.5cqw 3.2cqw; border-radius: 999px;
+  background: var(--ps-clay); color: #241205;
+  font-size: 2.6cqw; font-weight: 600; white-space: nowrap;
+  box-shadow: 0 2cqw 4cqw rgba(0,0,0,0.32);
+}
+.ps-teach i { font-style: normal; font-size: 3.4cqw; line-height: 0; font-weight: 500; }
 .ps-home {
   width: 34%; height: 0.9cqw; border-radius: 999px;
   background: var(--ps-ink); opacity: 0.32;
@@ -881,7 +902,7 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 }
 
 /* lanes: a shared timeline that several things are drawn against */
-.ps-lanes { display: flex; flex-direction: column; gap: 2cqw; }
+.ps-lanes { display: flex; flex-direction: column; gap: 1.7cqw; }
 .ps-lane { display: flex; flex-direction: column; gap: 0.9cqw; }
 .ps-lane-k { font-size: 2.5cqw; color: var(--ps-body); }
 .ps-lane.is-ref .ps-lane-k { color: var(--ps-meta); }
@@ -1031,13 +1052,18 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
   font-size: 2.4cqw; line-height: 1.4; color: var(--ps-meta);
 }
 .ps-src {
-  padding: 0.6cqw 1.6cqw; border-radius: 999px;
-  font-size: 2.1cqw; font-weight: 500; white-space: nowrap;
+  padding: 0.5cqw 1.5cqw; border-radius: 999px;
+  font-size: 2cqw; font-weight: 600; white-space: nowrap; letter-spacing: 0.02em;
 }
-.ps-src.is-measured { background: rgba(120,154,243,0.18); color: var(--ps-measured); }
-.ps-src.is-reported { background: rgba(244,110,180,0.18); color: var(--ps-reported); }
-.ps-src.is-lab { background: rgba(242,184,99,0.18); color: var(--ps-evidence); }
-.ps-src.is-worked { background: rgba(236,150,88,0.18); color: var(--ps-clay); }
+/* Six kinds, one colour each, never reused for anything else. A reader has to
+   be able to tell a measurement from a thing she said from a published study
+   without reading the label twice. */
+.ps-src.is-measured { background: rgba(120,154,243,0.20); color: var(--ps-measured); }
+.ps-src.is-told     { background: rgba(244,110,180,0.20); color: var(--ps-reported); }
+.ps-src.is-imported { background: rgba(242,184,99,0.18);  color: var(--ps-evidence); }
+.ps-src.is-uploaded { background: rgba(228,192,88,0.18);  color: var(--ps-uncertain); }
+.ps-src.is-evidence { background: rgba(242,184,99,0.14);  color: var(--ps-evidence); }
+.ps-src.is-inferred { background: rgba(236,150,88,0.20);  color: var(--ps-clay); }
 
 /* --- the insight screen -------------------------------------------------- */
 .ps-stack { display: flex; flex-direction: column; gap: 1.4cqw; }
@@ -1183,3 +1209,81 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
   font-size: 0.9375rem; line-height: 1.55; color: var(--body-ink);
 }
 .verdict b { font-weight: 500; color: var(--ink); }
+
+/* --- the record's own additions ------------------------------------------ */
+
+/* a dose change or a caveat that belongs to the card above it */
+.ps-note-s { font-size: 2.3cqw; line-height: 1.4; color: var(--ps-meta); }
+.ps-card-t .ps-pill { margin-left: auto; }
+
+/* Add to Ciatta: one primary action, two ways through it. Presented at a
+   medium detent so the results it adds to stay visible behind it. */
+.ps-sheet {
+  margin: 0 -6cqw -2cqw; padding: 2cqw 5cqw 3cqw;
+  background: var(--ps-raised);
+  border-radius: 4cqw 4cqw 0 0;
+  display: flex; flex-direction: column; gap: 2cqw;
+  box-shadow: 0 -2cqw 6cqw rgba(0,0,0,0.34);
+}
+.ps-grab {
+  align-self: center; width: 9cqw; height: 0.9cqw; border-radius: 999px;
+  background: var(--ps-meta); opacity: 0.5;
+}
+.ps-sheet-t { font-size: 3.2cqw; font-weight: 600; color: var(--ps-ink); }
+.ps-opt { display: flex; flex-direction: column; gap: 0.5cqw; }
+.ps-opt-h { display: flex; align-items: center; gap: 2cqw; }
+.ps-opt-h b { flex: 1; font-size: 2.9cqw; font-weight: 600; color: var(--ps-ink); }
+.ps-opt p { margin: 0; font-size: 2.4cqw; line-height: 1.4; color: var(--ps-body); }
+
+/* --- the insight's evidence layers --------------------------------------- */
+.ps-layers { margin: 0; display: flex; flex-direction: column; }
+.ps-layers > div {
+  display: flex; flex-direction: column; gap: 0.6cqw;
+  border-top: 1px solid var(--ps-rule); padding: 1.4cqw 0;
+}
+.ps-layers dt {
+  display: flex; align-items: center; gap: 1.6cqw;
+  font-size: 2.2cqw; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ps-meta);
+}
+.ps-layers dd { margin: 0; font-size: 2.7cqw; line-height: 1.38; color: var(--ps-body); }
+.ps-layers > div.is-evidence {
+  background: rgba(242,184,99,0.09); border-radius: 2.4cqw;
+  border-top-color: transparent; padding: 1.8cqw 2.4cqw; margin-block: 0.5cqw;
+}
+
+/* what is still open, and the question she can carry out of the screen */
+.ps-open-row { display: flex; flex-direction: column; gap: 0.5cqw; }
+.ps-open-k, .ps-next-k {
+  font-size: 2.2cqw; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ps-meta);
+}
+.ps-open-row p { margin: 0; font-size: 2.7cqw; line-height: 1.4; color: var(--ps-body); }
+.ps-next {
+  background: rgba(236,150,88,0.12); border-radius: 2.4cqw;
+  padding: 2cqw 2.4cqw; display: flex; flex-direction: column; gap: 0.6cqw;
+}
+.ps-next-k { color: var(--ps-clay); }
+.ps-next p { margin: 0; font-size: 2.9cqw; line-height: 1.38; color: var(--ps-ink); }
+
+/* A document stays a document. Ciatta reads it, but the record shows the file
+   she uploaded rather than a summary standing in for it. */
+.ps-doc {
+  display: flex; align-items: center; gap: 2.4cqw;
+  background: var(--ps-raised); border-radius: 2.4cqw; padding: 2.2cqw 2.4cqw;
+}
+.ps-doc-ico {
+  flex: none; padding: 1cqw 1.6cqw; border-radius: 1.2cqw;
+  background: rgba(228,192,88,0.18); color: var(--ps-uncertain);
+  font-size: 2cqw; font-weight: 700; letter-spacing: 0.06em;
+}
+.ps-doc-b { flex: 1; display: flex; flex-direction: column; gap: 0.3cqw; min-width: 0; }
+.ps-doc-b b { font-size: 2.9cqw; font-weight: 500; color: var(--ps-ink); }
+.ps-doc-b i { font-style: normal; font-size: 2.3cqw; color: var(--ps-meta); }
+
+/* The cohort line is not part of the sentence above it: it says who the study
+   was about, and running them together implies it was about her. */
+.ps-cite {
+  display: block; margin-top: 0.6cqw;
+  font-size: 2.2cqw; color: var(--ps-meta); font-variant-numeric: tabular-nums;
+}

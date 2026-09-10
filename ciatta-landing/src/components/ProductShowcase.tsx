@@ -4,44 +4,60 @@ import { useEffect, useRef, useState } from 'react';
  * The Ciatta app, seven screens of it, drawn as the product rather than as
  * pictures of the product.
  *
- * These are designed as working screens first and composed into the fan
- * second. Each one has a job, a hierarchy, a control strip, real values with
- * their units and sources, a selected row with its detail open, and an action.
- * They share one interaction vocabulary so that moving between them costs
- * nothing:
+ * ARCHITECTURE
  *
- *   nav bar        back chevron · title · one trailing action
- *   control strip  a segmented range, or filter chips
- *   section label  small caps, with a right-hand qualifier
- *   row            label · value · chevron; the open one shows its detail
- *   provenance     every screen ends by saying where its numbers came from
- *   tab bar        Today · My Health
+ *   Today        what matters now
+ *   My Health    the information Ciatta holds, organised
+ *                  Health Records  Results · Documents
+ *                  Cycle · Sleep · Symptoms · Medications & Supplements
+ *                  What you told Ciatta
+ *   Journey      how her health has changed over time
+ *   Profile      her details, goals, connections, permissions, account
  *
- * Every screen reads from one record, so they agree with each other and a
- * visitor can check the story across them. Today is 1 August 2026.
+ *   Teach Ciatta is a persistent action, not a fifth destination. It sits above
+ *   the tab bar on every screen, because context can arrive at any moment and
+ *   should never require navigating somewhere first.
  *
- *   Cycles      8 Jan 29d · 6 Feb 29d · 7 Mar 28d · 4 Apr 26d · 30 Apr 28d
- *               28 May 26d · 23 Jun 28d · current started 21 Jul, day 12
- *   Sleep       typical 7h 05m · lowest weeks 25 Mar 5h 54m, 20 May 6h 04m
- *   Symptoms    disrupted sleep from 18 Mar · night sweats from 2 Apr
- *               low energy 20 May to 5 Jun
- *   Taking      iron 2 Feb to 30 Apr · magnesium from 14 Mar
- *               vitamin D from 12 Jun, after the 12 Jun results
- *   Her words   2 Feb · 14 Mar · 18 Mar · 22 May · 12 Jun · 3 Jul
- *   Labs        19 Aug 2025 · 2 Feb 2026 · 12 Jun 2026
+ * The layers are kept apart on purpose. Health Records answers "what
+ * information do I have" and holds nothing Ciatta concluded; the insight
+ * answers "what do these pieces show together" and holds nothing raw. Putting
+ * an interpretation inside the record would make the source unciteable.
  *
- *   The insight Both 26-day cycles began within ten days of a lowest-sleep
- *               week. Seen twice, across seven months.
+ * PROVENANCE
+ *
+ *   Measured            a device recorded it
+ *   You told Ciatta     she said it, in her words
+ *   Imported            it arrived from a connected provider
+ *   Uploaded            it came from a document she added
+ *   Published evidence  a study, about a cohort, not about her
+ *   Inferred by Ciatta  read from several of the above together
+ *
+ * THE RECORD  — today is 1 April 2026, and every screen agrees with this.
+ *
+ *   Cycles     8 Dec 29d · 6 Jan 28d · 3 Feb 27d · 2 Mar 26d
+ *              current cycle began 28 Mar, day 5
+ *   Sleep      average 7h 18m · lowest weeks 26 Jan 6h 02m, 23 Feb 6h 14m
+ *   Symptoms   sleep disruption from 10 Mar · fatigue 7 Mar to 24 Mar
+ *              night sweats 3 occurrences · headache 12 Mar · mood 9 Mar
+ *   Taking     levothyroxine 50mcg from 8 Jan, changed to 75mcg 3 Mar
+ *              magnesium glycinate 400mg from 12 Feb
+ *              ferrous sulfate stopped 6 Jan
+ *   Her words  3 Mar medication changed · 7 Mar stressful · 10 Mar waking
+ *   Records    14 Mar Quest: ferritin 24, TSH 2.1, vitamin D 31
+ *              14 Mar annual physical, PDF
+ *
+ *   The finding: the two shortest cycles each began within a week of a
+ *   lowest-sleep week. Twice. Which is proximity in time, and nothing more.
  *
  * Drawn at iPhone 17 Pro proportions (402 x 874 pt). Interiors are sized in
  * cqw, so a screen at 0.62 scale and one at 1.75 hold identical proportions.
  */
 
-const TABS = ['Today', 'My Health'] as const;
+const TABS = ['Today', 'My Health', 'Journey', 'Profile'] as const;
 
 /* -- shared chrome --------------------------------------------------------- */
 
-type Action = 'calendar' | 'filter' | 'plus' | 'share' | 'info';
+type Action = 'calendar' | 'filter' | 'plus' | 'share' | 'info' | 'search';
 
 function ActionIcon({ kind }: { kind: Action }) {
   const p = {
@@ -50,6 +66,7 @@ function ActionIcon({ kind }: { kind: Action }) {
     plus: <><path d="M8 2.6v10.8M2.6 8h10.8" /></>,
     share: <><path d="M8 10.6V1.9M4.8 5.1 8 1.9l3.2 3.2" /><path d="M3.4 9.2v3.5a1.4 1.4 0 0 0 1.4 1.4h6.4a1.4 1.4 0 0 0 1.4-1.4V9.2" /></>,
     info: <><circle cx="8" cy="8" r="6.2" /><path d="M8 7.2v4M8 4.9v.1" /></>,
+    search: <><circle cx="7.2" cy="7.2" r="4.8" /><path d="m11 11 3 3" /></>,
   }[kind];
   return (
     <svg viewBox="0 0 16 16" className="ps-act" aria-hidden="true"
@@ -60,10 +77,10 @@ function ActionIcon({ kind }: { kind: Action }) {
 }
 
 function Chrome({
-  title, action = 'info', tab = 'My Health', dense, children,
+  title, action = 'info', tab = 'My Health', dense, teach = true, children,
 }: {
   title: string; action?: Action; tab?: (typeof TABS)[number];
-  dense?: boolean; children: React.ReactNode;
+  dense?: boolean; teach?: boolean; children: React.ReactNode;
 }) {
   return (
     <div className="ps-phone">
@@ -81,6 +98,9 @@ function Chrome({
           <ActionIcon kind={action} />
         </div>
         <div className={dense ? 'ps-body is-dense' : 'ps-body'}>{children}</div>
+        {/* Context can arrive at any moment, so the way to add it is on every
+            screen rather than behind a destination of its own. */}
+        {teach && <div className="ps-teach" aria-hidden="true"><i>+</i>Teach Ciatta</div>}
         <div className="ps-tabs" aria-hidden="true">
           {TABS.map((t) => (
             <span key={t} className={t === tab ? 'ps-tab is-on' : 'ps-tab'}>{t}</span>
@@ -123,12 +143,18 @@ function Lab({ children, qual }: { children: React.ReactNode; qual?: string }) {
   );
 }
 
-/** Where a number came from. Four kinds only, and they never change colour. */
-function Src({ kind }: { kind: 'measured' | 'reported' | 'lab' | 'worked' }) {
-  const label = {
-    measured: 'Measured', reported: 'You logged', lab: 'Lab', worked: 'Ciatta',
-  }[kind];
-  return <span className={`ps-src is-${kind}`}>{label}</span>;
+/** Where a value came from. Six kinds, and they never change colour. */
+type SrcKind = 'measured' | 'told' | 'imported' | 'uploaded' | 'evidence' | 'inferred';
+const SRC_LABEL: Record<SrcKind, string> = {
+  measured: 'Measured',
+  told: 'You told Ciatta',
+  imported: 'Imported',
+  uploaded: 'Uploaded',
+  evidence: 'Published evidence',
+  inferred: 'Inferred by Ciatta',
+};
+function Src({ kind }: { kind: SrcKind }) {
+  return <span className={`ps-src is-${kind}`}>{SRC_LABEL[kind]}</span>;
 }
 
 function Caret() {
@@ -160,7 +186,7 @@ function Row({
   );
 }
 
-const MONTHS = ['Jan', 'Mar', 'May', 'Jul'] as const;
+const MONTHS = ['Dec', 'Jan', 'Feb', 'Mar'] as const;
 function Axis() {
   return (
     <div className="ps-axis" aria-hidden="true">
@@ -170,41 +196,42 @@ function Axis() {
 }
 
 /* -- 1. Cycle -------------------------------------------------------------- *
- * Job: see the whole cycle history, and open one cycle to inspect it.        */
+ * Job: the whole cycle history, and one cycle opened to inspect.             */
 
 function CycleScreen() {
   const cycles = [
-    { s: '8 Jan', n: 29 }, { s: '6 Feb', n: 29 }, { s: '7 Mar', n: 28 },
-    { s: '4 Apr', n: 26, short: true }, { s: '30 Apr', n: 28 },
-    { s: '28 May', n: 26, short: true }, { s: '23 Jun', n: 28 },
+    { s: '8 Dec', e: '5 Jan', n: 29 },
+    { s: '6 Jan', e: '2 Feb', n: 28 },
+    { s: '3 Feb', e: '1 Mar', n: 27, short: true },
+    { s: '2 Mar', e: '27 Mar', n: 26, short: true },
   ];
-  // plotted 24 to 32 days, so her typical 26 to 30 band sits mid-frame
+  // plotted 24 to 32 days, so the decline reads without the axis exaggerating it
   const h = (n: number) => `${((n - 24) / 8) * 100}%`;
 
   return (
     <Chrome title="Cycle" action="calendar">
-      <Seg items={['3M', '6M', '12M', 'All']} on="12M" />
+      <Seg items={['6M', '12M', 'All']} on="12M" />
 
       <div className="ps-now">
         <div className="ps-now-head">
           <span className="ps-now-k">Current cycle</span>
-          <span className="ps-now-n">Day 12</span>
+          <span className="ps-now-n">Day 5</span>
         </div>
-        <div className="ps-prog" aria-hidden="true"><span style={{ width: '43%' }} /></div>
+        <div className="ps-prog" aria-hidden="true"><span style={{ width: '19%' }} /></div>
         <div className="ps-now-foot">
-          <span>Started 21 Jul</span>
-          <span>Next expected 18 Aug</span>
+          <span>Began 28 Mar</span>
+          <span>Next expected 23 Apr</span>
         </div>
       </div>
 
-      <Lab qual="Typical 26–30 days">Cycle length</Lab>
+      <Lab qual="29d &rarr; 26d">Cycle length</Lab>
+      {/* No reference band. Across four cycles spanning 26 to 29 days it filled
+          the plot and read as a ceiling; the decline is the whole point. */}
       <div className="ps-plot">
-        {/* her own typical range, so a bar is read against her, not an average */}
-        <span className="ps-band" style={{ bottom: h(26), height: '50%' }} aria-hidden="true" />
         <div className="ps-cols" aria-hidden="true">
           {cycles.map((c) => (
             <span key={c.s} className={c.short ? 'ps-col is-short' : 'ps-col'}>
-              {c.short && <span className="ps-col-n">{c.n}d</span>}
+              <span className="ps-col-n">{c.n}d</span>
               <span className="ps-col-bar" style={{ height: h(c.n) }} />
             </span>
           ))}
@@ -212,105 +239,98 @@ function CycleScreen() {
       </div>
       <Axis />
 
-      <Lab qual="7 cycles">History</Lab>
+      <Lab qual="4 cycles">History</Lab>
       <div className="ps-rows">
-        <Row k="23 Jun – 20 Jul" meta="Medium flow" v="28d" />
-        <Row k="28 May – 22 Jun" meta="Light flow" v="26d" open>
+        <Row k="2 Mar – 27 Mar" meta="Shortest recorded" v="26d" open>
           <ul className="ps-facts">
-            <li><span>Length</span><b>26 days &middot; 2 under typical</b></li>
-            <li><span>Bleeding</span><b>4 days, light</b></li>
-            <li><span>Also this cycle</span><b>Low energy, 20 May to 5 Jun</b></li>
+            <li><span>Length</span><b>26 days, 3 under your usual</b></li>
+            <li><span>Bleeding</span><b>4 days</b></li>
+            <li><span>Week before</span><b>23 Feb, 6h 14m sleep</b></li>
           </ul>
-          <span className="ps-link">Open the insight for this cycle</span>
+          <span className="ps-link">See this cycle in Journey</span>
         </Row>
-        <Row k="30 Apr – 27 May" meta="Medium flow" v="28d" />
+        <Row k="3 Feb – 1 Mar" meta="Second shortest" v="27d" />
+        <Row k="6 Jan – 2 Feb" v="28d" />
       </div>
 
-      <div className="ps-prov">
-        <Src kind="measured" /> Oura, nightly &middot; 3 start dates you confirmed
-      </div>
+      <div className="ps-prov"><Src kind="measured" /> Oura, nightly &middot; 4 start dates you confirmed</div>
     </Chrome>
   );
 }
 
 /* -- 2. Sleep -------------------------------------------------------------- *
- * Job: sleep over time, with the lowest stretches findable and openable.     */
+ * Job: duration over time, with the lowest weeks findable and openable.      */
 
 function SleepScreen() {
-  const weeks = [7.2, 7.0, 7.1, 6.9, 7.2, 6.8, 5.9, 6.6, 7.0, 6.9, 6.1, 6.7, 7.1, 6.9];
+  const weeks = [7.5, 7.4, 7.2, 7.3, 7.1, 7.4, 6.03, 7.0, 7.2, 7.1, 6.23, 6.9, 7.3, 7.2];
   const low = [6, 10];
-  const nights = [6.4, 5.2, 5.9, 5.1, 6.3, 5.8, 6.6];
+  const nights = [6.6, 5.4, 6.1, 5.2, 6.5, 6.0, 6.3];
 
   return (
     <Chrome title="Sleep" action="calendar">
-      <Seg items={['3M', '6M', '12M', 'All']} on="12M" />
+      <Seg items={['6M', '12M', 'All']} on="12M" />
 
       <div className="ps-figure">
-        <span className="ps-fig-k">Average, last 4 weeks</span>
-        <span className="ps-fig-n">6<i>h</i>54<i>m</i></span>
-        <span className="ps-fig-d is-down">11m under your typical 7h 05m</span>
+        <span className="ps-fig-k">Average, last 12 months</span>
+        <span className="ps-fig-n">7<i>h</i>18<i>m</i></span>
+        <span className="ps-fig-d is-down">Recent low 6h 02m, week of 26 Jan</span>
       </div>
 
       <Lab qual="Weekly average">Duration</Lab>
       <div className="ps-plot">
-        <span className="ps-target" style={{ bottom: '58%' }} aria-hidden="true"><i>7h</i></span>
+        <span className="ps-target" style={{ bottom: '62%' }} aria-hidden="true"><i>7h 18m</i></span>
         <div className="ps-cols" aria-hidden="true">
           {weeks.map((v, i) => (
             <span key={i} className={low.includes(i) ? 'ps-col is-low' : 'ps-col'}>
-              <span className="ps-col-bar" style={{ height: `${((v - 5.4) / 2.2) * 100}%` }} />
+              <span className="ps-col-bar" style={{ height: `${((v - 5.6) / 2.1) * 100}%` }} />
             </span>
           ))}
         </div>
       </div>
       <Axis />
 
-      <div className="ps-duo">
-        <span><b>7h 21m</b>Time in bed</span>
-        <span><b>&plusmn;38m</b>Bedtime spread</span>
-      </div>
-
       <Lab qual="2 found">Lowest weeks</Lab>
       <div className="ps-rows">
-        <Row k="Week of 25 Mar" v="5h 54m" open>
+        <Row k="Week of 26 Jan" v="6h 02m" open>
           <div className="ps-nights" aria-hidden="true">
             {nights.map((n, i) => (
               <span key={i}>
-                <i style={{ height: `${((n - 4.6) / 2.4) * 100}%` }} />
+                <i style={{ height: `${((n - 4.8) / 2.2) * 100}%` }} />
                 {'MTWTFSS'[i]}
               </span>
             ))}
           </div>
           <ul className="ps-facts">
-            <li><span>Under 5h 30m</span><b>3 nights</b></li>
-            <li><span>Next cycle</span><b>Started 4 Apr, ran 26 days</b></li>
+            <li><span>Under 6h</span><b>3 nights</b></li>
+            <li><span>Cycle after</span><b>Began 3 Feb, ran 27 days</b></li>
           </ul>
         </Row>
-        <Row k="Week of 20 May" v="6h 04m" />
+        <Row k="Week of 23 Feb" meta="Cycle after began 2 Mar" v="6h 14m" />
       </div>
 
-      <div className="ps-prov">
-        <Src kind="measured" /> Oura, nightly &middot; synced 2 hours ago
-      </div>
+      <div className="ps-prov"><Src kind="measured" /> Oura, nightly &middot; synced 2 hours ago</div>
     </Chrome>
   );
 }
 
 /* -- 3. Symptoms ----------------------------------------------------------- *
- * Job: what she reported, on the same timeline as her cycle starts.          */
+ * Job: what she logged, when, how often, how bad. Not a diagnosis of any of
+ * it: these are her reports, and the screen never says what they mean.       */
 
 function SymptomsScreen() {
   const lanes = [
-    { name: 'Disrupted sleep', at: 22, w: 52, sev: 'mod' },
-    { name: 'Night sweats', at: 34, w: 40, sev: 'mild' },
-    { name: 'Low energy', at: 55, w: 14, sev: 'sev' },
+    { name: 'Sleep disruption', at: 62, w: 30, sev: 'mod' },
+    { name: 'Fatigue', at: 58, w: 34, sev: 'mod' },
+    { name: 'Night sweats', at: 40, w: 46, sev: 'mild' },
+    { name: 'Mood changes', at: 60, w: 14, sev: 'mild' },
   ];
-  const starts = [4, 16, 27, 35, 42, 58, 66, 78];
+  const starts = [6, 30, 54, 78];
 
   return (
     <Chrome title="Symptoms" action="filter">
       <Chips items={['All', 'Sleep', 'Energy', 'Temperature']} on="All" />
 
-      <Lab qual="Jan to Aug">Timeline</Lab>
+      <Lab qual="Dec to Apr">Timeline</Lab>
       <div className="ps-lanes">
         <div className="ps-lane is-ref">
           <span className="ps-lane-k">Cycle starts</span>
@@ -328,61 +348,55 @@ function SymptomsScreen() {
         ))}
       </div>
       <Axis />
-      <div className="ps-legend" aria-hidden="true">
-        <span><i className="is-mild" />Mild</span>
-        <span><i className="is-mod" />Moderate</span>
-        <span><i className="is-sev" />Severe</span>
-      </div>
 
-      <Lab qual="Days logged">Most reported</Lab>
+      <Lab qual="You logged these">Recent</Lab>
       <div className="ps-rows">
-        <Row k="Disrupted sleep" v="34 days" open>
+        <Row k="Sleep disruption" meta="From 10 Mar &middot; most nights" v="Moderate" open>
           <ul className="ps-facts">
-            <li><span>First logged</span><b>18 Mar</b></li>
-            <li><span>Most often</span><b>Moderate, 21 of 34 days</b></li>
-            <li><span>Around it</span><b>Lowest-sleep week, 25 Mar</b></li>
+            <li><span>Logged</span><b>14 times since 10 Mar</b></li>
+            <li><span>Usual note</span><b>Waking 2 to 3 times</b></li>
+            <li><span>Severity</span><b>Moderate on 9 of 14</b></li>
           </ul>
         </Row>
-        <Row k="Night sweats" v="21 days" />
-        <Row k="Low energy" v="17 days" />
-        <Row k="Headaches" meta="none since 12 Feb" v="6 days" />
+        <Row k="Fatigue" meta="7 Mar to 24 Mar" v="Moderate" />
+        <Row k="Night sweats" meta="3 occurrences since 2 Feb" v="Mild" />
+        <Row k="Headache" meta="12 Mar, one day" v="Mild" />
       </div>
 
       <div className="ps-bar-action">Log a symptom</div>
-      <div className="ps-prov">
-        <Src kind="reported" /> Entered by you, dated as you entered it
-      </div>
+      <div className="ps-prov"><Src kind="told" /> Entered by you, dated as you entered it</div>
     </Chrome>
   );
 }
 
-/* -- 4. Medications & supplements ------------------------------------------ *
- * Job: what she takes, what she changed, and when the change happened.       */
+/* -- 4. Medications & Supplements ------------------------------------------ *
+ * Job: what she takes, what changed, when. Everything here she entered or
+ * imported; Ciatta recommends none of it and says so.                        */
 
 function MedsScreen() {
   const spans = [
-    { name: 'Iron, 24 mg', at: 8, w: 30, done: true },
-    { name: 'Magnesium, 300 mg', at: 22, w: 78 },
-    { name: 'Vitamin D, 1,000 IU', at: 62, w: 38 },
+    { name: 'Ferrous sulfate', at: 0, w: 24, done: true },
+    { name: 'Levothyroxine', at: 20, w: 80 },
+    { name: 'Magnesium glycinate', at: 48, w: 52 },
   ];
   return (
-    <Chrome title="Medications" action="plus">
+    <Chrome title="Medications & Supplements" action="plus">
       <Seg items={['Current', 'All']} on="Current" />
 
-      <Lab qual="2 items">Taking now</Lab>
+      <Lab qual="2 active">Taking now</Lab>
       <div className="ps-cards">
         <div className="ps-card">
-          <div className="ps-card-t"><b>Magnesium</b><span>300 mg</span></div>
-          <div className="ps-card-m"><span>Evening</span><span>Since 14 Mar</span></div>
+          <div className="ps-card-t"><b>Levothyroxine</b><span>75 mcg</span><span className="ps-pill is-ok">Active</span></div>
+          <div className="ps-card-m"><span>Morning, daily</span><span>Started 8 Jan 2026</span></div>
+          <span className="ps-note-s">Dose changed from 50 mcg on 3 Mar 2026</span>
         </div>
         <div className="ps-card">
-          <div className="ps-card-t"><b>Vitamin D</b><span>1,000 IU</span></div>
-          <div className="ps-card-m"><span>Morning</span><span>Since 12 Jun</span></div>
-          <span className="ps-link">Added after your 12 Jun results</span>
+          <div className="ps-card-t"><b>Magnesium glycinate</b><span>400 mg</span><span className="ps-pill is-ok">Active</span></div>
+          <div className="ps-card-m"><span>Evening, daily</span><span>Started 12 Feb 2026</span></div>
         </div>
       </div>
 
-      <Lab qual="Jan to Aug">Timeline</Lab>
+      <Lab qual="Dec to Apr">Timeline</Lab>
       <div className="ps-lanes">
         {spans.map((s) => (
           <div className="ps-lane" key={s.name}>
@@ -396,214 +410,200 @@ function MedsScreen() {
       </div>
       <Axis />
 
-      <Lab qual="Last 6 months">Recent changes</Lab>
+      <Lab qual="3 changes">Changes</Lab>
       <div className="ps-rows">
-        <Row k="Stopped iron" v="30 Apr" open>
+        <Row k="Levothyroxine increased" meta="50 mcg &rarr; 75 mcg" v="3 Mar" open>
           <ul className="ps-facts">
-            <li><span>Taken for</span><b>87 days, 2 Feb to 30 Apr</b></li>
-            <li><span>Ferritin since</span><b>34 &rarr; 41 ng/mL</b></li>
+            <li><span>Recorded</span><b>You told Ciatta, 3 Mar</b></li>
+            <li><span>On record since</span><b>8 Jan 2026</b></li>
           </ul>
-          <span className="ps-link">See what changed after this</span>
         </Row>
-        <Row k="Started vitamin D" v="12 Jun" />
-        <Row k="Started magnesium" v="14 Mar" />
+        <Row k="Magnesium glycinate started" v="12 Feb" />
+        <Row k="Ferrous sulfate stopped" meta="Now inactive" v="6 Jan" />
       </div>
 
       <div className="ps-prov">
-        <Src kind="reported" /> You logged these. Ciatta does not remind you to take anything.
+        <Src kind="told" /> You entered these. Ciatta does not recommend or remind.
       </div>
     </Chrome>
   );
 }
 
 /* -- 5. What you told Ciatta ----------------------------------------------- *
- * Job: her own record, in her words. Deliberately unlike the measured
- * screens: no chart, no axis, no units. Warmer ground, larger type.          */
+ * Job: her lived context, in her words, sitting beside the measured screens
+ * rather than beneath them. No chart, no axis, no units.                     */
 
 function ToldScreen() {
   return (
-    <Chrome title="What you told Ciatta" action="plus">
-      <Chips items={['All', 'Notes', 'Symptoms', 'Context']} on="All" />
+    <Chrome title="What you told Ciatta" action="search">
+      <Chips items={['All', 'Symptoms', 'Life', 'Medication']} on="All" />
 
-      <Lab qual="Since January">42 entries</Lab>
+      <Lab qual="Since December">38 entries</Lab>
 
       <div className="ps-entries">
-        <span className="ps-month">July 2026</span>
-        <blockquote className="ps-entry">
-          <p>Better week. Slept through four nights.</p>
-          <footer><span>3 Jul</span><span className="ps-tag-s">Sleep</span></footer>
-        </blockquote>
-
-        <span className="ps-month">June 2026</span>
-        <blockquote className="ps-entry">
-          <p>Started vitamin D after the last results.</p>
-          <footer><span>12 Jun</span><span className="ps-tag-s">Medication</span></footer>
-        </blockquote>
-
-        <span className="ps-month">May 2026</span>
-        <blockquote className="ps-entry">
-          <p>Tired in a way sleep is not fixing.</p>
-          <footer><span>22 May</span><span className="ps-tag-s">Energy</span></footer>
-        </blockquote>
-
         <span className="ps-month">March 2026</span>
-        <blockquote className="ps-entry is-linked">
-          <p>Stopped sleeping through the night.</p>
-          <footer><span>18 Mar</span><span className="ps-tag-s">Used in an insight</span></footer>
+        <blockquote className="ps-entry">
+          <p>I&rsquo;ve been waking up several times during the night.</p>
+          <footer><span>10 Mar 2026</span><span className="ps-tag-s">Used in an insight</span></footer>
         </blockquote>
-        <blockquote className="ps-entry is-linked">
-          <p>Stressful stretch at work.</p>
-          <footer><span>14 Mar</span><span className="ps-tag-s">Used in an insight</span></footer>
+        <blockquote className="ps-entry">
+          <p>Work has been unusually stressful lately.</p>
+          <footer><span>7 Mar 2026</span><span className="ps-tag-s">Used in an insight</span></footer>
+        </blockquote>
+        <blockquote className="ps-entry">
+          <p>My doctor changed my medication.</p>
+          <footer><span>3 Mar 2026</span><span className="ps-tag-s">Medication</span></footer>
         </blockquote>
 
         <span className="ps-month">February 2026</span>
         <blockquote className="ps-entry">
-          <p>Started iron after the last results.</p>
-          <footer><span>2 Feb</span><span className="ps-tag-s">Medication</span></footer>
+          <p>Started magnesium to see if it helps me sleep.</p>
+          <footer><span>12 Feb 2026</span><span className="ps-tag-s">Medication</span></footer>
         </blockquote>
       </div>
 
-      <div className="ps-bar-action is-primary">Add an entry</div>
+      <div className="ps-bar-action is-primary">+ Teach Ciatta</div>
       <div className="ps-prov">
-        <Src kind="reported" /> Yours, dated, never overwritten by a device or a clinic
+        <Src kind="told" /> Yours, dated, never overwritten by a device or a clinic
       </div>
     </Chrome>
   );
 }
 
-/* -- 6. Health records ----------------------------------------------------- *
- * Job: results a clinician would recognise. Value, unit, range, status,
- * date, source, and the months with nothing in them.                         */
+/* -- 6. Health Records → Results ------------------------------------------- *
+ * Job: the source layer. What arrived from providers and documents, with the
+ * unit, the range, the date and who sent it. Ciatta concludes nothing here.  */
 
-function LabsScreen() {
+function RecordsScreen() {
   return (
-    <Chrome title="Health records" action="share">
+    <Chrome title="Health Records" action="search" dense>
       <Seg items={['Results', 'Documents']} on="Results" />
 
-      <div className="ps-figure is-inline">
-        <span>
-          <span className="ps-fig-k">Ferritin, latest</span>
-          <span className="ps-fig-n is-sm">41<i>ng/mL</i></span>
-        </span>
-        <span className="ps-fig-side">
-          <span className="ps-pill is-ok">In range</span>
-          <span className="ps-fig-d is-up">up from 34 on 2 Feb</span>
-        </span>
-      </div>
-
-      <Lab qual="Quest Diagnostics">12 Jun 2026</Lab>
-      <table className="ps-table">
-        <tbody>
-          <tr><th scope="row">Ferritin</th><td className="ps-v">41 ng/mL</td><td className="ps-r">15&ndash;150</td><td><span className="ps-pill is-ok">In</span></td></tr>
-          <tr><th scope="row">Vitamin D</th><td className="ps-v">26 ng/mL</td><td className="ps-r">30&ndash;100</td><td><span className="ps-pill is-low">Low</span></td></tr>
-          <tr><th scope="row">TSH</th><td className="ps-v">2.3 mIU/L</td><td className="ps-r">0.4&ndash;4.0</td><td><span className="ps-pill is-ok">In</span></td></tr>
-        </tbody>
-      </table>
-
-      <div className="ps-flag">
-        <span className="ps-pill is-low">Low</span>
-        Vitamin D below range on both draws, 28 then 26 ng/mL
-      </div>
-
-      <div className="ps-gap">
-        <span className="ps-dash" aria-hidden="true" />No results between February and June
-      </div>
-
-      <Lab qual="Quest Diagnostics">2 Feb 2026</Lab>
-      <table className="ps-table">
-        <tbody>
-          <tr><th scope="row">Ferritin</th><td className="ps-v">34 ng/mL</td><td className="ps-r">15&ndash;150</td><td><span className="ps-pill is-ok">In</span></td></tr>
-          <tr><th scope="row">Vitamin D</th><td className="ps-v">28 ng/mL</td><td className="ps-r">30&ndash;100</td><td><span className="ps-pill is-low">Low</span></td></tr>
-        </tbody>
-      </table>
-
+      <Lab qual="Quest Diagnostics">14 Mar 2026</Lab>
       <div className="ps-rows">
-        <Row k="19 Aug 2025" meta="Northside Family Health" v="2 results" />
+        <Row k="Ferritin" meta="15–150 ng/mL" v="24 ng/mL" />
+        <Row k="TSH" meta="0.4–4.0 mIU/L" v="2.1 mIU/L" />
+        <Row k="Vitamin D" meta="30–100 ng/mL" v="31 ng/mL" />
       </div>
 
-      <div className="ps-bar-action">Import results</div>
-      <div className="ps-prov">
-        <Src kind="lab" /> 3 draws on file &middot; imported, never edited
+      <Lab qual="Uploaded 14 Mar">Documents</Lab>
+      <div className="ps-doc">
+        <span className="ps-doc-ico" aria-hidden="true">PDF</span>
+        <span className="ps-doc-b">
+          <b>Annual Physical</b>
+          <i>14 Mar 2026 &middot; Primary care visit</i>
+        </span>
+        <Caret />
       </div>
+
+      {/* One primary action, not two competing ones. Import and upload are
+          both ways of adding a record, so they belong behind the same door. */}
+      <div className="ps-bar-action is-primary">+ Add health record</div>
+
+      {/* The primary action is one door with two ways through it, so the
+          difference between a connected source and a manual one is the first
+          thing she reads rather than a choice she has to reverse-engineer. */}
+      <div className="ps-sheet" aria-hidden="true">
+        <span className="ps-grab" />
+        <span className="ps-sheet-t">Add to Ciatta</span>
+        <div className="ps-opt">
+          <div className="ps-opt-h"><b>Import results</b><Caret /></div>
+          <p>Connect a provider or patient portal and bring structured results into Ciatta.</p>
+        </div>
+        <div className="ps-opt">
+          <div className="ps-opt-h"><b>Upload document</b><Caret /></div>
+          <p>Upload a PDF, image or document. Ciatta reads it and adds what it finds.</p>
+        </div>
+      </div>
+
+      <div className="ps-prov"><Src kind="imported" /> 3 results &middot; 1 document on file</div>
     </Chrome>
   );
 }
 
 /* -- 7. Personalized insight ----------------------------------------------- *
- * The anchor. The finding, what it rests on, what is published rather than
- * hers, what is still open, and the way out of the screen into a
- * conversation with a clinician.                                             */
+ * The intelligence layer, and the only screen that reads the others together.
+ * Every layer is labelled with where it came from, so the finding can be
+ * taken apart. It ends on a question, not an instruction.                    */
 
 function InsightScreen() {
-  // Two sparklines on one x-axis, and a shaded window over each pairing the
-  // finding rests on. Crossing a single pair of lines made the reader do the
-  // work; the window says which stretch of time is being talked about.
-  const cycle = 'M4 8 L28 8 L52 11 L76 17 L100 11 L124 17 L146 11';
-  const sleep = 'M4 35.5 L28 36.6 L52 49.5 L76 37.7 L100 47 L124 37.7 L146 37.7';
+  const cycle = 'M4 7 L36 8 L68 11 L100 14 L132 18';
+  const sleep = 'M4 30 L36 31 L68 42 L100 32 L132 40';
 
   return (
-    <Chrome title="Your health" action="share" tab="Today" dense>
+    <Chrome title="Today" action="share" tab="Today" dense>
       <div className="ps-ins-head">
         <span className="ps-tag">Personalized insight</span>
         <span className="ps-pill is-watch">Watching</span>
       </div>
 
-      <div className="ps-stack">
-        <p className="ps-finding">
-          Your two shortest cycles followed your two lowest-sleep weeks.
-        </p>
-        <span className="ps-conf">
-          <Src kind="worked" /> Seen twice &middot; across 7 months &middot; updated 21 Jul
-        </span>
-      </div>
+      <p className="ps-finding">
+        Your two shortest cycles followed your two lowest-sleep weeks.
+      </p>
+      <span className="ps-conf">
+        <Src kind="inferred" /> Seen twice &middot; Dec to Mar
+      </span>
 
       <div className="ps-pair">
         <div className="ps-pair-head">
           <span><i className="ps-key is-measured" />Cycle length</span>
           <span><i className="ps-key is-sleep" />Sleep</span>
         </div>
-        <svg viewBox="0 0 150 54" className="ps-pair-chart" aria-hidden="true">
-          {/* the two windows: a lowest-sleep week and the cycle that followed */}
-          <rect x="52" y="2" width="24" height="50" rx="2" fill="var(--ps-clay)" opacity="0.13" />
-          <rect x="100" y="2" width="24" height="50" rx="2" fill="var(--ps-clay)" opacity="0.13" />
+        <svg viewBox="0 0 136 46" className="ps-pair-chart" aria-hidden="true">
+          <rect x="60" y="2" width="16" height="42" rx="2" fill="var(--ps-clay)" opacity="0.14" />
+          <rect x="124" y="2" width="12" height="42" rx="2" fill="var(--ps-clay)" opacity="0.14" />
           <path d={cycle} fill="none" stroke="var(--ps-measured)" strokeWidth="1.6" />
           <path d={sleep} fill="none" stroke="var(--ps-ink)" strokeWidth="1.5" opacity="0.75" />
           <g fill="var(--ps-clay)">
-            <circle cx="52" cy="49.5" r="2.4" /><circle cx="76" cy="17" r="2.4" />
-            <circle cx="100" cy="47" r="2.4" /><circle cx="124" cy="17" r="2.4" />
+            <circle cx="68" cy="42" r="2.4" /><circle cx="68" cy="11" r="2.4" />
+            <circle cx="132" cy="40" r="2.4" /><circle cx="132" cy="18" r="2.4" />
           </g>
         </svg>
-        <span className="ps-pair-note">
-          A lowest-sleep week, then a short cycle inside ten days. Twice.
-        </span>
       </div>
 
-      <Lab qual="4 sources">Based on</Lab>
-      <div className="ps-rows is-tight">
-        <Row k="Two shortest cycles" meta="4 Apr · 28 May" v="26d" />
-        <Row k="Two lowest-sleep weeks" meta="25 Mar · 20 May" v="5h 54m" />
-        <Row k="Disrupted sleep" meta="from 18 Mar" v="34d" />
-        <Row k="“A stressful stretch at work”" meta="14 Mar" />
-      </div>
-
-      <div className="ps-stack">
-        {/* Published evidence is visibly not her data: its own family, its own
-            ground, and a source line that says plainly who it was about. */}
-        <div className="ps-ev">
-          <span className="ps-ev-k">Relevant evidence</span>
-          <p>Shorter sleep is associated with cycle variability in published cohorts.</p>
-          <span className="ps-cite">2,300 women &middot; published 2019 &middot; not about you</span>
+      <dl className="ps-layers">
+        <div>
+          <dt>What changed<Src kind="measured" /></dt>
+          <dd>Cycle length decreased, 29 days to 26 days.</dd>
         </div>
-        <p className="ps-open">
-          <span>Still open</span> Whether this repeats across your next two cycles.
-        </p>
-        <p className="ps-hedge">Things that move together are not one causing the other.</p>
+        <div>
+          <dt>What happened around it<Src kind="measured" /></dt>
+          <dd>Both shorter cycles began within a week of a lowest-sleep week.</dd>
+        </div>
+        <div>
+          <dt>What you told Ciatta<Src kind="told" /></dt>
+          <dd>A stressful stretch at work, and waking several times a night.</dd>
+        </div>
+        <div>
+          <dt>What else is in your record<Src kind="imported" /></dt>
+          <dd>14 Mar: ferritin 24, TSH 2.1, vitamin D 31. All within range.</dd>
+        </div>
+        <div>
+          <dt>What Ciatta found<Src kind="inferred" /></dt>
+          <dd>The cycle changes and the low-sleep weeks fell close together in time.</dd>
+        </div>
+        <div className="is-evidence">
+          <dt>What evidence says<Src kind="evidence" /></dt>
+          <dd>
+            Shorter sleep is associated with cycle variability in published cohorts.
+            <span className="ps-cite">2,300 women &middot; 2019 &middot; not about you</span>
+          </dd>
+        </div>
+      </dl>
+
+      <div className="ps-open-row">
+        <span className="ps-open-k">Worth exploring</span>
+        <p>Whether this pattern continues across your next few cycles.</p>
       </div>
 
-      <div className="ps-stack is-actions">
-        <div className="ps-bar-action is-primary">Prepare for your appointment</div>
-        <span className="ps-link is-centred">See how this was worked out</span>
+      <div className="ps-next">
+        <span className="ps-next-k">For your next conversation</span>
+        <p>&ldquo;Are the changes in my sleep and cycle history worth evaluating together?&rdquo;</p>
       </div>
+
+      <p className="ps-hedge">
+        Things that move together are not necessarily one causing the other.
+      </p>
     </Chrome>
   );
 }
@@ -621,12 +621,12 @@ const SLOTS = [
 ] as const;
 
 const SCREENS = [
-  { name: 'Health records', Screen: LabsScreen },
+  { name: 'Health Records', Screen: RecordsScreen },
   { name: 'Cycle', Screen: CycleScreen },
   { name: 'Sleep', Screen: SleepScreen },
   { name: 'Personalized insight', Screen: InsightScreen },
   { name: 'Symptoms', Screen: SymptomsScreen },
-  { name: 'Medications', Screen: MedsScreen },
+  { name: 'Medications & Supplements', Screen: MedsScreen },
   { name: 'What you told Ciatta', Screen: ToldScreen },
 ] as const;
 
@@ -638,10 +638,9 @@ const PROGRESSION = [
   'What changed',
   'What was happening around it',
   'What you told Ciatta',
-  'Relevant evidence',
-  'What may be worth discussing',
+  'What evidence says',
+  'What may be worth exploring',
 ] as const;
-
 export function ProductShowcase() {
   const [active, setActive] = useState(INSIGHT_INDEX);
   const [held, setHeld] = useState(false);

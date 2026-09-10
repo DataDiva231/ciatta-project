@@ -114,6 +114,13 @@ async function main() {
     width: 1600, height: 1200, deviceScaleFactor: SCALE, mobile: false,
   });
 
+  // The carousel auto-advances, which races the capture. The component already
+  // honours Reduce Motion by never scheduling the timer, so emulating it makes
+  // stepping deterministic and drops the slot transition too.
+  await cdp.send('Emulation.setEmulatedMedia', {
+    features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
+  });
+
   await cdp.send('Page.navigate', { url: URL_ });
   await sleep(3500);
 
@@ -123,7 +130,7 @@ async function main() {
     sc.style.setProperty('--ps-w', '${PHONE_PT / CENTRE_SCALE}px');
     sc.querySelector('.showcase-stage')
       .dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
-    return [...document.querySelectorAll('.ps-source')].map(b => b.textContent.trim());
+    return [...document.querySelectorAll('.ps-slot .ps-nav-title')].map(b => b.textContent.trim());
   })()`);
 
   if (!names?.length) throw new Error('no screens found — is the dev server running?');
@@ -131,9 +138,13 @@ async function main() {
   const written = [];
   for (let i = 0; i < names.length; i++) {
     const box = await evaluate(cdp, `(async () => {
-      const btns = [...document.querySelectorAll('.ps-source')];
-      btns[${i}].click();
-      await new Promise(r => setTimeout(r, 1300));            // slot transition
+      // The carousel advances cumulatively, so each pass steps once from
+      // wherever the last one left it rather than replaying from the start.
+      if (${i} > 0) {
+        document.querySelector('.showcase-stage')
+          .dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      }
+      await new Promise(r => setTimeout(r, 350));             // no transition under Reduce Motion
       const stage = document.querySelector('.showcase-stage');
       stage.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
       const phone = document.querySelector('.ps-slot.is-centre .ps-phone');
@@ -170,11 +181,12 @@ async function main() {
     })()`);
     const data = cropped.split(',')[1];
 
-    const file = join(OUT, `${String(i + 1).padStart(2, '0')}-${slug(names[i])}.png`);
+    // name by what actually reached the centre, not by DOM order
+    const file = join(OUT, `${String(i + 1).padStart(2, '0')}-${slug(box.title)}.png`);
     await writeFile(file, Buffer.from(data, 'base64'));
     written.push({ file, name: names[i], title: box.title,
                    px: `${Math.round(box.width * SCALE)}x${Math.round(box.height * SCALE)}` });
-    console.log(`  ${String(i + 1).padStart(2, '0')}  ${names[i].padEnd(22)} ${written.at(-1).px}`);
+    console.log(`  ${String(i + 1).padStart(2, '0')}  ${String(box.title).padEnd(26)} ${written.at(-1).px}`);
   }
 
   cdp.close();
