@@ -1101,3 +1101,8 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
   display: block; margin-top: 0.6cqw;
   font-size: 2.2cqw; color: var(--ps-meta); font-variant-numeric: tabular-nums;
 }
+
+/* A screen off the centre is a way back to it, so it says so on hover. The
+   centre one is already where a click would put it and stays a plain cursor. */
+.ps-slot:not(.is-centre) { cursor: pointer; }
+.ps-slot:not(.is-centre):hover .ps-phone { filter: brightness(1) saturate(1); }

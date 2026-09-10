@@ -638,6 +638,9 @@ export function ProductShowcase() {
   const [held, setHeld] = useState(false);
   const prevOffsets = useRef<number[]>([]);
   const drag = useRef<{ x: number } | null>(null);
+  // set when a pointer gesture travelled far enough to be a swipe, so the
+  // click that follows it does not also select a screen
+  const swiped = useRef(false);
 
   const step = (d: number) => setActive((a) => (a + d + N) % N);
 
@@ -646,8 +649,9 @@ export function ProductShowcase() {
     if (held) return;
     // `active` is a dependency so the timer re-arms on every change: a manual
     // choice is never overridden by a tick already part-way through. The dwell
-    // is long because these screens are meant to be read, not glimpsed.
-    const id = window.setTimeout(() => step(1), 5200);
+    // is eight seconds because these screens are meant to be read, not
+    // glimpsed, and a click has to be able to beat the timer to a screen.
+    const id = window.setTimeout(() => step(1), 8000);
     return () => window.clearTimeout(id);
   }, [held, active]);
 
@@ -686,10 +690,13 @@ export function ProductShowcase() {
         }}
         onFocus={() => setHeld(true)}
         onBlur={() => setHeld(false)}
-        onPointerDown={(e) => { drag.current = { x: e.clientX }; setHeld(true); }}
+        onPointerDown={(e) => { drag.current = { x: e.clientX }; swiped.current = false; setHeld(true); }}
         onPointerUp={(e) => {
           const d = drag.current; drag.current = null; setHeld(false);
-          if (d && Math.abs(e.clientX - d.x) > 40) step(e.clientX - d.x < 0 ? 1 : -1);
+          if (d && Math.abs(e.clientX - d.x) > 40) {
+            swiped.current = true;
+            step(e.clientX - d.x < 0 ? 1 : -1);
+          }
         }}
         onPointerCancel={() => { drag.current = null; setHeld(false); }}
         onMouseEnter={() => setHeld(true)}
@@ -710,6 +717,8 @@ export function ProductShowcase() {
                   transform: `translateX(calc(-50% + var(--ps-w) * ${slot.x})) translateY(${slot.y}%) scale(${slot.s})`,
                   zIndex: slot.z,
                 }}
+              onClick={() => { if (!swiped.current) setActive(i); }}
+              title={offsets[i] === 0 ? undefined : `Bring ${name} to the centre`}
               >
                 <Screen />
               </div>
