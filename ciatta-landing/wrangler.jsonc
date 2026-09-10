@@ -1,0 +1,16 @@
+{
+  // The landing page ships as static assets on Cloudflare Workers. There is no
+  // Worker script: `assets` with no `main` tells the platform to serve the
+  // built directory directly, which is all a Vite build needs.
+  //
+  // `name` has to match the Worker that Cloudflare created when the repo was
+  // connected to Git, or a deploy would make a second one alongside it.
+  "name": "ciatta-project",
+  "compatibility_date": "2026-09-10",
+  "assets": {
+    "directory": "./dist"
+    // No `not_found_handling`. The page has no client-side routes, so an
+    // unknown path is genuinely missing and should answer 404 rather than
+    // serve the landing page at 200, which search engines read as a soft 404.
+  }
+}

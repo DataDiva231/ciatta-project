@@ -3,21 +3,36 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ciatta — a health companion that notices</title>
-    <meta name="description" content="Ciatta watches your sleep, cycle, energy and mood, finds patterns that are yours alone, and tells you what it noticed. Join the wait list." />
+    <title>Ciatta · See what is changing in your health</title>
+    <meta name="description" content="Your cycle changes. Your sleep changes. Symptoms come and go. The pieces are scattered across apps, devices, appointments, and your memory. Ciatta brings them together so you can see patterns and changes over time. Join the waitlist." />
 
-    <link rel="icon" type="image/png" href="/images/icon.png" />
-    <link rel="apple-touch-icon" href="/images/icon.png" />
-    <meta name="theme-color" content="#fffcf7" />
+    <!-- Constitution v2.0 §06: below the wordmark's legible minimum the mark
+         becomes a single Jost Medium C on Graphite, the only permitted
+         abbreviation. Cut from the Jost variable font at wght 500; the vector
+         is preferred and the rasters are fallbacks. The platform sets the
+         corner radius, which is the one place a rounded container is correct. -->
+    <link rel="icon" type="image/svg+xml" href="/images/icon.svg" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/images/icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/icon-180.png" />
+    <meta name="theme-color" content="#FDFDFC" />
+    <meta name="color-scheme" content="light dark" />
 
-    <!-- The Söhne faces are the page's only blocking asset the browser cannot
-         discover from the HTML, so the two used above the fold are hinted. -->
-    <link rel="preload" as="font" type="font/otf" href="/fonts/Sohne-Kraftig.otf" crossorigin />
-    <link rel="preload" as="font" type="font/otf" href="/fonts/Sohne-Buch.otf" crossorigin />
+    <!-- Jost is the design system's face (Foundations & Tokens v1.0, §03).
+         The system requires it to ship with the product rather than load
+         remotely; on the web that reduces to preconnecting and swapping, so a
+         slow connection shows fallback metrics rather than nothing. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,200;0,300;0,400;0,500;0,600;1,300;1,400&display=swap" />
+    <!-- Instrument Serif and Urbanist are scoped to the product showcase: the
+         serif for its editorial line, Urbanist for the type inside the phone
+         screens, which depict the app rather than the page. Page chrome stays
+         in Jost, which the Constitution fixes as the family. -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Urbanist:wght@300;400;500;600&display=swap" />
 
     <link rel="canonical" href="https://ciatta.io/" />
-    <meta property="og:title" content="Ciatta — a health companion that notices" />
-    <meta property="og:description" content="Ciatta watches your sleep, cycle, energy and mood, and tells you what it noticed in a sentence, not a dashboard." />
+    <meta property="og:title" content="Ciatta · See what is changing in your health" />
+    <meta property="og:description" content="Your health is changing. See what is changing with it. Ciatta brings the scattered pieces together so you can see patterns and changes over time." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://ciatta.io/" />
     <meta property="og:site_name" content="Ciatta" />
@@ -26,7 +41,7 @@
     <meta property="og:image" content="https://ciatta.io/images/og-card.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Ciatta — patterns across your whole body, one sentence at a time." />
+    <meta property="og:image:alt" content="Ciatta. See what is changing in your health." />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="https://ciatta.io/images/og-card.png" />
   </head>

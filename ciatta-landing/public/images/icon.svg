@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Ciatta">
+  <!-- Constitution v2.0 §06: below the wordmark's legible minimum the mark is a
+       single Jost Medium C on Graphite, the only permitted abbreviation. The
+       platform sets the corner radius, so the ground is drawn square here. -->
+  <rect width="1024" height="1024" fill="#18191B"/>
+  <path transform="translate(301.806 747.520) scale(0.672914 -0.672914)" fill="#F7F4EE" d="M165.5 350Q165.5 425 199.0 480.25Q232.5 535.5 286.875 566.25Q341.25 597 405.25 597Q455.25 597 495.375 584.125Q535.5 571.25 567.875 548.625Q600.25 526 623.75 497.5V638Q580.5 674.5 529.375 693.5Q478.25 712.5 401.25 712.5Q323.75 712.5 257.375 686.125Q191 659.75 141.75 611.125Q92.5 562.5 65.0 496.0Q37.5 429.5 37.5 350Q37.5 270.5 65.0 204.0Q92.5 137.5 141.75 88.875Q191 40.25 257.375 13.875Q323.75 -12.5 401.25 -12.5Q478.25 -12.5 529.375 6.625Q580.5 25.75 623.75 62V202.5Q600.25 174 567.875 151.5Q535.5 129 495.375 116.0Q455.25 103 405.25 103Q341.25 103 286.875 133.75Q232.5 164.5 199.0 220.125Q165.5 275.75 165.5 350Z"/>
+</svg>
