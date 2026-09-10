@@ -447,7 +447,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
   padding-bottom: var(--s3); margin-bottom: var(--s5);
   border-bottom: var(--strong) solid var(--ink);
 }
-.section-num { font-size: 1.375rem; font-weight: 400; color: var(--meta-ink); flex: none; font-variant-numeric: tabular-nums; }
 .section-head h2 { font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; margin: 0; }
 .section-head .aside { margin-left: auto; font-size: 0.75rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--meta-ink); flex: none; }
 @media (max-width: 620px) { .section-head .aside { display: none; } }

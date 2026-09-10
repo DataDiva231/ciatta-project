@@ -198,13 +198,12 @@ export default function App() {
         {/* -------------------------------- CTA ---------------------------- */}
         <section className="section" aria-labelledby="cta-heading">
           <div className="shell close-inner">
-            <div className="section-head">
-              <span className="section-num">02</span>
-              <h2 id="cta-heading">See your health differently</h2>
-            </div>
-            <p className="display">
+            {/* The line people actually read is the heading now, so the
+                section keeps an accessible name without a label above it
+                restating what the sentence already says. */}
+            <h2 id="cta-heading" className="display">
               Something feels different, and you cannot quite explain it.
-            </p>
+            </h2>
             <p className="close-lines">
               Ciatta turns that into what changed, what was happening around it, and what
               you have noticed since.
