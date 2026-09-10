@@ -176,7 +176,6 @@ export default function App() {
         <section className="section" aria-labelledby="value-heading">
           <div className="shell">
             <div className="section-head">
-              <span className="section-num">01</span>
               <h2 id="value-heading">What women told us</h2>
             </div>
 
