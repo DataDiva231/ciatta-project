@@ -264,9 +264,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 }
 .header:not(.is-scrolled) .wordmark { color: #F7F4EE; }
 .header:not(.is-scrolled) .header-cta { background: #F7F4EE; color: #18191B; }
-.header:not(.is-scrolled) .pill.is-change {
-  background: rgba(247,244,238,0.16); color: #F7F4EE;
-}
 .header.is-scrolled { background: var(--surface); box-shadow: var(--float-above); }
 @media (prefers-color-scheme: dark) {
   /* float.above gains a 1px Rule hairline instead of a shadow. */
@@ -282,8 +279,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
   margin-inline: -0.72em;
 }
 .header-end { display: flex; align-items: center; gap: var(--s4); }
-.header-status { display: none; }
-@media (min-width: 640px) { .header-status { display: inline-flex; } }
 .header-cta {
   color: var(--on-ink); background: var(--ink);
   font-size: 0.9375rem; font-weight: 500; text-decoration: none;
@@ -383,10 +378,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 .hero .waitlist-note { color: rgba(247,244,238,0.68); }
 .hero .joined-title { color: #F7F4EE; }
 .hero .joined-sub { color: rgba(247,244,238,0.68); }
-.hero .pill.is-reported {
-  background: rgba(247,244,238,0.14);
-  color: #F7F4EE;
-}
 
 /* ===========================================================================
    Waitlist. The input is one of the three places a hairline survives: a
@@ -594,9 +585,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
    only just clears its threshold.
    =========================================================================== */
 @media (prefers-reduced-transparency: reduce) {
-  /* Translucent pills become solid on their own ground. */
-  .header:not(.is-scrolled) .pill.is-change,
-  .hero .pill.is-reported { background: #2E2C29; color: #F7F4EE; }
   .hero .waitlist input { background: #24231F; border-color: rgba(247,244,238,0.55); }
   /* The film stays, but the scrim stops being a gradient over content. */
   .hero-scrim { background: rgba(24,25,27,0.82); }

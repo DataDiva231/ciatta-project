@@ -210,10 +210,6 @@ export default function App() {
           <Wordmark size="sm" />
         </a>
         <div className="header-end">
-          <span className="pill is-change header-status">
-            <i aria-hidden="true" />
-            Private testing
-          </span>
           <a className="header-cta" href="#join">Become a member</a>
         </div>
       </header>
