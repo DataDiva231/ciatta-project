@@ -601,7 +601,15 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
   margin: 0; max-width: 24ch; text-wrap: balance;
 }
 .showcase-title em { font-style: italic; display: block; color: var(--body-ink); }
-.showcase-foot { color: var(--body-ink); margin-top: var(--s6); max-width: 58ch; }
+/* The line that closes the section, centred on the same axis as the title and
+   the fan. It is a statement now rather than a caption, so it takes the ink and
+   the weight to match: full Graphite at 500, which clears 16:1 on Paper. */
+.showcase-foot {
+  color: var(--ink); font-weight: 500;
+  font-size: clamp(1.25rem, 0.95rem + 0.9vw, 1.75rem);
+  line-height: 1.32; letter-spacing: -0.008em; text-wrap: balance;
+  margin: var(--s6) auto 0; max-width: 34ch; text-align: center;
+}
 
 /* --- the fan ------------------------------------------------------------- */
 .showcase-stage { width: 100%; }
