@@ -229,15 +229,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 .surface.is-lifted  { box-shadow: var(--float-lifted); }
 .surface.is-daylight{ background: var(--statement-ground); }
 
-/* A surface inside a surface returns to the canvas tone. Concentric rule:
-   inner radius = outer radius − padding, rounded down the ladder, floored at 8.
-   A 32 shell padded 16 holds a 16 child; a 24 surface padded 24 holds an 8. */
-.nested {
-  background: var(--canvas);
-  border-radius: var(--r-nested);
-  padding: var(--pad-nested);
-}
-
 /* Pills: compact controls only. Things shorter than they are wide, holding
    two or three words. Never around a paragraph. The shape adds no meaning. */
 .pill {
@@ -466,23 +457,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 }
 .section-intro p { color: var(--body-ink); }
 
-/* The gutter is the boundary. Surfaces closer than 20 read as one surface
-   with a seam. */
-.surface-grid { display: grid; gap: var(--gap-surface); }
-
-/* Three items never leave one stranded in a row: at the two-column step the
-   third spans, and at three columns it returns to its own track. */
-.cols-3 { grid-template-columns: 1fr; }
-@media (min-width: 700px) {
-  .cols-3 { grid-template-columns: 1fr 1fr; }
-  .cols-3 > :last-child { grid-column: 1 / -1; }
-}
-@media (min-width: 1040px) {
-  .cols-3 { grid-template-columns: repeat(3, 1fr); }
-  .cols-3 > :last-child { grid-column: auto; }
-}
-.cols-2 { grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); }
-
 /* --- the proof strip: a figure and what it counts, on hairline dividers -- */
 .proof {
   display: grid; gap: var(--s5);
@@ -503,14 +477,8 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 .clinician { display: flex; flex-direction: column; gap: var(--s4); }
 .clinician p { color: var(--body-ink); }
 .clinician .statement { color: var(--ink); }
-.refusals { margin-top: var(--gap-surface); }
 
 .note { margin-top: var(--s5); color: var(--meta-ink); font-size: 0.9375rem; max-width: 62ch; }
-
-/* --- refusals --- */
-.refusal { display: flex; flex-direction: column; gap: var(--s1); }
-.refusal b { font-weight: 500; color: var(--ink); font-size: 1rem; }
-.refusal span { color: var(--body-ink); font-size: 0.9375rem; line-height: 1.5; }
 
 /* ===========================================================================
    The loop — each stage is a surface on the canvas. The pivot floats.
@@ -532,17 +500,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 /* Nested 16 rows on the canvas tone, inside a 32 shell padded 16. */
 
 .chart { display: flex; flex-direction: column; gap: var(--s3); min-width: 0; }
-
-/* ===========================================================================
-   Provenance — nested rows, each carrying its family's pill.
-   =========================================================================== */
-.chain { display: grid; gap: var(--s2); }
-.chain-row { display: grid; gap: var(--s2); grid-template-columns: 1fr; }
-@media (min-width: 640px) {
-  .chain-row { grid-template-columns: minmax(0, 1fr) auto; gap: var(--s4); align-items: center; }
-}
-.chain-what { color: var(--ink); font-size: 1rem; max-width: 56ch; }
-.chain-row.is-inference .chain-what { color: var(--body-ink); }
 
 /* ===========================================================================
    Statement band — Daylight, full-bleed behind one sentence. Sparingly.
@@ -821,7 +778,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
   flex-direction: row; align-items: flex-end; justify-content: space-between; gap: 3cqw;
 }
 .ps-figure.is-inline > span { display: flex; flex-direction: column; gap: 0.6cqw; }
-.ps-fig-side { align-items: flex-end; text-align: right; }
 
 /* the current-cycle card: the one live thing on the Cycle screen */
 .ps-now {
@@ -840,11 +796,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 
 /* the plot frame: a reference band or target line, then the columns */
 .ps-plot { position: relative; height: 28cqw; }
-.ps-band {
-  position: absolute; inset-inline: 0;
-  background: rgba(120,154,243,0.16);
-  border-top: 1px dashed rgba(120,154,243,0.55);
-}
 .ps-target {
   position: absolute; inset-inline: 0; z-index: 1;
   border-top: 1px dashed rgba(247,244,238,0.50);
@@ -884,12 +835,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
   position: absolute; top: -0.7cqw; bottom: -0.7cqw; width: 0.8cqw;
   border-radius: 999px; background: var(--ps-meta);
 }
-.ps-legend { display: flex; gap: 3.4cqw; font-size: 2.2cqw; color: var(--ps-meta); }
-.ps-legend span { display: inline-flex; align-items: center; gap: 1cqw; }
-.ps-legend i { width: 2.4cqw; height: 1.2cqw; border-radius: 999px; }
-.ps-legend i.is-mild { background: rgba(244,110,180,0.70); }
-.ps-legend i.is-mod  { background: rgba(244,110,180,0.86); }
-.ps-legend i.is-sev  { background: var(--ps-reported); }
 
 /* rows: the one tappable thing. The open row shows its detail in place. */
 .ps-rows { display: flex; flex-direction: column; }
@@ -928,18 +873,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 }
 .ps-nights i { width: 100%; background: var(--ps-measured); opacity: 0.5; border-radius: 0.6cqw 0.6cqw 0 0; }
 
-/* two secondary figures side by side, subordinate to the headline one */
-.ps-duo { display: flex; gap: 2.4cqw; }
-.ps-duo span {
-  flex: 1; display: flex; flex-direction: column; gap: 0.5cqw;
-  background: var(--ps-raised); border-radius: 2.4cqw; padding: 2.2cqw;
-  font-size: 2.3cqw; color: var(--ps-meta);
-}
-.ps-duo b {
-  font-size: 4cqw; font-weight: 500; color: var(--ps-ink);
-  font-variant-numeric: tabular-nums;
-}
-
 /* cards, for things she is currently taking */
 .ps-cards { display: flex; flex-direction: column; gap: 1.6cqw; }
 .ps-card {
@@ -975,15 +908,7 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
   background: rgba(244,110,180,0.16); font-size: 2.1cqw;
 }
 .ps-entry.is-linked { background: rgba(244,110,180,0.16); }
-
-/* results: value, unit, reference range, and whether it sits inside it */
-.ps-table { width: 100%; border-collapse: collapse; font-size: 2.7cqw; }
-.ps-table tr { border-top: 1px solid var(--ps-rule); }
-.ps-table th { text-align: left; font-weight: 500; padding: 1.9cqw 1cqw 1.9cqw 0; }
-.ps-table td { padding: 1.9cqw 0; }
-.ps-v { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ps-r { color: var(--ps-meta); text-align: right; padding-right: 1.6cqw !important; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.ps-table td:last-child { text-align: right; width: 1%; }
 .ps-pill {
   display: inline-block; padding: 0.6cqw 1.6cqw; border-radius: 999px;
   font-size: 2.1cqw; font-weight: 500; white-space: nowrap;
@@ -991,17 +916,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 .ps-pill.is-ok { background: rgba(247,244,238,0.14); color: var(--ps-body); }
 .ps-pill.is-low { background: rgba(228,192,88,0.18); color: var(--ps-uncertain); }
 .ps-pill.is-watch { background: rgba(236,150,88,0.18); color: var(--ps-clay); }
-
-/* a result that is out of range on every draw is worth saying out loud */
-.ps-flag {
-  display: flex; align-items: center; gap: 1.8cqw;
-  background: rgba(228,192,88,0.10); border-radius: 2.2cqw;
-  padding: 1.8cqw 2.2cqw; font-size: 2.4cqw; line-height: 1.35; color: var(--ps-body);
-}
-
-/* an absence has a date too */
-.ps-gap { display: flex; align-items: center; gap: 2cqw; font-size: 2.4cqw; color: var(--ps-uncertain); }
-.ps-dash { width: 5cqw; border-top: 0.5cqw dashed var(--ps-uncertain); flex: none; }
 
 /* actions and links */
 .ps-bar-action {
@@ -1031,10 +945,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 .ps-src.is-uploaded { background: rgba(228,192,88,0.18);  color: var(--ps-uncertain); }
 .ps-src.is-evidence { background: rgba(242,184,99,0.14);  color: var(--ps-evidence); }
 .ps-src.is-inferred { background: rgba(236,150,88,0.20);  color: var(--ps-clay); }
-
-/* --- the insight screen -------------------------------------------------- */
-.ps-stack { display: flex; flex-direction: column; gap: 1.4cqw; }
-.ps-stack.is-actions { gap: 2cqw; }
 .ps-ins-head { display: flex; justify-content: space-between; align-items: center; gap: 2cqw; }
 .ps-tag {
   padding: 0.9cqw 2.2cqw; border-radius: 999px; align-self: flex-start;
@@ -1061,18 +971,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 .ps-key.is-measured { background: var(--ps-measured); }
 .ps-key.is-sleep { background: var(--ps-ink); opacity: 0.85; }
 .ps-pair-chart { width: 100%; height: auto; display: block; }
-.ps-pair-note { font-size: 2.3cqw; color: var(--ps-meta); line-height: 1.35; }
-
-/* published evidence is visibly not her data */
-.ps-ev {
-  background: rgba(242,184,99,0.09); border-radius: 2.4cqw;
-  padding: 2.2cqw 2.6cqw; display: flex; flex-direction: column; gap: 0.6cqw;
-}
-.ps-ev-k {
-  font-size: 2.2cqw; font-weight: 600; letter-spacing: 0.09em;
-  text-transform: uppercase; color: var(--ps-evidence);
-}
-.ps-ev p { margin: 0; font-size: 2.7cqw; line-height: 1.4; color: var(--ps-body); }
 .ps-cite { font-size: 2.2cqw; color: var(--ps-meta); font-variant-numeric: tabular-nums; }
 .ps-open { margin: 0; font-size: 2.7cqw; line-height: 1.45; color: var(--ps-body); }
 .ps-open span {
@@ -1109,23 +1007,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
   .ps-slot:not(.is-centre) .ps-phone { filter: none; }
 }
 
-/* ===========================================================================
-   The journey — five stages, hers. Each is a surface on the canvas, so the
-   sequence reads as steps she takes rather than a machine's pipeline.
-   =========================================================================== */
-
-/* --- what she walks in with ---------------------------------------------- */
-.prepared { margin: var(--s4) 0 0; display: grid; gap: var(--s2); }
-.prepared-row { margin: 0; display: grid; gap: var(--s1); }
-@media (min-width: 700px) {
-  .prepared-row { grid-template-columns: 12rem 1fr; gap: var(--s5); align-items: baseline; }
-}
-.prepared-row dt {
-  font-size: 0.75rem; font-weight: 600; letter-spacing: 0.13em;
-  text-transform: uppercase; color: var(--meta-ink);
-}
-.prepared-row dd { margin: 0; color: var(--ink); font-size: 1rem; line-height: 1.5; max-width: 60ch; }
-
 /* --- carousel: the wrap, and the controls -------------------------------- */
 .ps-slot.is-rejoining { transition: none; animation: ps-rejoin 620ms ease-out; }
 @keyframes ps-rejoin { from { opacity: 0; } to { opacity: 1; } }
@@ -1161,21 +1042,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 /* the guidance block on the centre screen */
 
 @media (prefers-reduced-motion: reduce) { .ps-slot:not(.is-centre) .ps-phone { transition: none; } }
-
-/* --- the learning loop's before/after rows -------------------------------- */
-.prepared-row.is-split dd {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s2);
-  font-variant-numeric: tabular-nums;
-}
-.prepared-row.is-split .was,
-.prepared-row.is-split .arrow { color: var(--meta-ink); }
-.prepared-row.is-split .now { color: var(--ink); font-weight: 500; }
-.verdict {
-  margin: var(--s5) 0 0; padding-top: var(--s4);
-  border-top: 1px solid var(--rule);
-  font-size: 0.9375rem; line-height: 1.55; color: var(--body-ink);
-}
-.verdict b { font-weight: 500; color: var(--ink); }
 
 /* --- the record's own additions ------------------------------------------ */
 
