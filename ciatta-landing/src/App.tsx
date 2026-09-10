@@ -192,7 +192,7 @@ function WaitlistForm({ id, source }: { id: string; source: string }) {
       >
         {state.kind === 'error'
           ? state.message
-          : 'Private testing. One email when it opens.'}
+          : 'One email when it opens.'}
       </p>
     </form>
   );
@@ -227,10 +227,6 @@ export default function App() {
           <HeroFilm />
           <div className="shell hero-inner">
             <div className="hero-copy">
-              <span className="pill is-reported hero-audience">
-                <i aria-hidden="true" />
-                If your cycle is changing, or you are in perimenopause or menopause
-              </span>
               <h1 className="display hero-title">
                 Your health is changing.
                 <em>See what is changing with it.</em>
