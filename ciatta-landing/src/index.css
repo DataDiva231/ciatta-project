@@ -483,39 +483,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 }
 .cols-2 { grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); }
 
-/* ===========================================================================
-   VALUE — the media row. The image is the card: it carries the radius, and
-   the text sits beneath it on the canvas rather than inside a second filled
-   surface. Two surfaces stacked would say the same thing twice.
-   =========================================================================== */
-.value-row {
-  display: grid;
-  gap: var(--gap-surface) var(--s5);
-  grid-template-columns: 1fr;
-}
-@media (min-width: 560px) {
-  .value-row { grid-template-columns: repeat(2, 1fr); }
-  .value-tile { aspect-ratio: 4 / 5; }
-}
-@media (min-width: 1000px) {
-  .value-row { grid-template-columns: repeat(4, 1fr); }
-  .value-tile { aspect-ratio: 1 / 1; }
-}
-.value-item { display: flex; flex-direction: column; gap: var(--s3); min-width: 0; }
-/* The crop follows how many tiles share a row, rather than staying portrait at
-   every width. Full width on a phone, a 4/5 portrait eats most of the screen
-   for a picture that supports the caption rather than carrying it; four across
-   on a wide screen, a square balances the three lines beneath it. */
-.value-tile {
-  display: block; width: 100%; height: auto;
-  aspect-ratio: 3 / 2;
-  object-fit: cover;
-  border-radius: var(--r-surface);
-  background: var(--rule);
-}
-.value-title { font-size: 1.0625rem; font-weight: 500; letter-spacing: -0.006em; line-height: 1.3; margin: 0; color: var(--ink); }
-.value-item p { color: var(--body-ink); font-size: 0.9375rem; line-height: 1.5; }
-
 /* --- the proof strip: a figure and what it counts, on hairline dividers -- */
 .proof {
   display: grid; gap: var(--s5);

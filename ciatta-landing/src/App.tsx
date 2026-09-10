@@ -34,38 +34,6 @@ import { joinWaitlist } from './lib/waitlist';
       body two or three specific lines. Photography follows the Brand Brief's
       art direction: warm, low, directional light, subjects mid-thought and
       not posed, bodies as presence rather than anatomy, and nothing that
-      looks like a hospital. --------------------------------------------- */
-const VALUE = [
-  {
-    id: 'remember',
-    img: '/images/value/remember.jpg',
-    alt: 'A woman at a window in low morning light, holding a cup, looking out.',
-    title: 'You understand your health better',
-    body: 'Something felt different in March. Now you can see what actually changed then, and what changed alongside it.',
-  },
-  {
-    id: 'connect',
-    img: '/images/value/connect.jpg',
-    alt: 'A woman with her eyes closed and one hand resting on her chest, in warm evening light.',
-    title: 'You know what to pay attention to',
-    body: 'Not everything that moves matters. Six months of readings narrow to the two or three that actually changed.',
-  },
-  {
-    id: 'clinician',
-    img: '/images/value/clinician.jpg',
-    alt: 'A woman at the edge of still water, seen from behind, facing an open horizon.',
-    title: 'You have a better conversation',
-    body: 'You arrive with what changed, what you noticed and what you want to ask, instead of trying to reconstruct six months in ten minutes.',
-  },
-  {
-    id: 'over-time',
-    img: '/images/value/over-time.jpg',
-    alt: 'A woman with short white hair sitting outdoors, holding a glass, looking away from the camera.',
-    title: 'You decide what to explore next',
-    body: 'With the evidence in front of you and its limits stated, the next step is yours to choose rather than guess at.',
-  },
-] as const;
-
 /* -- The proof strip, in Octo's label-and-subline form. ------------------- */
 const PROOF = [
   ['58%', 'bring their health information together entirely themselves'],
@@ -251,22 +219,7 @@ export default function App() {
           <div className="shell">
             <div className="section-head">
               <span className="section-num">01</span>
-              <h2 id="value-heading">What changes for you</h2>
-            </div>
-            <div className="section-intro">
-              <p className="statement">
-                Four things you can say afterwards that you could not say before.
-              </p>
-            </div>
-
-            <div className="value-row">
-              {VALUE.map((v) => (
-                <article className="value-item" key={v.id}>
-                  <img className="value-tile" src={v.img} alt={v.alt} width={720} height={900} loading="lazy" />
-                  <h3 className="value-title">{v.title}</h3>
-                  <p>{v.body}</p>
-                </article>
-              ))}
+              <h2 id="value-heading">What women told us</h2>
             </div>
 
             <div className="proof">
