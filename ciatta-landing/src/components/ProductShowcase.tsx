@@ -633,14 +633,6 @@ const SCREENS = [
 const N = SCREENS.length;
 const HALF = (N - 1) / 2;
 const INSIGHT_INDEX = 3;
-
-const PROGRESSION = [
-  'What changed',
-  'What was happening around it',
-  'What you told Ciatta',
-  'What evidence says',
-  'What may be worth exploring',
-] as const;
 export function ProductShowcase() {
   const [active, setActive] = useState(INSIGHT_INDEX);
   const [held, setHeld] = useState(false);
@@ -727,10 +719,6 @@ export function ProductShowcase() {
       </div>
 
       <div className="shell">
-        <span className="ps-arrow" aria-hidden="true">&darr;</span>
-        <ol className="ps-progression">
-          {PROGRESSION.map((s) => <li key={s}>{s}</li>)}
-        </ol>
         <p className="showcase-foot">
           The insight is what the other six say when they are read together.
         </p>

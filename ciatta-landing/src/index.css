@@ -1013,28 +1013,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 
 @media (prefers-reduced-motion: reduce) { .ps-slot.is-rejoining { animation: none; } }
 
-/* --- the section's own narrative: ingredients, arrow, progression --------- */
-
-.ps-arrow {
-  display: block; text-align: center; color: var(--meta-ink);
-  font-size: 1.25rem; line-height: 1; margin-block: var(--s5);
-}
-
-.ps-progression {
-  list-style: none; margin: 0; padding: 0;
-  display: grid; gap: var(--s2);
-  grid-template-columns: 1fr;
-  counter-reset: prog;
-}
-@media (min-width: 720px) { .ps-progression { grid-template-columns: repeat(5, 1fr); gap: var(--s3); } }
-.ps-progression li {
-  position: relative;
-  border-top: var(--strong) solid var(--rule);
-  padding-top: var(--s3);
-  font-size: 0.9375rem; line-height: 1.4; color: var(--body-ink);
-}
-.ps-progression li:last-child { border-top-color: var(--change); color: var(--ink); }
-
 /* the guidance block on the centre screen */
 
 @media (prefers-reduced-motion: reduce) { .ps-slot:not(.is-centre) .ps-phone { transition: none; } }
