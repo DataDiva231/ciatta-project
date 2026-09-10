@@ -52,14 +52,18 @@
   --statement-ground: #FFF8EC;/* Daylight · one sentence */
   --rule: #E8E4DC;            /* Mist   · the three surviving hairlines */
   --ink: #18191B;
-  --body-ink: #5F6265;
+  /* Both inks sat near the 4.5:1 floor on Paper, which is why body copy read
+     as washed out: technically passing, no headroom. Recomputed on the same
+     neutral axis for comfort rather than compliance.
+     body 5.59:1 -> 7.87:1, meta 4.53:1 -> 6.23:1 on Paper. */
+  --body-ink: #494C4F;
   /* Foundations & Tokens §02 corrected text.meta from Brand Quiet #96999B
      (2.8:1) to #737577, measured against White. The Geometry Specimen then
      inverted the grounds, so meta now sits on Paper and Daylight, where
      #737577 measures 4.21:1 and 4.38:1 and fails 4.5:1 again. Recomputed on
      the same neutral axis: #6E7072 clears every light ground it can land on
      (Paper 4.53:1, Daylight 4.71:1, White 4.88:1). */
-  --meta-ink: #6E7072;
+  --meta-ink: #585B5E;
   --on-ink: #F7F4EE;
   --halo-inner: 0.18;
   --halo-outer: 0.07;
@@ -108,10 +112,16 @@
   --font: 'Jost', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   /* The canvas breathes at its edges or the float reads as an accident.
      40 desktop, 20 mobile. */
-  --gutter: clamp(20px, 4vw, 40px);
-  --measure: 1180px;
-  --reading: 68ch;
+  --gutter: clamp(20px, 3vw, 48px);
+  /* 1180 fixed put 370px of empty margin either side of a 1920 screen. The
+     container is the page's outer bound now; text is held to --reading
+     separately, so a wide screen gains layout rather than margin. */
+  --measure: 1520px;
+  --reading: 62ch;
   --header-h: 4rem;
+  /* One fluid step for section rhythm. 72px top and bottom put 144px between
+     every section regardless of viewport. */
+  --section-y: clamp(2.25rem, 3.4vw, 3.75rem);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -122,10 +132,10 @@
     --statement-ground: #232733;
     --rule: #2E323B;
     --ink: #F7F4EE;
-    --body-ink: #A9ACAF;
+    --body-ink: #C2C5C7;
     /* Same recomputation on dark: meta now sits on Raised, where #818385
        measured 3.92:1. #8C8E90 gives Raised 4.53:1 and Graphite 5.35:1. */
-    --meta-ink: #8C8E90;
+    --meta-ink: #A3A6A8;
     --on-ink: #18191B;
     --unlit: #2E323B;
     --historical: #83868D;
@@ -159,15 +169,18 @@ body {
   background: var(--canvas);
   color: var(--ink);
   font-family: var(--font);
-  font-weight: 300;
+  /* Jost Light at 17px on a warm ground is hard work. Apple is explicit:
+     avoid Ultralight, Thin and Light, especially when text is small. Light
+     survives only where the type is large enough to carry it. */
+  font-weight: 400;
   font-size: 1.0625rem;
   line-height: 1.6;
   font-variant-numeric: tabular-nums;
 }
 
 /* --- type roles, unchanged by the specimen ------------------------------- */
-.display   { font-size: clamp(2.125rem, 6vw, 2.5rem); font-weight: 300; letter-spacing: -0.024em; line-height: 1.05; text-wrap: balance; margin: 0; }
-.statement { font-size: clamp(1.4375rem, 3.4vw, 1.625rem); font-weight: 400; letter-spacing: -0.012em; line-height: 1.28; text-wrap: balance; margin: 0; }
+.display   { font-size: clamp(1.75rem, 0.85rem + 3.6vw, 3.75rem); font-weight: 300; letter-spacing: -0.024em; line-height: 1.05; text-wrap: balance; margin: 0; }
+.statement { font-size: clamp(1.5rem, 1.05rem + 1.35vw, 2.125rem); font-weight: 400; letter-spacing: -0.012em; line-height: 1.28; text-wrap: balance; margin: 0; }
 .title     { font-size: 1.1875rem; font-weight: 500; letter-spacing: -0.006em; line-height: 1.35; margin: 0; }
 
 .eyebrow   { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; line-height: 1.2; color: var(--meta-ink); }
@@ -326,7 +339,7 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
      it, which is what lets the header go transparent and take white type. The
      padding puts the copy back below where the header sits. */
   margin-top: calc(var(--header-h) * -1);
-  padding-block: calc(var(--header-h) + var(--s8)) var(--s8);
+  padding-block: calc(var(--header-h) + var(--section-y)) var(--section-y);
   overflow: hidden;
 }
 .hero-film { position: absolute; inset: 0; z-index: -1; }
@@ -342,13 +355,18 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 .hero-scrim {
   position: absolute; inset: 0;
   background:
-    linear-gradient(to right, rgba(24,25,27,0.80) 0%, rgba(24,25,27,0.52) 36%, rgba(24,25,27,0.10) 68%, rgba(24,25,27,0) 100%),
+    linear-gradient(to right, rgba(24,25,27,0.84) 0%, rgba(24,25,27,0.64) 42%, rgba(24,25,27,0.22) 72%, rgba(24,25,27,0) 100%),
     linear-gradient(to top, rgba(24,25,27,0.28) 0%, rgba(24,25,27,0) 46%);
 }
+/* The directional scrim assumes the copy occupies the calm left third. That
+   holds on a wide screen; by 1000px the copy column is most of the frame and
+   the headline runs into the bright wall. Measured at 768: 2.65:1 on the
+   title, 3.51:1 on the lede, against the 3:1 and 4.5:1 those sizes need
+   (accessibility.md > Color and effects). The even scrim starts there instead. */
+@media (max-width: 1000px) {
+  .hero-scrim { background: linear-gradient(to top, rgba(24,25,27,0.88) 0%, rgba(24,25,27,0.66) 60%, rgba(24,25,27,0.56) 100%); }
+}
 @media (max-width: 760px) {
-  /* On a narrow crop there is no calm area left to protect, so the scrim
-     becomes even and the copy stays legible across the whole frame. */
-  .hero-scrim { background: linear-gradient(to top, rgba(24,25,27,0.86) 0%, rgba(24,25,27,0.62) 60%, rgba(24,25,27,0.5) 100%); }
   .hero-film video, .hero-film img { object-position: 62% 50%; }
 }
 
@@ -432,17 +450,20 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
    Section scaffolding — the rule under the heading survives as structure,
    not as a component border.
    =========================================================================== */
-.section { padding-block: var(--s8); }
+.section { padding-block: var(--section-y); }
 .section-head {
   display: flex; gap: var(--s4); align-items: baseline;
-  padding-bottom: var(--s3); margin-bottom: var(--s6);
+  padding-bottom: var(--s3); margin-bottom: var(--s5);
   border-bottom: var(--strong) solid var(--ink);
 }
-.section-num { font-size: 1.375rem; font-weight: 200; color: var(--meta-ink); flex: none; }
+.section-num { font-size: 1.375rem; font-weight: 400; color: var(--meta-ink); flex: none; font-variant-numeric: tabular-nums; }
 .section-head h2 { font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; margin: 0; }
 .section-head .aside { margin-left: auto; font-size: 0.75rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--meta-ink); flex: none; }
 @media (max-width: 620px) { .section-head .aside { display: none; } }
-.section-intro { display: flex; flex-direction: column; gap: var(--s4); margin-bottom: var(--s6); }
+.section-intro {
+  display: flex; flex-direction: column; gap: var(--s3);
+  margin-bottom: var(--s5); max-width: 68ch;
+}
 .section-intro p { color: var(--body-ink); }
 
 /* The gutter is the boundary. Surfaces closer than 20 read as one surface
@@ -472,12 +493,22 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
   gap: var(--gap-surface) var(--s5);
   grid-template-columns: 1fr;
 }
-@media (min-width: 560px) { .value-row { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 1000px) { .value-row { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 560px) {
+  .value-row { grid-template-columns: repeat(2, 1fr); }
+  .value-tile { aspect-ratio: 4 / 5; }
+}
+@media (min-width: 1000px) {
+  .value-row { grid-template-columns: repeat(4, 1fr); }
+  .value-tile { aspect-ratio: 1 / 1; }
+}
 .value-item { display: flex; flex-direction: column; gap: var(--s3); min-width: 0; }
+/* The crop follows how many tiles share a row, rather than staying portrait at
+   every width. Full width on a phone, a 4/5 portrait eats most of the screen
+   for a picture that supports the caption rather than carrying it; four across
+   on a wide screen, a square balances the three lines beneath it. */
 .value-tile {
   display: block; width: 100%; height: auto;
-  aspect-ratio: 4 / 5;
+  aspect-ratio: 3 / 2;
   object-fit: cover;
   border-radius: var(--r-surface);
   background: var(--rule);
@@ -489,14 +520,14 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 .proof {
   display: grid; gap: var(--s5);
   grid-template-columns: 1fr;
-  margin-top: var(--s8);
+  margin-top: var(--s6);
   padding-top: var(--s5);
   border-top: var(--hairline) solid var(--rule);
 }
 @media (min-width: 560px) { .proof { grid-template-columns: repeat(2, 1fr); gap: var(--s5) var(--s6); } }
 @media (min-width: 1000px) { .proof { grid-template-columns: repeat(4, 1fr); } }
 .proof-item { display: flex; flex-direction: column; gap: var(--s2); padding-left: var(--s4); border-left: var(--hairline) solid var(--rule); }
-.proof-n { font-size: 2.125rem; font-weight: 200; line-height: 1; letter-spacing: -0.024em; color: var(--ink); }
+.proof-n { font-size: clamp(2.125rem, 1.6rem + 1.6vw, 3rem); font-weight: 300; line-height: 1; letter-spacing: -0.024em; color: var(--ink); }
 .proof-label { color: var(--body-ink); font-size: 0.875rem; line-height: 1.45; }
 
 /* --- The loop, compact. It explains the value; it does not lead. -------- */
@@ -507,7 +538,7 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 .clinician .statement { color: var(--ink); }
 .refusals { margin-top: var(--gap-surface); }
 
-.note { margin-top: var(--s5); color: var(--meta-ink); font-size: 0.875rem; }
+.note { margin-top: var(--s5); color: var(--meta-ink); font-size: 0.9375rem; max-width: 62ch; }
 
 /* --- refusals --- */
 .refusal { display: flex; flex-direction: column; gap: var(--s1); }
@@ -543,7 +574,7 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 @media (min-width: 640px) {
   .chain-row { grid-template-columns: minmax(0, 1fr) auto; gap: var(--s4); align-items: center; }
 }
-.chain-what { color: var(--ink); font-size: 1rem; }
+.chain-what { color: var(--ink); font-size: 1rem; max-width: 56ch; }
 .chain-row.is-inference .chain-what { color: var(--body-ink); }
 
 /* ===========================================================================
@@ -555,7 +586,7 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 .close-lines b { color: var(--ink); font-weight: 400; }
 
 .footer {
-  margin-top: var(--s8); padding-block: var(--s6) var(--s7);
+  margin-top: var(--section-y); padding-block: var(--s6) var(--s7);
   display: flex; flex-wrap: wrap; gap: var(--s4) var(--s7); align-items: center;
   border-top: var(--hairline) solid var(--rule);
 }
@@ -630,18 +661,18 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
   --ps-evidence: #F2B863;   /* Amber, dark step. Published evidence. */
   --ps-clay: #EC9658;          /* Ember, dark step. The connection. */
   --ps-w: 14rem;
-  padding-block: var(--s8);
+  padding-block: var(--section-y);
   overflow: hidden;
 }
-.showcase-intro { display: flex; flex-direction: column; gap: var(--s4); margin-bottom: var(--s7); }
+.showcase-intro { display: flex; flex-direction: column; gap: var(--s3); margin-bottom: var(--s6); }
 .showcase-title {
   font-family: 'Instrument Serif', Georgia, 'Times New Roman', serif;
-  font-weight: 400; font-size: clamp(1.875rem, 4.2vw, 2.75rem);
+  font-weight: 400; font-size: clamp(2rem, 1.1rem + 2.7vw, 3.5rem);
   line-height: 1.12; letter-spacing: -0.012em; color: var(--ink);
   margin: 0; max-width: 24ch; text-wrap: balance;
 }
 .showcase-title em { font-style: italic; display: block; color: var(--body-ink); }
-.showcase-foot { color: var(--body-ink); margin-top: var(--s7); max-width: 54ch; }
+.showcase-foot { color: var(--body-ink); margin-top: var(--s6); max-width: 58ch; }
 
 /* --- the fan ------------------------------------------------------------- */
 .showcase-stage { width: 100%; }
@@ -1093,7 +1124,7 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
   font-size: 0.75rem; font-weight: 600; letter-spacing: 0.13em;
   text-transform: uppercase; color: var(--meta-ink);
 }
-.prepared-row dd { margin: 0; color: var(--ink); font-size: 1rem; line-height: 1.5; }
+.prepared-row dd { margin: 0; color: var(--ink); font-size: 1rem; line-height: 1.5; max-width: 60ch; }
 
 /* --- carousel: the wrap, and the controls -------------------------------- */
 .ps-slot.is-rejoining { transition: none; animation: ps-rejoin 620ms ease-out; }
