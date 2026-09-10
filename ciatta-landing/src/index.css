@@ -664,7 +664,14 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
   padding-block: var(--section-y);
   overflow: hidden;
 }
-.showcase-intro { display: flex; flex-direction: column; gap: var(--s3); margin-bottom: var(--s6); }
+/* The showcase opens on a centred lockup: the fan beneath it is symmetrical
+   about the centre screen, so a left-aligned intro sat off its own axis. The
+   max-widths stay, so each line still breaks where it reads best; they just
+   centre within the shell rather than stack against its left edge. */
+.showcase-intro {
+  display: flex; flex-direction: column; align-items: center;
+  gap: var(--s3); margin-bottom: var(--s6); text-align: center;
+}
 .showcase-title {
   font-family: 'Instrument Serif', Georgia, 'Times New Roman', serif;
   font-weight: 400; font-size: clamp(2rem, 1.1rem + 2.7vw, 3.5rem);
@@ -1135,8 +1142,8 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 @media (prefers-reduced-motion: reduce) { .ps-slot.is-rejoining { animation: none; } }
 
 /* --- the section's own narrative: ingredients, arrow, progression --------- */
-.showcase-lede { font-size: 1.25rem; color: var(--ink); max-width: 34ch; }
-.showcase-sub { color: var(--body-ink); max-width: 58ch; }
+.showcase-lede { font-size: 1.25rem; color: var(--ink); max-width: 40ch; }
+.showcase-sub { color: var(--body-ink); max-width: 62ch; }
 
 .ps-arrow {
   display: block; text-align: center; color: var(--meta-ink);
