@@ -154,16 +154,14 @@ export default function App() {
                 Your health is changing.
                 <em>See what is changing with it.</em>
               </h1>
-              {/* One continuous paragraph. The value sentence closes it rather
-                  than sitting in its own block, so position carries the
-                  emphasis that weight used to. */}
-              <p className="hero-lede">
-                Your cycle changes. Your sleep changes. Symptoms come and go. The pieces
-                are scattered across apps, devices, appointments, and your memory. Ciatta
-                brings them together so you can see patterns and changes over time,
-                prepare for better conversations with your clinicians, and make more
-                informed decisions about what to explore next.
-              </p>
+              {/* Three lines, in the order the problem is actually met: what
+                  changes, where it ends up, and what Ciatta does with it. The
+                  last line carries the value and closes the block. */}
+              <div className="hero-lede">
+                <p>Your cycle changes. Your sleep changes. Symptoms come and go.</p>
+                <p>The pieces are scattered across apps, devices and appointments.</p>
+                <p>Ciatta brings them together so you can see what changed and what to ask.</p>
+              </div>
               <div id="join">
                 <WaitlistForm id="waitlist-hero" source="hero" />
               </div>

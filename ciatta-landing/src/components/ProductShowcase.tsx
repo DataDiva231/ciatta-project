@@ -675,12 +675,6 @@ export function ProductShowcase() {
         <h2 id="showcase-heading" className="showcase-title">
           All the pieces. <em>One picture.</em>
         </h2>
-        <p className="showcase-lede">Your health doesn&rsquo;t change one thing at a time.</p>
-        <p className="showcase-sub">
-          Ciatta brings your health information together to surface personalized
-          insights, so you can understand what&rsquo;s changing, know what may be worth
-          exploring, and have a better conversation with your clinician.
-        </p>
       </div>
 
 
