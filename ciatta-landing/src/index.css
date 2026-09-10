@@ -369,14 +369,7 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 }
 .hero-title { color: #F7F4EE; }
 .hero-title em { font-style: normal; display: block; color: rgba(247,244,238,0.72); }
-/* Three lines rather than a paragraph, so each is its own thought. The gap is
-   smaller than a paragraph break: they read as one block, not three. */
-.hero-lede {
-  display: flex; flex-direction: column; gap: var(--s3);
-  color: rgba(247,244,238,0.88); max-width: 68ch;
-}
-.hero-lede p { color: inherit; max-width: none; }
-.hero-lede p:last-child { color: #F7F4EE; }
+.hero-lede { color: rgba(247,244,238,0.88); max-width: 58ch; }
 
 /* On the film the ground is inverted, so the filled action inverts with it:
    Paper fill, Graphite label. Ember still never becomes a button. */
