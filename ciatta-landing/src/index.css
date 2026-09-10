@@ -180,10 +180,6 @@ body {
 
 /* --- type roles, unchanged by the specimen ------------------------------- */
 .display   { font-size: clamp(1.75rem, 0.85rem + 3.6vw, 3.75rem); font-weight: 300; letter-spacing: -0.024em; line-height: 1.05; text-wrap: balance; margin: 0; }
-.statement { font-size: clamp(1.5rem, 1.05rem + 1.35vw, 2.125rem); font-weight: 400; letter-spacing: -0.012em; line-height: 1.28; text-wrap: balance; margin: 0; }
-.title     { font-size: 1.1875rem; font-weight: 500; letter-spacing: -0.006em; line-height: 1.35; margin: 0; }
-
-.eyebrow   { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; line-height: 1.2; color: var(--meta-ink); }
 p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 
 .shell { width: 100%; max-width: var(--measure); margin: 0 auto; padding-inline: var(--gutter); }
@@ -228,25 +224,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 .surface.is-shell   { border-radius: var(--r-shell); padding: var(--pad-nested); }
 .surface.is-lifted  { box-shadow: var(--float-lifted); }
 .surface.is-daylight{ background: var(--statement-ground); }
-
-/* Pills: compact controls only. Things shorter than they are wide, holding
-   two or three words. Never around a paragraph. The shape adds no meaning. */
-.pill {
-  display: inline-flex; align-items: center; gap: var(--s2);
-  border-radius: var(--r-pill);
-  padding: 5px var(--s3);
-  font-size: 0.8125rem; line-height: 1.3;
-  background: var(--canvas); color: var(--body-ink);
-  white-space: nowrap;
-}
-.pill i { font-style: normal; width: 6px; height: 6px; border-radius: 50%; flex: none; }
-/* A status carries its family's tint with that family's Deep step for type.
-   Neither ever takes a border. */
-.pill.is-measured    { background: var(--measured-tint);    color: var(--measured-text); }
-.pill.is-reported    { background: var(--reported-tint);    color: var(--reported-text); }
-.pill.is-evidence    { background: var(--evidence-tint);    color: var(--evidence-text); }
-.pill.is-uncertainty { background: var(--uncertainty-tint); color: var(--uncertainty-text); }
-.pill.is-change      { background: var(--change-tint);      color: var(--change-text); }
 
 /* ===========================================================================
    Header — float.above, opaque. No glass: blur is expensive on device and it
@@ -442,63 +419,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
    not as a component border.
    =========================================================================== */
 .section { padding-block: var(--section-y); }
-.section-head {
-  display: flex; gap: var(--s4); align-items: baseline;
-  padding-bottom: var(--s3); margin-bottom: var(--s5);
-  border-bottom: var(--strong) solid var(--ink);
-}
-.section-head h2 { font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; margin: 0; }
-.section-head .aside { margin-left: auto; font-size: 0.75rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--meta-ink); flex: none; }
-@media (max-width: 620px) { .section-head .aside { display: none; } }
-.section-intro {
-  display: flex; flex-direction: column; gap: var(--s3);
-  margin-bottom: var(--s5); max-width: 68ch;
-}
-.section-intro p { color: var(--body-ink); }
-
-/* --- the proof strip: a figure and what it counts, on hairline dividers -- */
-.proof {
-  display: grid; gap: var(--s5);
-  grid-template-columns: 1fr;
-  margin-top: var(--s6);
-  padding-top: var(--s5);
-  border-top: var(--hairline) solid var(--rule);
-}
-@media (min-width: 560px) { .proof { grid-template-columns: repeat(2, 1fr); gap: var(--s5) var(--s6); } }
-@media (min-width: 1000px) { .proof { grid-template-columns: repeat(4, 1fr); } }
-.proof-item { display: flex; flex-direction: column; gap: var(--s2); padding-left: var(--s4); border-left: var(--hairline) solid var(--rule); }
-.proof-n { font-size: clamp(2.125rem, 1.6rem + 1.6vw, 3rem); font-weight: 300; line-height: 1; letter-spacing: -0.024em; color: var(--ink); }
-.proof-label { color: var(--body-ink); font-size: 0.875rem; line-height: 1.45; }
-
-/* --- The loop, compact. It explains the value; it does not lead. -------- */
-
-/* --- CLINICIAN ---------------------------------------------------------- */
-.clinician { display: flex; flex-direction: column; gap: var(--s4); }
-.clinician p { color: var(--body-ink); }
-.clinician .statement { color: var(--ink); }
-
-.note { margin-top: var(--s5); color: var(--meta-ink); font-size: 0.9375rem; max-width: 62ch; }
-
-/* ===========================================================================
-   The loop — each stage is a surface on the canvas. The pivot floats.
-   =========================================================================== */
-.loop { display: grid; gap: var(--gap-surface); }
-
-/* Asymmetry earns it: an inset-width surface is permitted when it is the
-   leading finding. Not as rhythm, and not more than once per view. */
-
-/* The stage's semantic family, as a mark. Round because it is a point, not a
-   surface — the ladder does not reach it. */
-
-/* ===========================================================================
-   The finding — the leading surface, so it takes float.lifted.
-   =========================================================================== */
-.finding { display: grid; gap: var(--gap-surface); }
-@media (min-width: 900px) { .finding { grid-template-columns: minmax(0, 1fr) minmax(0, 0.86fr); } }
-
-/* Nested 16 rows on the canvas tone, inside a 32 shell padded 16. */
-
-.chart { display: flex; flex-direction: column; gap: var(--s3); min-width: 0; }
 
 /* ===========================================================================
    Statement band — Daylight, full-bleed behind one sentence. Sparingly.
@@ -913,7 +833,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
   background: rgba(244,110,180,0.16); font-size: 2.1cqw;
 }
 .ps-entry.is-linked { background: rgba(244,110,180,0.16); }
-.ps-r { color: var(--ps-meta); text-align: right; padding-right: 1.6cqw !important; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ps-pill {
   display: inline-block; padding: 0.6cqw 1.6cqw; border-radius: 999px;
   font-size: 2.1cqw; font-weight: 500; white-space: nowrap;
@@ -977,11 +896,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 .ps-key.is-sleep { background: var(--ps-ink); opacity: 0.85; }
 .ps-pair-chart { width: 100%; height: auto; display: block; }
 .ps-cite { font-size: 2.2cqw; color: var(--ps-meta); font-variant-numeric: tabular-nums; }
-.ps-open { margin: 0; font-size: 2.7cqw; line-height: 1.45; color: var(--ps-body); }
-.ps-open span {
-  font-size: 2.2cqw; font-weight: 600; letter-spacing: 0.09em;
-  text-transform: uppercase; color: var(--ps-meta); margin-right: 1.2cqw;
-}
 .ps-hedge { font-size: 2.3cqw; line-height: 1.4; color: var(--ps-meta); margin: 0; }
 
 /* --- responsive ---------------------------------------------------------- */

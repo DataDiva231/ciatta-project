@@ -35,13 +35,6 @@ import { joinWaitlist } from './lib/waitlist';
       art direction: warm, low, directional light, subjects mid-thought and
       not posed, bodies as presence rather than anatomy, and nothing that
 /* -- The proof strip, in Octo's label-and-subline form. ------------------- */
-const PROOF = [
-  ['58%', 'bring their health information together entirely themselves'],
-  ['2%', 'have anything automated'],
-  ['85%', 'notice change in their bodies often or very often'],
-  ['63%', 'wanted one connected place for it'],
-] as const;
-
 function useScrolled(offset = 8) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -171,29 +164,6 @@ export default function App() {
         </section>
 
         <ProductShowcase />
-
-        {/* ----------------------- 01 · WHAT CHANGES FOR YOU --------------- */}
-        <section className="section" aria-labelledby="value-heading">
-          <div className="shell">
-            <div className="section-head">
-              <h2 id="value-heading">What women told us</h2>
-            </div>
-
-            <div className="proof">
-              {PROOF.map(([n, label]) => (
-                <div className="proof-item" key={n}>
-                  <span className="proof-n">{n}</span>
-                  <span className="proof-label">{label}</span>
-                </div>
-              ))}
-            </div>
-            <p className="note">
-              From Ciatta&rsquo;s own research. What people asked for first was patterns
-              they cannot see themselves. Change over time came second.
-            </p>
-          </div>
-        </section>
-
 
         {/* -------------------------------- CTA ---------------------------- */}
         <section className="section" aria-labelledby="cta-heading">
