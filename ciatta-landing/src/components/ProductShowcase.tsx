@@ -567,7 +567,7 @@ function InsightScreen() {
           <rect x="52" y="2" width="24" height="50" rx="2" fill="var(--ps-clay)" opacity="0.13" />
           <rect x="100" y="2" width="24" height="50" rx="2" fill="var(--ps-clay)" opacity="0.13" />
           <path d={cycle} fill="none" stroke="var(--ps-measured)" strokeWidth="1.6" />
-          <path d={sleep} fill="none" stroke="var(--ps-ink)" strokeWidth="1.4" opacity="0.45" />
+          <path d={sleep} fill="none" stroke="var(--ps-ink)" strokeWidth="1.5" opacity="0.75" />
           <g fill="var(--ps-clay)">
             <circle cx="52" cy="49.5" r="2.4" /><circle cx="76" cy="17" r="2.4" />
             <circle cx="100" cy="47" r="2.4" /><circle cx="124" cy="17" r="2.4" />

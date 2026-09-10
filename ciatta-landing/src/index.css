@@ -632,10 +632,10 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 .showcase {
   --ps-canvas: #18191B;        /* Graphite, the screen ground */
   --ps-raised: #232733;        /* Raised, panels resting on it */
-  --ps-rule: #2E323B;
+  --ps-rule: #3A3F4A;
   --ps-ink: #F7F4EE;           /* Paper */
-  --ps-body: #A9ACAF;
-  --ps-meta: #8C8E90;
+  --ps-body: #C2C5C7;
+  --ps-meta: #A3A6A8;
   --ps-measured: #789AF3;      /* Sky, dark step */
   --ps-reported: #F46EB4;      /* Rose, dark step */
   --ps-uncertain: #E4C058;     /* Mustard, dark step */
@@ -703,7 +703,7 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
     0 60px 110px -34px rgba(24,25,27,0.58);
 }
 .ps-slot:not(.is-centre) .ps-phone {
-  filter: brightness(0.74) saturate(0.85);
+  filter: brightness(0.90) saturate(0.95);
   transition: filter var(--transition) var(--ease-caused);
 }
 .ps-screen {
@@ -731,7 +731,7 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
   gap: 2cqw; padding: 1.6cqw 6cqw 2.6cqw;
   border-bottom: 1px solid var(--ps-rule);
 }
-.ps-chev, .ps-info { width: 100%; height: auto; stroke: var(--ps-ink); fill: none; opacity: 0.85; }
+.ps-chev, .ps-info { width: 100%; height: auto; stroke: var(--ps-ink); fill: none; }
 .ps-nav-title { text-align: center; font-size: 3.7cqw; font-weight: 600; letter-spacing: 0.01em; }
 
 .ps-body {
@@ -817,7 +817,7 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 .ps-now-head { display: flex; justify-content: space-between; align-items: baseline; }
 .ps-now-k { font-size: 2.6cqw; color: var(--ps-meta); }
 .ps-now-n { font-size: 4.4cqw; font-weight: 600; font-variant-numeric: tabular-nums; }
-.ps-prog { height: 1.4cqw; background: rgba(247,244,238,0.12); border-radius: 999px; overflow: hidden; }
+.ps-prog { height: 1.4cqw; background: rgba(247,244,238,0.22); border-radius: 999px; overflow: hidden; }
 .ps-prog span { display: block; height: 100%; background: var(--ps-measured); border-radius: 999px; }
 .ps-now-foot {
   display: flex; justify-content: space-between;
@@ -828,12 +828,12 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 .ps-plot { position: relative; height: 28cqw; }
 .ps-band {
   position: absolute; inset-inline: 0;
-  background: rgba(120,154,243,0.09);
-  border-top: 1px dashed rgba(120,154,243,0.30);
+  background: rgba(120,154,243,0.16);
+  border-top: 1px dashed rgba(120,154,243,0.55);
 }
 .ps-target {
   position: absolute; inset-inline: 0; z-index: 1;
-  border-top: 1px dashed rgba(247,244,238,0.28);
+  border-top: 1px dashed rgba(247,244,238,0.50);
 }
 .ps-target i {
   position: absolute; right: 0; top: 0.6cqw;
@@ -842,7 +842,7 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 }
 .ps-cols { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 1.2cqw; }
 .ps-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; gap: 0.6cqw; }
-.ps-col-bar { width: 100%; background: var(--ps-measured); opacity: 0.42; border-radius: 0.8cqw 0.8cqw 0 0; }
+.ps-col-bar { width: 100%; background: var(--ps-measured); opacity: 0.78; border-radius: 0.8cqw 0.8cqw 0 0; }
 .ps-col-n { font-size: 2.2cqw; font-weight: 600; color: var(--ps-clay); font-variant-numeric: tabular-nums; }
 .ps-col.is-short .ps-col-bar,
 .ps-col.is-low .ps-col-bar { background: var(--ps-clay); opacity: 1; }
@@ -861,11 +861,11 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 .ps-lane.is-ref .ps-lane-k { color: var(--ps-meta); }
 .ps-rail { position: relative; height: 1.9cqw; background: var(--ps-raised); border-radius: 999px; }
 .ps-span { position: absolute; inset-block: 0; border-radius: 999px; }
-.ps-span.is-mild { background: rgba(244,110,180,0.35); }
-.ps-span.is-mod  { background: rgba(244,110,180,0.65); }
+.ps-span.is-mild { background: rgba(244,110,180,0.70); }
+.ps-span.is-mod  { background: rgba(244,110,180,0.86); }
 .ps-span.is-sev  { background: var(--ps-reported); }
 .ps-span.is-on   { background: var(--ps-measured); }
-.ps-span.is-past { background: rgba(247,244,238,0.22); }
+.ps-span.is-past { background: rgba(247,244,238,0.45); }
 .ps-tick {
   position: absolute; top: -0.7cqw; bottom: -0.7cqw; width: 0.8cqw;
   border-radius: 999px; background: var(--ps-meta);
@@ -873,8 +873,8 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 .ps-legend { display: flex; gap: 3.4cqw; font-size: 2.2cqw; color: var(--ps-meta); }
 .ps-legend span { display: inline-flex; align-items: center; gap: 1cqw; }
 .ps-legend i { width: 2.4cqw; height: 1.2cqw; border-radius: 999px; }
-.ps-legend i.is-mild { background: rgba(244,110,180,0.35); }
-.ps-legend i.is-mod  { background: rgba(244,110,180,0.65); }
+.ps-legend i.is-mild { background: rgba(244,110,180,0.70); }
+.ps-legend i.is-mod  { background: rgba(244,110,180,0.86); }
 .ps-legend i.is-sev  { background: var(--ps-reported); }
 
 /* rows: the one tappable thing. The open row shows its detail in place. */
@@ -974,7 +974,7 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
   display: inline-block; padding: 0.6cqw 1.6cqw; border-radius: 999px;
   font-size: 2.1cqw; font-weight: 500; white-space: nowrap;
 }
-.ps-pill.is-ok { background: rgba(247,244,238,0.10); color: var(--ps-body); }
+.ps-pill.is-ok { background: rgba(247,244,238,0.14); color: var(--ps-body); }
 .ps-pill.is-low { background: rgba(228,192,88,0.18); color: var(--ps-uncertain); }
 .ps-pill.is-watch { background: rgba(236,150,88,0.18); color: var(--ps-clay); }
 
@@ -1040,7 +1040,7 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 .ps-pair-head span { display: inline-flex; align-items: center; gap: 1.2cqw; }
 .ps-key { width: 3cqw; height: 0.6cqw; border-radius: 999px; flex: none; }
 .ps-key.is-measured { background: var(--ps-measured); }
-.ps-key.is-sleep { background: var(--ps-ink); opacity: 0.55; }
+.ps-key.is-sleep { background: var(--ps-ink); opacity: 0.85; }
 .ps-pair-chart { width: 100%; height: auto; display: block; }
 .ps-pair-note { font-size: 2.3cqw; color: var(--ps-meta); line-height: 1.35; }
 
