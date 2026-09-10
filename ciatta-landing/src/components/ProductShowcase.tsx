@@ -684,31 +684,23 @@ export function ProductShowcase() {
         </p>
       </div>
 
-      <div className="shell">
-        <ul className="ps-sources">
-          {SCREENS.map(({ name }, i) => (
-            <li key={name}>
-              <button
-                type="button"
-                className={
-                  'ps-source' +
-                  (i === active ? ' is-on' : '') +
-                  (i === INSIGHT_INDEX ? ' is-insight' : '')
-                }
-                aria-current={i === active ? 'true' : undefined}
-                onClick={() => setActive(i)}
-              >
-                {name}
-              </button>
-            </li>
-          ))}
-        </ul>
-        <span className="ps-arrow" aria-hidden="true">&darr;</span>
-      </div>
 
+      {/* The source buttons were the only keyboard path to these screens, and
+          the stage itself was aria-hidden. With them gone the stage has to
+          carry that itself, or the showcase would be reachable by mouse drag
+          alone. */}
       <div
         className="showcase-stage"
-        aria-hidden="true"
+        role="group"
+        aria-roledescription="carousel"
+        aria-label={`Ciatta app screens: ${SCREENS[active].name}, ${active + 1} of ${N}`}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
+          if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
+        }}
+        onFocus={() => setHeld(true)}
+        onBlur={() => setHeld(false)}
         onPointerDown={(e) => { drag.current = { x: e.clientX }; setHeld(true); }}
         onPointerUp={(e) => {
           const d = drag.current; drag.current = null; setHeld(false);
