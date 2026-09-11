@@ -355,11 +355,11 @@ export default function App() {
       <footer className="footer shell">
         <span className="sr-only">Ciatta</span>
         <Wordmark size="sm" />
-        {/* Digests is a page rather than a policy, so the nav is no longer
+        {/* Briefs is a page rather than a policy, so the nav is no longer
             labelled Legal. The trailing slash is deliberate: without it the
             host answers 308 first and the click costs a round trip. */}
         <nav className="footer-nav" aria-label="Footer">
-          <a href="/digests/">Digests</a>
+          <a href="/briefs/">Briefs</a>
           <a href="/privacy">Privacy</a>
           <a href="/terms">Terms</a>
           <a href="mailto:hello@ciatta.app">Contact</a>

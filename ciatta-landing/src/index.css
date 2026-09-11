@@ -1132,12 +1132,12 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 @media (prefers-reduced-motion: reduce) { .qa-item summary i::after { transition: none; } }
 
 /* ===========================================================================
-   Digests — the index of Ciatta's writing. It shares the landing page's type
+   Briefs — the index of Ciatta's writing. It shares the landing page's type
    and grounds; what is new is the two-axis filter and the card.
    =========================================================================== */
-.digest-head { padding-top: calc(var(--header-h) + var(--section-y)); padding-bottom: 0; }
-.digest-head .band-sub { max-width: 62ch; margin-bottom: 0; }
-.digest-body { padding-top: var(--s6); }
+.briefs-head { padding-top: calc(var(--header-h) + var(--section-y)); padding-bottom: 0; }
+.briefs-head .band-sub { max-width: 62ch; margin-bottom: 0; }
+.briefs-body { padding-top: var(--s6); }
 
 .filters { display: flex; flex-direction: column; gap: var(--s3); }
 .filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); }
@@ -1159,38 +1159,68 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 .chip:focus-visible { outline: var(--strong) solid var(--ink); outline-offset: 2px; }
 .filter-count { margin: var(--s5) 0 var(--s6); color: var(--meta-ink); font-size: 0.875rem; }
 
-.digest-group { margin-bottom: var(--s8); }
-.digest-group-head {
+.briefs-group { margin-bottom: var(--s8); }
+.briefs-group-head {
   display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s2) var(--s4);
   border-bottom: var(--strong) solid var(--ink);
   padding-bottom: var(--s3); margin-bottom: var(--s5);
 }
-.digest-group-head h3 {
+.briefs-group-head h3 {
   margin: 0; font-size: 1.25rem; font-weight: 600; letter-spacing: -0.012em; color: var(--ink);
 }
-.digest-group-head p { margin: 0; color: var(--meta-ink); font-size: 0.875rem; }
+.briefs-group-head p { margin: 0; color: var(--meta-ink); font-size: 0.875rem; }
 
-.digest-grid { display: grid; gap: var(--s5) var(--s6); grid-template-columns: 1fr; }
-@media (min-width: 620px)  { .digest-grid { grid-template-columns: 1fr 1fr; } }
-@media (min-width: 1100px) { .digest-grid { grid-template-columns: repeat(3, 1fr); } }
+.briefs-grid { display: grid; gap: var(--s5) var(--s6); grid-template-columns: 1fr; }
+@media (min-width: 620px)  { .briefs-grid { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 1100px) { .briefs-grid { grid-template-columns: repeat(3, 1fr); } }
 
 /* No card fill and no border: a hairline and the type carry it, the same way
    the sections above do. Filled cards here would make 24 boxes on one page. */
-.digest-card {
+.briefs-card {
   display: flex; flex-direction: column; gap: var(--s2);
   border-top: var(--hairline) solid var(--rule); padding-top: var(--s4);
 }
-.digest-topic {
+.briefs-topic {
   font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.13em;
   text-transform: uppercase; color: var(--meta-ink);
 }
-.digest-card h4 {
+.briefs-card h4 {
   margin: 0; font-size: 1.0625rem; font-weight: 600; line-height: 1.32;
   letter-spacing: -0.008em; color: var(--ink); text-wrap: balance;
 }
-.digest-card p { color: var(--body-ink); font-size: 0.9375rem; line-height: 1.5; }
-.digest-soon {
+.briefs-card p { color: var(--body-ink); font-size: 0.9375rem; line-height: 1.5; }
+.briefs-soon {
   margin-top: auto; padding-top: var(--s2);
   font-size: 0.8125rem; color: var(--meta-ink);
 }
-.digest-empty { color: var(--body-ink); }
+.briefs-empty { color: var(--body-ink); }
+
+/* --- the search field. One row, the same hairline language as the chips
+       below it, and a clear control that only exists once there is something
+       to clear. -------------------------------------------------------- */
+.briefs-search {
+  display: flex; align-items: center; gap: var(--s3);
+  margin: var(--s6) 0 var(--s5);
+  padding: 0 var(--s4);
+  border: var(--hairline) solid var(--rule); border-radius: var(--r-control);
+  background: var(--surface); max-width: 34rem;
+  transition: border-color var(--transition) var(--ease-body);
+}
+.briefs-search:focus-within { border-color: var(--ink); }
+.briefs-search-i { width: 1.0625rem; height: 1.0625rem; flex: none; color: var(--meta-ink); }
+.briefs-search input {
+  flex: 1; min-width: 0; font: inherit; color: var(--ink);
+  background: none; border: 0; outline: none;
+  padding: 0.85rem 0;
+}
+.briefs-search input::placeholder { color: var(--meta-ink); }
+/* the browser's own clear widget duplicates the button and is unstyleable */
+.briefs-search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.briefs-search-x {
+  font: inherit; font-size: 0.875rem; cursor: pointer;
+  background: none; border: 0; color: var(--meta-ink);
+  padding: 0.35rem 0.2rem;
+}
+.briefs-search-x:hover { color: var(--ink); }
+.briefs-search-x:focus-visible,
+.briefs-search input:focus-visible { outline: var(--strong) solid var(--ink); outline-offset: 2px; }
