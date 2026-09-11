@@ -669,7 +669,7 @@ export function ProductShowcase() {
     <section className="showcase" aria-labelledby="showcase-heading">
       <div className="shell showcase-intro">
         <h2 id="showcase-heading" className="showcase-title">
-          All the pieces. <em>One picture.</em>
+          All the pieces. One picture.
         </h2>
       </div>
 

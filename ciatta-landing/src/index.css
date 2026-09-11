@@ -355,7 +355,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
   font-size: clamp(1.625rem, 0.75rem + 3.9vw, 4rem);
   letter-spacing: -0.03em; line-height: 1.02;
 }
-.hero-title em { font-style: normal; display: block; color: rgba(247,244,238,0.9); }
 .hero-lede { color: rgba(247,244,238,0.88); max-width: 58ch; }
 
 /* On the film the ground is inverted, so the filled action inverts with it:
@@ -524,16 +523,15 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
   margin-bottom: var(--s6); text-align: center;
 }
 /* Jost at 600, matched in scale to the hero headline so the two display
-   moments on the page speak with one voice. The second line is a block in the
-   same weight, separated by ink rather than by italics: Jost ships no italic
-   at 600, and a synthesised slant is not a typeface. */
+   moments on the page speak with one voice. One sentence in one ink: the two
+   halves used to be separate blocks in different colours, which read as a
+   lockup rather than a line. */
 .showcase-title {
   font-family: var(--font);
   font-weight: 600; font-size: clamp(2rem, 1rem + 3.4vw, 4rem);
   line-height: 1.04; letter-spacing: -0.03em; color: var(--ink);
   margin: 0; max-width: 20ch; text-wrap: balance;
 }
-.showcase-title em { font-style: normal; display: block; color: var(--body-ink); }
 /* The line that closes the section, centred on the same axis as the title and
    the fan. It is a statement now rather than a caption, so it takes the ink and
    the weight to match: full Graphite at 500, which clears 16:1 on Paper. */

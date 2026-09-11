@@ -144,8 +144,7 @@ export default function App() {
           <div className="shell hero-inner">
             <div className="hero-copy">
               <h1 className="display hero-title">
-                Your health is changing.
-                <em>See what is changing with it.</em>
+                Your health is changing. See what is changing with it.
               </h1>
               {/* One paragraph, in the order the problem is actually met: what
                   changes, where it ends up, and what Ciatta does with it. The
