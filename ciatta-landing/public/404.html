@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Not found · Ciatta</title>
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/svg+xml" href="/images/icon.svg" />
+    <meta name="theme-color" content="#FDFDFC" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&display=swap" />
+    <style>
+      /* Static, so a missing page costs no JavaScript. The tokens are copied
+         rather than imported for the same reason. */
+      :root { --canvas:#F7F4EE; --ink:#18191B; --body:#494C4F; --meta:#585B5E; }
+      @media (prefers-color-scheme: dark) {
+        :root { --canvas:#18191B; --ink:#F7F4EE; --body:#C2C5C7; --meta:#A3A6A8; }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; min-height: 100vh; background: var(--canvas); color: var(--ink);
+        font-family: 'Jost', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-weight: 400; font-size: 1.0625rem; line-height: 1.6;
+        display: grid; place-items: center; padding: clamp(20px, 4vw, 48px);
+      }
+      main { max-width: 34rem; }
+      .mark {
+        font-size: 0.8125rem; font-weight: 500; letter-spacing: 0.34em;
+        text-transform: uppercase; color: var(--ink); text-decoration: none;
+        display: inline-block; margin-bottom: 2.5rem;
+      }
+      h1 {
+        margin: 0 0 0.75rem; font-weight: 600; letter-spacing: -0.026em;
+        line-height: 1.08; font-size: clamp(1.75rem, 1.1rem + 2.1vw, 2.75rem);
+      }
+      p { margin: 0 0 1.75rem; color: var(--body); max-width: 46ch; }
+      a.back { color: var(--ink); text-underline-offset: 0.28em; }
+      nav { display: flex; gap: 1.5rem; font-size: 0.9375rem; }
+      nav a { color: var(--meta); text-underline-offset: 0.28em; }
+      nav a:hover, a.back:hover { color: var(--ink); }
+      :where(a):focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 2px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <a class="mark" href="/">Ciatta</a>
+      <h1>That page is not here.</h1>
+      <p>
+        The address may have changed, or it may never have existed. Neither is
+        your fault.
+      </p>
+      <nav>
+        <a class="back" href="/">Go to the home page</a>
+        <a href="/digests/">Digests</a>
+      </nav>
+    </main>
+  </body>
+</html>
