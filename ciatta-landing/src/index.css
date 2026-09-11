@@ -1059,18 +1059,6 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 }
 .for-card p { color: var(--body-ink); font-size: 0.9375rem; line-height: 1.5; }
 
-/* --- what you get: the same rule, a hairline, because these are parts of
-       one product rather than four separate situations ------------------- */
-.get-grid { display: grid; gap: var(--s5) var(--s6); grid-template-columns: 1fr; }
-@media (min-width: 620px)  { .get-grid { grid-template-columns: 1fr 1fr; } }
-@media (min-width: 1100px) { .get-grid { grid-template-columns: repeat(3, 1fr); } }
-.get-card { border-top: var(--hairline) solid var(--rule); padding-top: var(--s4); }
-.get-card h3 {
-  margin: 0 0 var(--s2); font-size: 1.0625rem; font-weight: 600;
-  line-height: 1.3; color: var(--ink);
-}
-.get-card p { color: var(--body-ink); font-size: 0.9375rem; line-height: 1.5; }
-
 /* --- the comparison. A table, because it is one: five dimensions against
        three kinds of tool. It scrolls in its own box rather than forcing the
        page sideways on a phone. ------------------------------------------ */
@@ -1224,3 +1212,61 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 .briefs-search-x:hover { color: var(--ink); }
 .briefs-search-x:focus-visible,
 .briefs-search input:focus-visible { outline: var(--strong) solid var(--ink); outline-offset: 2px; }
+
+/* --- what you get: a rail of tall photographs -----------------------------
+   Six cards, full-bleed image, title over the top of it. The rail scrolls
+   horizontally and snaps, and it runs past the shell on both sides so the
+   next card is always partly visible: that peek is the only affordance
+   saying there is more than what fits. -------------------------------- */
+.get { overflow: hidden; }
+.get-rail {
+  list-style: none; margin: var(--s6) 0 0;
+  display: grid; grid-auto-flow: column;
+  grid-auto-columns: min(78vw, 21rem);
+  gap: var(--s4);
+  overflow-x: auto; overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory; scrollbar-width: none;
+  /* the rail starts where the shell starts and ends past the right edge */
+  padding: 0 var(--gutter) var(--s2);
+  padding-inline-start: max(var(--gutter), (100vw - var(--measure)) / 2 + var(--gutter));
+  /* scroll-snap aligns to the scrollport's padding edge, so without this the
+     rail scrolls straight past its own inset and card one sits at x=0 rather
+     than under the heading. */
+  scroll-padding-inline-start: max(var(--gutter), (100vw - var(--measure)) / 2 + var(--gutter));
+}
+.get-rail::-webkit-scrollbar { display: none; }
+@media (min-width: 1100px) { .get-rail { grid-auto-columns: 23rem; } }
+
+.get-card {
+  position: relative; scroll-snap-align: start;
+  aspect-ratio: 3 / 4; min-width: 0;
+  border-radius: var(--r-surface); overflow: hidden;
+  background: var(--rule);
+  display: flex; flex-direction: column;
+  isolation: isolate;
+}
+.get-card img {
+  position: absolute; inset: 0; z-index: -2;
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+/* Dark at both ends, clear through the middle, so the title reads at the top
+   and the body reads at the bottom without flattening the photograph. */
+.get-scrim {
+  position: absolute; inset: 0; z-index: -1;
+  background:
+    linear-gradient(to bottom, rgba(24,25,27,0.72) 0%, rgba(24,25,27,0.16) 34%,
+                    rgba(24,25,27,0.30) 56%, rgba(24,25,27,0.88) 100%);
+}
+.get-card h3 {
+  margin: 0; padding: var(--s5) var(--s5) 0;
+  font-size: 1.25rem; font-weight: 600; line-height: 1.22;
+  letter-spacing: -0.014em; color: #F7F4EE; text-wrap: balance;
+}
+.get-card p {
+  margin: auto 0 0; padding: 0 var(--s5) var(--s5);
+  color: rgba(247,244,238,0.92); font-size: 0.9375rem; line-height: 1.5;
+  max-width: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .get-rail { scroll-behavior: smooth; }
+}
