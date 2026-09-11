@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <title>Become a member · Ciatta</title>
+    <meta name="description" content="Join the Ciatta waitlist. Bring your results, cycle, sleep, symptoms and your own notes into one place. Private testing, no card taken." />
+    <link rel="canonical" href="https://ciatta.io/member/" />
+    <meta property="og:title" content="Become a member · Ciatta" />
+    <meta property="og:description" content="Join the Ciatta waitlist. Private testing, no card taken." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://ciatta.io/member/" />
+    <meta property="og:site_name" content="Ciatta" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Constitution v2.0 §06: below the wordmark's legible minimum the mark
+         becomes a single Jost Medium C on Graphite, the only permitted
+         abbreviation. Cut from the Jost variable font at wght 500; the vector
+         is preferred and the rasters are fallbacks. The platform sets the
+         corner radius, which is the one place a rounded container is correct. -->
+    <link rel="icon" type="image/svg+xml" href="/images/icon.svg" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/images/icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/icon-180.png" />
+    <meta name="theme-color" content="#FDFDFC" />
+    <meta name="color-scheme" content="light dark" />
+
+    <!-- Jost is the design system's face (Foundations & Tokens v1.0, §03).
+         The system requires it to ship with the product rather than load
+         remotely; on the web that reduces to preconnecting and swapping, so a
+         slow connection shows fallback metrics rather than nothing. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,200;0,300;0,400;0,500;0,600;1,300;1,400&display=swap" />
+    <!-- Instrument Serif and Urbanist are scoped to the product showcase: the
+         serif for its editorial line, Urbanist for the type inside the phone
+         screens, which depict the app rather than the page. Page chrome stays
+         in Jost, which the Constitution fixes as the family. -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Urbanist:wght@300;400;500;600&display=swap" />
+
+    <!-- Facebook, LinkedIn and Slack all discard a relative og:image, so this
+         one is absolute even though every other asset here is root-relative. -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main-member.tsx"></script>
+  </body>
+</html>

@@ -117,7 +117,7 @@ export default function Briefs() {
           <Wordmark size="sm" />
         </a>
         <div className="header-end">
-          <a className="header-cta" href="/#join">Become a member</a>
+          <a className="header-cta" href="/member/">Become a member</a>
         </div>
       </header>
 
