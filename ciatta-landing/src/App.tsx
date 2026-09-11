@@ -119,7 +119,7 @@ const QUESTIONS: [string, string][] = [
   ['Do I need a wearable?',
    'No. A wearable adds nightly sleep and cycle data if you already have one. Without it, Ciatta works from what you enter, what you upload, and what your providers send.'],
   ['When does it open?',
-   'Private testing first, with a small group. Join the waitlist and you will get one email when it opens, and nothing else.'],
+   'A small group first, then wider. Reserve a place and you will get one email when it opens, and nothing else.'],
 ];
 
 export default function App() {

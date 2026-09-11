@@ -26,7 +26,7 @@ const INCLUDES: [string, string][] = [
   ['Something to bring to an appointment',
    'What changed, what was happening around it, and one question worth asking. Yours to take or to ignore. Ciatta is not in the room and does not diagnose, prescribe, or offer a second opinion.'],
   ['What it costs',
-   'Not set yet. Private testing is free, and members will be told what membership costs before anything is charged, with the choice to stop there. No card is taken today.'],
+   'Not set yet. You will be told what membership costs before anything is charged, with the choice to stop there. Reserving a place today costs nothing and commits you to nothing.'],
   ['What happens when you join',
    'One email when it opens, and nothing else. No newsletter, no launch countdown. Your address is used to tell you it is ready and for nothing else.'],
 ];
@@ -56,7 +56,7 @@ export default function Member() {
           </a>
 
           <div className="member-card">
-            <span className="member-eyebrow">Private testing</span>
+            <span className="member-eyebrow">Pre-order</span>
             <h1 className="member-title">Become a member</h1>
             <p className="member-sub">
               Bring your results, your cycle, your sleep, your symptoms and your
@@ -67,8 +67,8 @@ export default function Member() {
             <WaitlistForm id="waitlist-member" source="member" />
 
             <p className="member-aside">
-              Ciatta is in private testing. Joining puts you on the list, not on
-              a plan.
+              No card is taken and nothing is charged. Joining reserves your
+              place and tells you when it opens.
             </p>
 
             <div className="member-includes">
