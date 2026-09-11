@@ -118,19 +118,6 @@ function WaitlistForm({ id, source }: { id: string; source: string }) {
   );
 }
 
-/* -- Who it's for. Four ways the same problem arrives, in her words rather
-      than in a clinical vocabulary she may not have been given yet. ------- */
-const FOR_YOU = [
-  ['Your cycle has changed',
-   'Shorter, longer, or no longer predictable, and you are not sure when it started.'],
-  ['You are not sleeping the way you did',
-   'Waking at three, or sleeping through and still tired. It is hard to tell which came first.'],
-  ['Something is different and you cannot name it',
-   'Energy, mood, temperature, memory. Nothing alarming on its own, all of it at once.'],
-  ['You have an appointment coming',
-   'Ten minutes, six months to account for, and the details you meant to mention.'],
-] as const;
-
 /* -- What you get. One card per part of the product, named the way the app
       names it, each with the photograph that carries its feeling rather than
       illustrates its function. ------------------------------------------- */
@@ -276,24 +263,6 @@ export default function App() {
           </ul>
         </section>
 
-        {/* ------------------------- WHO IT IS FOR -------------------------- */}
-        <section className="section" aria-labelledby="for-heading">
-          <div className="shell">
-            <h2 id="for-heading" className="band-title">Who it is for</h2>
-            <p className="band-sub">
-              Women whose health has started changing, and who would like to
-              understand what is changing with it.
-            </p>
-            <div className="for-grid">
-              {FOR_YOU.map(([t, b]) => (
-                <article className="for-card" key={t}>
-                  <h3>{t}</h3>
-                  <p>{b}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
 
         {/* ------------------------ HOW CIATTA COMPARES --------------------- */}
         <section className="section" aria-labelledby="compare-heading">
