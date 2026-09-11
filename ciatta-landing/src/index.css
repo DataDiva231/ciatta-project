@@ -523,13 +523,17 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
   display: flex; flex-direction: column; align-items: center;
   margin-bottom: var(--s6); text-align: center;
 }
+/* Jost at 600, matched in scale to the hero headline so the two display
+   moments on the page speak with one voice. The second line is a block in the
+   same weight, separated by ink rather than by italics: Jost ships no italic
+   at 600, and a synthesised slant is not a typeface. */
 .showcase-title {
-  font-family: 'Instrument Serif', Georgia, 'Times New Roman', serif;
-  font-weight: 400; font-size: clamp(2rem, 1.1rem + 2.7vw, 3.5rem);
-  line-height: 1.12; letter-spacing: -0.012em; color: var(--ink);
-  margin: 0; max-width: 24ch; text-wrap: balance;
+  font-family: var(--font);
+  font-weight: 600; font-size: clamp(2rem, 1rem + 3.4vw, 4rem);
+  line-height: 1.04; letter-spacing: -0.03em; color: var(--ink);
+  margin: 0; max-width: 20ch; text-wrap: balance;
 }
-.showcase-title em { font-style: italic; display: block; color: var(--body-ink); }
+.showcase-title em { font-style: normal; display: block; color: var(--body-ink); }
 /* The line that closes the section, centred on the same axis as the title and
    the fan. It is a statement now rather than a caption, so it takes the ink and
    the weight to match: full Graphite at 500, which clears 16:1 on Paper. */
