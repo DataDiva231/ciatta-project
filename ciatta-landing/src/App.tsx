@@ -253,25 +253,6 @@ export default function App() {
 
         <ProductShowcase />
 
-        {/* ------------------------- WHO IT IS FOR -------------------------- */}
-        <section className="section" aria-labelledby="for-heading">
-          <div className="shell">
-            <h2 id="for-heading" className="band-title">Who it is for</h2>
-            <p className="band-sub">
-              Women whose health has started changing, and who would like to
-              understand what is changing with it.
-            </p>
-            <div className="for-grid">
-              {FOR_YOU.map(([t, b]) => (
-                <article className="for-card" key={t}>
-                  <h3>{t}</h3>
-                  <p>{b}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
         {/* -------------------------- WHAT YOU GET -------------------------- */}
         <section className="section get" aria-labelledby="get-heading">
           <div className="shell">
@@ -293,6 +274,25 @@ export default function App() {
               </li>
             ))}
           </ul>
+        </section>
+
+        {/* ------------------------- WHO IT IS FOR -------------------------- */}
+        <section className="section" aria-labelledby="for-heading">
+          <div className="shell">
+            <h2 id="for-heading" className="band-title">Who it is for</h2>
+            <p className="band-sub">
+              Women whose health has started changing, and who would like to
+              understand what is changing with it.
+            </p>
+            <div className="for-grid">
+              {FOR_YOU.map(([t, b]) => (
+                <article className="for-card" key={t}>
+                  <h3>{t}</h3>
+                  <p>{b}</p>
+                </article>
+              ))}
+            </div>
+          </div>
         </section>
 
         {/* ------------------------ HOW CIATTA COMPARES --------------------- */}
