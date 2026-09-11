@@ -341,11 +341,21 @@ p { margin: 0; max-width: var(--reading); text-wrap: pretty; }
 .hero-inner { width: 100%; }
 .hero-copy {
   display: flex; flex-direction: column; gap: var(--s5);
-  max-width: 42rem; min-width: 0;
+  /* The headline now sets larger than the copy, so the column widens to hold
+     it. The lede keeps its own 58ch measure and does not follow. */
+  max-width: 47rem; min-width: 0;
   color: #F7F4EE;
 }
-.hero-title { color: #F7F4EE; }
-.hero-title em { font-style: normal; display: block; color: rgba(247,244,238,0.72); }
+/* The hero headline sits on moving film, where Light strokes lose their edges
+   against whatever passes behind them. It takes Medium and a size of its own
+   rather than the shared display step, and the second line comes up from 72%
+   so both halves of the sentence carry. */
+.hero-title {
+  color: #F7F4EE; font-weight: 500;
+  font-size: clamp(1.625rem, 0.75rem + 3.9vw, 4rem);
+  letter-spacing: -0.03em; line-height: 1.02;
+}
+.hero-title em { font-style: normal; display: block; color: rgba(247,244,238,0.9); }
 .hero-lede { color: rgba(247,244,238,0.88); max-width: 58ch; }
 
 /* On the film the ground is inverted, so the filled action inverts with it:
